@@ -132,6 +132,64 @@ class LocalStore:
                 )
             """)
 
+            # Stage 14: AI employee *information* only. Records are drafts, not
+            # executable agents. Referential links remain stable across restarts.
+            # Deleting a referenced department/designation must be rejected.
+            con.execute("""
+                CREATE TABLE IF NOT EXISTS ai_employee_profiles (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    employee_key TEXT NOT NULL COLLATE NOCASE UNIQUE,
+                    display_name TEXT NOT NULL,
+                    description TEXT NOT NULL DEFAULT '',
+                    department_id INTEGER REFERENCES company_departments(id) ON DELETE RESTRICT,
+                    rank_id INTEGER REFERENCES company_designations(id) ON DELETE RESTRICT,
+                    job_id INTEGER REFERENCES company_designations(id) ON DELETE RESTRICT,
+                    role_id INTEGER REFERENCES company_designations(id) ON DELETE RESTRICT,
+                    lifecycle TEXT NOT NULL DEFAULT 'draft' CHECK(lifecycle IN ('draft', 'inactive')),
+                    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                    updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                    CHECK(length(trim(employee_key)) BETWEEN 3 AND 64),
+                    CHECK(length(trim(display_name)) BETWEEN 1 AND 80)
+                )
+            """)
+            # Prevent moving a designation to a different classification if
+            # any employee draft currently references it. This complements the
+            # insert/update triggers below.
+            con.execute("""
+                CREATE TRIGGER IF NOT EXISTS ai_employee_designation_kind_guard
+                BEFORE UPDATE OF kind ON company_designations
+                WHEN OLD.kind <> NEW.kind
+                BEGIN
+                    SELECT RAISE(ABORT, 'designation used by employee')
+                    WHERE EXISTS (
+                        SELECT 1 FROM ai_employee_profiles WHERE
+                            (OLD.kind='rank' AND rank_id=OLD.id) OR
+                            (OLD.kind='job' AND job_id=OLD.id) OR
+                            (OLD.kind='role' AND role_id=OLD.id));
+                END
+            """)
+            # SQLite foreign keys check the identifier but not its designation
+            # classification. Guard every insert/update, including direct SQL.
+            for operation in ('INSERT', 'UPDATE'):
+                con.execute(f"""
+                    CREATE TRIGGER IF NOT EXISTS ai_employee_kind_{operation.lower()}
+                    BEFORE {operation} ON ai_employee_profiles
+                    BEGIN
+                        SELECT RAISE(ABORT, 'rank_id kind mismatch')
+                        WHERE NEW.rank_id IS NOT NULL AND NOT EXISTS (
+                            SELECT 1 FROM company_designations
+                            WHERE id=NEW.rank_id AND kind='rank');
+                        SELECT RAISE(ABORT, 'job_id kind mismatch')
+                        WHERE NEW.job_id IS NOT NULL AND NOT EXISTS (
+                            SELECT 1 FROM company_designations
+                            WHERE id=NEW.job_id AND kind='job');
+                        SELECT RAISE(ABORT, 'role_id kind mismatch')
+                        WHERE NEW.role_id IS NOT NULL AND NOT EXISTS (
+                            SELECT 1 FROM company_designations
+                            WHERE id=NEW.role_id AND kind='role');
+                    END
+                """)
+
     def has_owner(self) -> bool:
         with self._connect() as con:
             return con.execute("SELECT 1 FROM owner_accounts WHERE id = 1").fetchone() is not None
@@ -425,6 +483,69 @@ class LocalStore:
                 raise ValueError("사용 중인 직급·직무·역할은 삭제할 수 없습니다.") from exc
             if cursor.rowcount != 1:
                 raise ValueError("선택한 직급·직무·역할을 찾을 수 없습니다.")
+
+    # Stage 14 repository: durable, owner-only employee metadata. Creating a
+    # draft here never starts an AI model, grants agent rights, or invokes tools.
+    @staticmethod
+    def _validate_employee_id(employee_id: int) -> None:
+        if isinstance(employee_id, bool) or not isinstance(employee_id, int) or employee_id < 1:
+            raise ValueError("올바른 AI 직원 정보 번호가 필요합니다.")
+
+    @staticmethod
+    def _validate_reference(value: int | None, label: str) -> int | None:
+        if value is not None and (isinstance(value, bool) or not isinstance(value, int) or value < 1):
+            raise ValueError(f"{label} 번호가 올바르지 않습니다.")
+        return value
+
+    def add_employee_draft(self, employee_key: str, display_name: str,
+                           description: str = '', *, department_id: int | None = None,
+                           rank_id: int | None = None, job_id: int | None = None,
+                           role_id: int | None = None) -> int:
+        """Store a non-executable record. Employee UI and lifecycle follow in stage 15."""
+        self.require_permission("agents:manage")
+        if not isinstance(employee_key, str) or not re.fullmatch(r'[A-Za-z][A-Za-z0-9_-]{2,63}', employee_key):
+            raise ValueError("직원 식별자는 영문 시작, 3~64자의 영문·숫자·_-만 허용합니다.")
+        values = (
+            employee_key,
+            self._validated_text(display_name, "직원명", 80, required=True),
+            self._validated_text(description, "직원 설명", 500),
+            self._validate_reference(department_id, "부서"),
+            self._validate_reference(rank_id, "직급"),
+            self._validate_reference(job_id, "직무"),
+            self._validate_reference(role_id, "역할"),
+        )
+        with self._connect() as con:
+            try:
+                cursor = con.execute("""
+                    INSERT INTO ai_employee_profiles
+                        (employee_key, display_name, description, department_id,
+                         rank_id, job_id, role_id)
+                    VALUES (?, ?, ?, ?, ?, ?, ?)
+                """, values)
+            except sqlite3.IntegrityError as exc:
+                raise ValueError("중복 직원 식별자 또는 유효하지 않은 부서·직급·직무·역할입니다.") from exc
+            return int(cursor.lastrowid)
+
+    def list_employee_records(self) -> list[dict[str, object]]:
+        """Inspect stored drafts only; never implies running AI employees."""
+        self.require_permission("agents:manage")
+        with self._connect() as con:
+            rows = con.execute("""
+                SELECT id, employee_key, display_name, description,
+                       department_id, rank_id, job_id, role_id, lifecycle
+                FROM ai_employee_profiles ORDER BY id
+            """).fetchall()
+        keys = ("id", "employee_key", "display_name", "description", "department_id",
+                "rank_id", "job_id", "role_id", "lifecycle")
+        return [dict(zip(keys, row)) for row in rows]
+
+    def read_employee_record(self, employee_id: int) -> dict[str, object]:
+        self.require_permission("agents:manage")
+        self._validate_employee_id(employee_id)
+        for record in self.list_employee_records():
+            if record["id"] == employee_id:
+                return record
+        raise ValueError("직원 정보 기록을 찾을 수 없습니다.")
 
     def save_note(self, value: str) -> None:
         self.require_permission("notes:write")

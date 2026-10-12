@@ -100,6 +100,8 @@ def main() -> None:
             assert app.store.list_designations("role")[0]["name"] == "최종 품질검수"
             app.admin_navigation["departments"].invoke()
             assert "3개" in app.admin_realtime.get()
+            assert "AI 직원 정보 0건" in app.admin_realtime.get()
+            assert app.store.list_employee_records() == []
             app.tabs.select(1)
             app.note.set("PC 앱 로그인 뒤 저장 성공")
             app.save_button.invoke()
