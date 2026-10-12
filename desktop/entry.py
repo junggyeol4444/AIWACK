@@ -44,6 +44,19 @@ def self_test() -> int:
         instance.delete_goal(goal_id)
         if instance.list_goals():
             return 1
+        # Stage 12: exercise persistent department CRUD *inside* built EXE.
+        department_id = instance.add_department("EXE Research", "real binary database test")
+        instance.update_department(department_id, "EXE Research Lab", "persist after restart")
+        instance.logout()
+        instance = LocalStore(path)
+        instance.login("exe_tester", "test-password-long-2026")
+        if instance.list_departments() != [{"id": department_id,
+                                           "name": "EXE Research Lab",
+                                           "description": "persist after restart"}]:
+            return 1
+        instance.delete_department(department_id)
+        if instance.list_departments():
+            return 1
     return 0
 
 

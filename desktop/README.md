@@ -15,3 +15,5 @@ Stage 10 adds the authenticated **관리자 센터** view. Its 7 navigation sect
 ## Stage 11
 
 Authenticated local company profile and goal CRUD is available under the fifth notebook tab, `회사·목표 관리`. No live business activity takes place.
+
+Stage 12: standalone `부서 관리` desktop tab for owner-only SQLite department CRUD. No department AI execution yet.

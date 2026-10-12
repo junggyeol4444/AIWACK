@@ -28,7 +28,7 @@ def main() -> None:
             root.update()
             assert app.store.is_authenticated
             assert len(app.roadmap_tree.get_children()) == 100
-            assert app.tabs.index("end") == 5, "admin center must be an actual notebook view"
+            assert app.tabs.index("end") == 6, "admin center must be an actual notebook view"
             app.tabs.select(3)
             root.update()
             for key, title in (("overview", "회사 현황"), ("departments", "조직·직원"),
@@ -65,6 +65,22 @@ def main() -> None:
             root.update()
             assert app.store.list_goals()[0]["title"] == "업데이트 된 목표"
             assert app.store.list_goals()[0]["status"] == "active"
+            # Stage 12: actual native form buttons and SQLite CRUD.
+            app.tabs.select(5)
+            app.department_name.set("시장조사부")
+            app.department_description.set("시장분석 및 기회 탐색")
+            app.department_add_button.invoke()
+            root.update()
+            assert len(app.department_tree.get_children()) == 1
+            department_id = str(app.store.list_departments()[0]["id"])
+            app.department_tree.selection_set(department_id)
+            root.update()
+            app.department_name.set("시장조사·분석부")
+            app.department_update_button.invoke()
+            root.update()
+            assert app.store.list_departments()[0]["name"] == "시장조사·분석부"
+            app.admin_navigation["departments"].invoke()
+            assert "1개" in app.admin_realtime.get()
             app.tabs.select(1)
             app.note.set("PC 앱 로그인 뒤 저장 성공")
             app.save_button.invoke()
@@ -118,13 +134,29 @@ def main() -> None:
                 assert app2.store.list_goals() == []
             finally:
                 messagebox.askyesno = original_confirm
+            app2.tabs.select(5)
+            assert app2.store.list_departments()[0]["name"] == "시장조사·분석부"
+            # No confirmation => no deletion.
+            from tkinter import messagebox
+            saved_confirm = messagebox.askyesno
+            try:
+                messagebox.askyesno = lambda *args, **kwargs: False
+                app2.department_tree.selection_set(str(app2.store.list_departments()[0]["id"]))
+                app2.department_delete_button.invoke()
+                assert len(app2.store.list_departments()) == 1
+                messagebox.askyesno = lambda *args, **kwargs: True
+                app2.department_delete_button.invoke()
+                root2.update()
+                assert app2.store.list_departments() == []
+            finally:
+                messagebox.askyesno = saved_confirm
             app2.tabs.select(3)
             app2.admin_navigation["permissions"].invoke()
             assert app2.current_admin_section == "permissions"
             assert root2.winfo_exists()
         finally:
             root2.destroy()
-    print("PASS: real Tk GUI login/company edit/goal CRUD/notes/restart/persistence/permission checks")
+    print("PASS: native Tk login, company/goal/department CRUD, restart, persistence, access checks")
 
 
 if __name__ == "__main__":

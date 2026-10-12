@@ -9,7 +9,9 @@ def test_admin_sections_have_unique_ids_and_clear_future_states():
     assert keys == ["overview", "departments", "tasks", "business", "finance", "permissions", "settings"]
     assert len(keys) == len(set(keys)) == len(SECTION_BY_KEY)
     assert all(section.title and section.summary and section.status and section.planned_features for section in SECTIONS)
-    assert all(not section.implemented for section in SECTIONS if section.key not in ("overview", "permissions"))
+    assert all(not section.implemented for section in SECTIONS if section.key not in ("overview", "permissions", "departments"))
+    assert section_for("departments").implemented
+    assert "부서" in section_for("departments").status
     assert "미구현" in section_for("tasks").status
     assert "미구현" in section_for("finance").status
 

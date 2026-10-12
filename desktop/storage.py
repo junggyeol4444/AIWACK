@@ -56,6 +56,7 @@ class LocalStore:
         connection = sqlite3.connect(self.path, timeout=10)
         try:
             connection.execute("PRAGMA busy_timeout = 10000")
+            connection.execute("PRAGMA foreign_keys = ON")
             with connection:
                 yield connection
         finally:
@@ -100,6 +101,17 @@ class LocalStore:
                     title TEXT NOT NULL,
                     detail TEXT NOT NULL DEFAULT '',
                     status TEXT NOT NULL DEFAULT 'planned',
+                    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                    updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+                )
+            """)
+
+            # Stage 12: stable department identifiers; future staff can reference these.
+            con.execute("""
+                CREATE TABLE IF NOT EXISTS company_departments (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    name TEXT NOT NULL COLLATE NOCASE UNIQUE,
+                    description TEXT NOT NULL DEFAULT '',
                     created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
                     updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
                 )
@@ -247,6 +259,74 @@ class LocalStore:
             cursor = con.execute("DELETE FROM company_goals WHERE id=?", (goal_id,))
             if cursor.rowcount != 1:
                 raise ValueError("선택한 목표를 찾을 수 없습니다.")
+
+    def list_departments(self) -> list[dict[str, object]]:
+        """Departments are local company structure, not running AI employees."""
+        self.require_permission("company:manage")
+        with self._connect() as con:
+            rows = con.execute(
+                "SELECT id, name, description FROM company_departments ORDER BY id"
+            ).fetchall()
+        return [dict(zip(("id", "name", "description"), row)) for row in rows]
+
+    @staticmethod
+    def _department_id(department_id: int) -> None:
+        if isinstance(department_id, bool) or not isinstance(department_id, int) or department_id < 1:
+            raise ValueError("올바른 부서 번호를 선택하세요.")
+
+    @staticmethod
+    def _validated_department(name: str, description: str) -> tuple[str, str]:
+        return (
+            LocalStore._validated_text(name, "부서명", 80, required=True),
+            LocalStore._validated_text(description, "부서 설명", 500),
+        )
+
+    @staticmethod
+    def _ensure_unique_department(con: sqlite3.Connection, name: str, except_id: int | None = None) -> None:
+        # casefold also handles non-ASCII names that SQLite's NOCASE cannot.
+        rows = con.execute("SELECT id, name FROM company_departments").fetchall()
+        if any(row[1].casefold() == name.casefold() and row[0] != except_id for row in rows):
+            raise ValueError("같은 이름의 부서가 이미 존재합니다.")
+
+    def add_department(self, name: str, description: str = "") -> int:
+        self.require_permission("company:manage")
+        validated = self._validated_department(name, description)
+        with self._connect() as con:
+            self._ensure_unique_department(con, validated[0])
+            try:
+                cursor = con.execute(
+                    "INSERT INTO company_departments (name, description) VALUES (?, ?)", validated
+                )
+            except sqlite3.IntegrityError as exc:
+                raise ValueError("같은 이름의 부서가 이미 존재합니다.") from exc
+            return int(cursor.lastrowid)
+
+    def update_department(self, department_id: int, name: str, description: str = "") -> None:
+        self.require_permission("company:manage")
+        self._department_id(department_id)
+        validated = self._validated_department(name, description)
+        with self._connect() as con:
+            self._ensure_unique_department(con, validated[0], except_id=department_id)
+            try:
+                cursor = con.execute(
+                    "UPDATE company_departments SET name=?, description=?, "
+                    "updated_at=CURRENT_TIMESTAMP WHERE id=?", (*validated, department_id)
+                )
+            except sqlite3.IntegrityError as exc:
+                raise ValueError("같은 이름의 부서가 이미 존재합니다.") from exc
+            if cursor.rowcount != 1:
+                raise ValueError("선택한 부서를 찾을 수 없습니다.")
+
+    def delete_department(self, department_id: int) -> None:
+        self.require_permission("company:manage")
+        self._department_id(department_id)
+        with self._connect() as con:
+            try:
+                cursor = con.execute("DELETE FROM company_departments WHERE id=?", (department_id,))
+            except sqlite3.IntegrityError as exc:
+                raise ValueError("연결된 직원이나 데이터가 있어 부서를 삭제할 수 없습니다.") from exc
+            if cursor.rowcount != 1:
+                raise ValueError("선택한 부서를 찾을 수 없습니다.")
 
     def save_note(self, value: str) -> None:
         self.require_permission("notes:write")

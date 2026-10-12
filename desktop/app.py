@@ -14,7 +14,7 @@ from desktop.storage import LocalStore
 from desktop.admin_sections import SECTIONS, section_for
 
 APP_TITLE = "AIWACK | AI Autonomous Company"
-CURRENT_STAGE = 11
+CURRENT_STAGE = 12
 TOTAL_STAGES = 100
 
 
@@ -140,16 +140,19 @@ class AIWACKWindow:
         roadmap = tk.Frame(self.tabs, bg="#121c2d", padx=12, pady=16)
         administration = tk.Frame(self.tabs, bg="#121c2d", padx=12, pady=16)
         company = tk.Frame(self.tabs, bg="#121c2d", padx=12, pady=16)
+        departments = tk.Frame(self.tabs, bg="#121c2d", padx=12, pady=16)
         self.tabs.add(dashboard, text="개발 현황")
         self.tabs.add(persistence, text="로컬 저장 실사")
         self.tabs.add(roadmap, text="100단계 계획")
         self.tabs.add(administration, text="관리자 센터")
         self.tabs.add(company, text="회사·목표 관리")
+        self.tabs.add(departments, text="부서 관리")
         self._dashboard(dashboard)
         self._persistence(persistence)
         self._roadmap(roadmap)
         self._administration(administration)
         self._company(company)
+        self._departments(departments)
         tk.Label(outer, text="실행 중인 웹 서버 없음  ·  사용자 PC의 로컬 SQLite 파일만 사용  ·  외부 전송 없음", bg="#121c2d", fg="#91aacd", font=("Malgun Gothic", 9)).pack(anchor="w", pady=(13, 0))
 
     def _dashboard(self, parent: tk.Frame) -> None:
@@ -163,12 +166,12 @@ class AIWACKWindow:
         summary.pack(fill="x", pady=(0, 16))
         self._label(summary, f"{CURRENT_STAGE} / {TOTAL_STAGES}단계 — 초기 프로토타입", size=17, weight="bold").pack(anchor="w")
         ttk.Progressbar(summary, style="Progress.Horizontal.TProgressbar", maximum=TOTAL_STAGES, value=CURRENT_STAGE).pack(fill="x", pady=(15, 9))
-        self._label(summary, "다음 개발 단계: 12단계 · 부서 생성·수정·삭제 기능", fg="#bfcfe5").pack(anchor="w")
+        self._label(summary, "다음 개발 단계: 13단계 · 직급·직무·역할 관리", fg="#bfcfe5").pack(anchor="w")
         missing = self._panel(parent)
         missing.pack(fill="both", expand=True)
         self._label(missing, "아직 없는 기능", size=16, weight="bold").pack(anchor="w")
         self._label(missing, "총괄 AI / 부서별 직원 AI / 자율 업무 실행 / 사업 및 매출 시스템", fg="#f7cb92", wraplength=850, justify="left").pack(anchor="w", pady=(10, 5))
-        self._label(missing, "현재 확인 가능한 기능: 관리자 로그인, 회사 정보·목표 관리, 로컬 저장 및 재시작 후 유지.", fg="#bfcfe5", wraplength=850, justify="left").pack(anchor="w")
+        self._label(missing, "현재 기능: 관리자 로그인, 회사·목표, 부서 생성·수정·삭제 및 로컬 영구 저장.", fg="#bfcfe5", wraplength=850, justify="left").pack(anchor="w")
 
     def _persistence(self, parent: tk.Frame) -> None:
         panel = self._panel(parent)
@@ -258,6 +261,8 @@ class AIWACKWindow:
         if section.key == "overview":
             status = self.store.health()
             self.admin_realtime.set("SQLite 정상 · " + status["database"])
+        elif section.key == "departments":
+            self.admin_realtime.set(f"실제 등록된 부서 {len(self.store.list_departments())}개 · 부서 관리 탭에서 수정")
         elif section.key == "permissions":
             self.admin_realtime.set("현재 로그인 역할: " + str(self.store.role()) + " (기본 권한 확인 완료)")
         else:
@@ -392,6 +397,123 @@ class AIWACKWindow:
             self.company_feedback.set("선택한 목표가 삭제됐습니다.")
         except (ValueError, PermissionError) as exc:
             self.company_feedback.set(f"목표 삭제 실패: {exc}")
+
+    def _departments(self, parent: tk.Frame) -> None:
+        """A functioning native CRUD screen, protected by the owner session."""
+        self.store.require_permission("company:manage")
+        panel = self._panel(parent)
+        panel.pack(fill="both", expand=True)
+        self._label(panel, "부서 관리", size=18, weight="bold").pack(anchor="w")
+        self._label(panel, "부서를 추가·수정·삭제합니다. AI 직원 연결과 부서 자동 운영은 후속 개발입니다.",
+                    fg="#bfcfe5", wraplength=780).pack(anchor="w", pady=(6, 14))
+        self.department_name = tk.StringVar(value="")
+        self.department_description = tk.StringVar(value="")
+        self.department_feedback = tk.StringVar(value="관리자 로그인 후 변경할 수 있습니다.")
+        form = tk.Frame(panel, bg="#1c2a40")
+        form.pack(fill="x", pady=(0, 10))
+        self._label(form, "부서명").grid(row=0, column=0, sticky="w", padx=(0, 8))
+        tk.Entry(form, textvariable=self.department_name, width=44, font=("Malgun Gothic", 10)).grid(
+            row=0, column=1, sticky="ew", ipady=7)
+        self._label(form, "설명·담당 영역").grid(row=1, column=0, sticky="w", padx=(0, 8), pady=(9, 0))
+        tk.Entry(form, textvariable=self.department_description, width=65, font=("Malgun Gothic", 10)).grid(
+            row=1, column=1, sticky="ew", ipady=7, pady=(9, 0))
+        form.columnconfigure(1, weight=1)
+        controls = tk.Frame(panel, bg="#1c2a40")
+        controls.pack(fill="x", pady=(5, 10))
+        self.department_add_button = tk.Button(controls, text="부서 추가", command=self.add_department,
+                                               bg="#4c83e6", fg="white", padx=12, pady=7)
+        self.department_add_button.pack(side="left", padx=(0, 8))
+        self.department_update_button = tk.Button(controls, text="선택 부서 수정", command=self.update_department,
+                                                  padx=12, pady=7)
+        self.department_update_button.pack(side="left", padx=(0, 8))
+        self.department_delete_button = tk.Button(controls, text="선택 부서 삭제", command=self.delete_department,
+                                                  padx=12, pady=7)
+        self.department_delete_button.pack(side="left", padx=(0, 8))
+        self.department_clear_button = tk.Button(controls, text="입력 초기화", command=self.clear_department,
+                                                 padx=12, pady=7)
+        self.department_clear_button.pack(side="left")
+        listing = tk.Frame(panel)
+        listing.pack(fill="both", expand=True)
+        self.department_tree = ttk.Treeview(listing, columns=("id", "name", "description"),
+                                            show="headings", height=9)
+        for key, label, width in (("id", "번호", 65), ("name", "부서명", 215),
+                                  ("description", "설명·담당 영역", 440)):
+            self.department_tree.heading(key, text=label)
+            self.department_tree.column(key, width=width, stretch=key != "id")
+        self.department_tree.pack(side="left", fill="both", expand=True)
+        scrollbar = ttk.Scrollbar(listing, orient="vertical", command=self.department_tree.yview)
+        scrollbar.pack(side="right", fill="y")
+        self.department_tree.configure(yscrollcommand=scrollbar.set)
+        self.department_tree.bind("<<TreeviewSelect>>", self._load_department_selection)
+        self._label(panel, "", textvariable=self.department_feedback, fg="#9cdbbb", wraplength=760).pack(
+            anchor="w", pady=(12, 0))
+        self.reload_departments()
+
+    def reload_departments(self, selected_id: int | None = None) -> None:
+        self.store.require_permission("company:manage")
+        for item in self.department_tree.get_children():
+            self.department_tree.delete(item)
+        for department in self.store.list_departments():
+            self.department_tree.insert("", "end", iid=str(department["id"]),
+                                        values=(department["id"], department["name"], department["description"]))
+        if selected_id is not None and self.department_tree.exists(str(selected_id)):
+            self.department_tree.selection_set(str(selected_id))
+
+    def _load_department_selection(self, event=None) -> None:
+        self.store.require_permission("company:manage")
+        selected = self.department_tree.selection()
+        if selected:
+            for department in self.store.list_departments():
+                if str(department["id"]) == selected[0]:
+                    self.department_name.set(str(department["name"]))
+                    self.department_description.set(str(department["description"]))
+                    break
+
+    def _selected_department_id(self) -> int:
+        self.store.require_permission("company:manage")
+        selected = self.department_tree.selection()
+        if not selected:
+            raise ValueError("목록에서 부서를 먼저 선택하세요.")
+        return int(selected[0])
+
+    def clear_department(self) -> None:
+        self.store.require_permission("company:manage")
+        self.department_tree.selection_remove(self.department_tree.selection())
+        self.department_name.set("")
+        self.department_description.set("")
+        self.department_feedback.set("입력값을 초기화했습니다.")
+
+    def add_department(self) -> None:
+        try:
+            identifier = self.store.add_department(self.department_name.get(), self.department_description.get())
+            self.reload_departments(identifier)
+            self.department_feedback.set("부서가 추가됐습니다.")
+        except (ValueError, PermissionError) as error:
+            self.department_feedback.set(f"추가 실패: {error}")
+
+    def update_department(self) -> None:
+        try:
+            identifier = self._selected_department_id()
+            self.store.update_department(identifier, self.department_name.get(), self.department_description.get())
+            self.reload_departments(identifier)
+            self.department_feedback.set("부서가 수정됐습니다.")
+        except (ValueError, PermissionError) as error:
+            self.department_feedback.set(f"수정 실패: {error}")
+
+    def delete_department(self) -> None:
+        try:
+            identifier = self._selected_department_id()
+            if not messagebox.askyesno("부서 삭제", "선택한 부서를 삭제하시겠습니까?\n삭제한 부서는 복원할 수 없습니다.",
+                                       parent=self.root):
+                self.department_feedback.set("부서 삭제를 취소했습니다.")
+                return
+            self.store.delete_department(identifier)
+            self.department_name.set("")
+            self.department_description.set("")
+            self.reload_departments()
+            self.department_feedback.set("선택한 부서를 삭제했습니다.")
+        except (ValueError, PermissionError) as error:
+            self.department_feedback.set(f"삭제 실패: {error}")
 
     def refresh(self) -> None:
         try:
