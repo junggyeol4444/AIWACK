@@ -53,3 +53,13 @@
 - `scripts/desktop_gui_smoke.py`에서 실제 네이티브 창의 버튼을 호출하고 다시 열어 데이터 유지 검증.
 - GitHub Actions `windows-exe.yml`로 Windows 빌드와 실행파일 자체 저장 검사 및 다운로드 가능한 Artifact 준비.
 - 전체 AI 회사의 자율 동작은 미구현; 관리자 화면 로드맵의 완성으로 간주하지 않음. 진행률 8/100 유지.
+
+## 2026-10-12 9단계 — 소유자 계정·기본 권한
+
+- 새 owner_accounts SQLite 테이블과 PBKDF2-SHA256 salted password hash(310,000 반복). 비밀번호 원문·API 키 저장하지 않음.
+- 첫 실행 계정 생성, 최초 관리자 단일 등록, 로그인, 로그아웃, 세션별 로컬 메모 접근 권한 검사, 5회 실패 시 60초 차단.
+- 기존 EXE 메모 데이터는 보존; 디스크 파일 자체 암호화/비밀번호 복구는 미지원(별도 보안 고도화 단계 필요).
+- 실제 GUI 시작/계정 생성/로그인 실패/정상 로그인/저장/종료/재실행을 scripts/desktop_gui_smoke.py로 점검.
+- Windows PyInstaller EXE 빌드/실행은 GitHub Actions 성공 여부 별도 확인 후 보고.
+
+다음 단계: 10단계 관리자 화면 기본 틀.
