@@ -10,9 +10,10 @@
     6,
     7,
     8,
-    9
+    9,
+    10
   ],
-  "next_step": 10,
-  "current_version": "0.1.2",
-  "notes": "Stage 9 local owner setup, PBKDF2 authentication and desktop auth-gating; Windows EXE run verification required on CI; no AI agents implemented."
+  "next_step": 11,
+  "current_version": "0.1.3",
+  "notes": "Stage 10 Windows desktop owner-only admin center with 7 navigable sections; only local overview and existing owner permission status work, future AI company functions explicitly unimplemented. Real GUI and CI must pass."
 }

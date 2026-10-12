@@ -28,6 +28,22 @@ def main() -> None:
             root.update()
             assert app.store.is_authenticated
             assert len(app.roadmap_tree.get_children()) == 100
+            assert app.tabs.index("end") == 4, "admin center must be an actual notebook view"
+            app.tabs.select(3)
+            root.update()
+            for key, title in (("overview", "회사 현황"), ("departments", "조직·직원"),
+                               ("tasks", "업무·프로젝트"), ("business", "사업·상품"),
+                               ("finance", "재무·매출"), ("permissions", "승인·권한"),
+                               ("settings", "운영·설정")):
+                app.admin_navigation[key].invoke()
+                root.update()
+                assert app.current_admin_section == key
+                assert app.admin_title.get() == title
+            assert "미구현" in app.admin_state.get()
+            app.admin_navigation["permissions"].invoke()
+            assert "owner" in app.admin_realtime.get()
+            app.admin_navigation["overview"].invoke()
+            assert "SQLite 정상" in app.admin_realtime.get()
             app.tabs.select(1)
             app.note.set("PC 앱 로그인 뒤 저장 성공")
             app.save_button.invoke()
@@ -37,6 +53,13 @@ def main() -> None:
             app.sign_out()
             root.update()
             assert not app.store.is_authenticated
+            from desktop.storage import AuthenticationError
+            try:
+                app.show_admin_section("overview")
+            except AuthenticationError:
+                pass
+            else:
+                raise AssertionError("signed-out admin navigation must be refused")
             app.account_name.set("owner_test")
             app.account_password.set("wrong_password")
             app.auth_button.invoke()
@@ -60,10 +83,13 @@ def main() -> None:
             app2.auth_button.invoke()
             root2.update()
             assert app2.note.get() == "PC 앱 로그인 뒤 저장 성공"
+            app2.tabs.select(3)
+            app2.admin_navigation["permissions"].invoke()
+            assert app2.current_admin_section == "permissions"
             assert root2.winfo_exists()
         finally:
             root2.destroy()
-    print("PASS: actual Tk setup/login/buttons/logout/reopen/persistent note and access gating")
+    print("PASS: Tk login, owner-only admin navigation, 7 sections, logout denial, restart and persisted note")
 
 
 if __name__ == "__main__":
