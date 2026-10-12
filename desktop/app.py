@@ -11,9 +11,10 @@ import tkinter as tk
 from tkinter import ttk, messagebox
 
 from desktop.storage import LocalStore
+from desktop.admin_sections import SECTIONS, section_for
 
 APP_TITLE = "AIWACK | AI Autonomous Company"
-CURRENT_STAGE = 9
+CURRENT_STAGE = 10
 TOTAL_STAGES = 100
 
 
@@ -137,12 +138,15 @@ class AIWACKWindow:
         dashboard = tk.Frame(self.tabs, bg="#121c2d", padx=12, pady=16)
         persistence = tk.Frame(self.tabs, bg="#121c2d", padx=12, pady=16)
         roadmap = tk.Frame(self.tabs, bg="#121c2d", padx=12, pady=16)
+        administration = tk.Frame(self.tabs, bg="#121c2d", padx=12, pady=16)
         self.tabs.add(dashboard, text="개발 현황")
         self.tabs.add(persistence, text="로컬 저장 실사")
         self.tabs.add(roadmap, text="100단계 계획")
+        self.tabs.add(administration, text="관리자 센터")
         self._dashboard(dashboard)
         self._persistence(persistence)
         self._roadmap(roadmap)
+        self._administration(administration)
         tk.Label(outer, text="실행 중인 웹 서버 없음  ·  사용자 PC의 로컬 SQLite 파일만 사용  ·  외부 전송 없음", bg="#121c2d", fg="#91aacd", font=("Malgun Gothic", 9)).pack(anchor="w", pady=(13, 0))
 
     def _dashboard(self, parent: tk.Frame) -> None:
@@ -156,7 +160,7 @@ class AIWACKWindow:
         summary.pack(fill="x", pady=(0, 16))
         self._label(summary, f"{CURRENT_STAGE} / {TOTAL_STAGES}단계 — 초기 프로토타입", size=17, weight="bold").pack(anchor="w")
         ttk.Progressbar(summary, style="Progress.Horizontal.TProgressbar", maximum=TOTAL_STAGES, value=CURRENT_STAGE).pack(fill="x", pady=(15, 9))
-        self._label(summary, "다음 개발 단계: 10단계 · 관리자 화면 기본 틀 구축", fg="#bfcfe5").pack(anchor="w")
+        self._label(summary, "다음 개발 단계: 11단계 · 회사 정보 및 운영 목표 관리", fg="#bfcfe5").pack(anchor="w")
         missing = self._panel(parent)
         missing.pack(fill="both", expand=True)
         self._label(missing, "아직 없는 기능", size=16, weight="bold").pack(anchor="w")
@@ -200,6 +204,63 @@ class AIWACKWindow:
             status = "완료" if item["status"] == "DONE" else "미완료"
             tree.insert("", "end", values=(item["step"], item["name"], status))
         self.roadmap_tree = tree
+
+    def _administration(self, parent: tk.Frame) -> None:
+        """Owner-only navigation shell. Future actions are intentionally absent."""
+        self.store.require_permission("company:manage")
+        header = self._panel(parent)
+        header.pack(fill="x", pady=(0, 12))
+        self._label(header, "회사 관리자 센터", size=18, weight="bold").pack(anchor="w")
+        self._label(header, "관리자 인증 완료 · 실제 기능과 미구현 기능을 구분합니다.", fg="#bfcfe5").pack(anchor="w", pady=(7, 0))
+        content = tk.Frame(parent, bg="#121c2d")
+        content.pack(fill="both", expand=True)
+        sidebar = self._panel(content)
+        sidebar.pack(side="left", fill="y", padx=(0, 12))
+        self._label(sidebar, "관리 영역", weight="bold").pack(anchor="w", pady=(0, 9))
+        self.admin_navigation: dict[str, tk.Button] = {}
+        for section in SECTIONS:
+            button = tk.Button(
+                sidebar, text=section.title, width=17, anchor="w", bg="#304561", fg="#f4f7ff",
+                relief="flat", pady=10, padx=12, font=("Malgun Gothic", 10),
+                command=lambda key=section.key: self.show_admin_section(key),
+            )
+            button.pack(fill="x", pady=3)
+            self.admin_navigation[section.key] = button
+        details = self._panel(content)
+        details.pack(side="left", fill="both", expand=True)
+        self.admin_title = tk.StringVar(value="")
+        self.admin_state = tk.StringVar(value="")
+        self.admin_description = tk.StringVar(value="")
+        self.admin_features = tk.StringVar(value="")
+        self.admin_realtime = tk.StringVar(value="")
+        self._label(details, "", textvariable=self.admin_title, size=18, weight="bold").pack(anchor="w", pady=(0, 12))
+        self._label(details, "", textvariable=self.admin_state, fg="#8ee4b7").pack(anchor="w", pady=(0, 12))
+        self._label(details, "", textvariable=self.admin_description, fg="#d8e3f3", wraplength=530, justify="left").pack(anchor="w", pady=(0, 12))
+        self._label(details, "", textvariable=self.admin_features, fg="#bed0e8", wraplength=530, justify="left").pack(anchor="w", pady=(0, 15))
+        self._label(details, "", textvariable=self.admin_realtime, fg="#93dcb5", wraplength=530, justify="left").pack(anchor="w", pady=(0, 12))
+        self._label(details, "이 화면에서 미구현 기능은 실행할 수 없습니다. 실제 외부 거래·연동도 없습니다.",
+                    fg="#f7cb92", wraplength=530, justify="left").pack(anchor="w")
+        self.current_admin_section = ""
+        self.show_admin_section("overview")
+
+    def show_admin_section(self, key: str) -> None:
+        """Switch a real widget's content only after owner permission is checked."""
+        self.store.require_permission("company:manage")
+        section = section_for(key)
+        self.current_admin_section = section.key
+        self.admin_title.set(section.title)
+        self.admin_state.set(section.status)
+        self.admin_description.set(section.summary)
+        self.admin_features.set("준비 기능 / 확인 항목:\n" + "\n".join("· " + item for item in section.planned_features))
+        if section.key == "overview":
+            status = self.store.health()
+            self.admin_realtime.set("SQLite 정상 · " + status["database"])
+        elif section.key == "permissions":
+            self.admin_realtime.set("현재 로그인 역할: " + str(self.store.role()) + " (기본 권한 확인 완료)")
+        else:
+            self.admin_realtime.set("실제 데이터 및 실행 기능은 아직 없습니다.")
+        for button_key, button in self.admin_navigation.items():
+            button.configure(bg="#3659ab" if button_key == key else "#304561")
 
     def refresh(self) -> None:
         try:
