@@ -25,6 +25,7 @@ jobs:
         run: |
           python -m pip install -e '.[dev]'
           python -m pytest -q
+          python -m desktop.entry --self-test
           python scripts/real_smoke_test.py
           python scripts/next_step.py | tee -a "$GITHUB_STEP_SUMMARY"
       - name: Check AI key and existing proposal

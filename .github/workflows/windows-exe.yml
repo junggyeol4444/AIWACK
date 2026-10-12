@@ -1,0 +1,40 @@
+name: Windows EXE build and real startup check
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  windows-exe:
+    runs-on: windows-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install build tools
+        run: python -m pip install --disable-pip-version-check pyinstaller pytest
+      - name: Windows desktop storage tests
+        run: python -m pytest -q tests/test_desktop.py
+      - name: Build standalone Windows GUI EXE
+        run: pyinstaller --noconfirm --clean --onefile --windowed --name AIWACK --paths . --add-data "docs/roadmap_100.csv;docs" desktop/entry.py
+      - name: Execute compiled Windows EXE and check database operations
+        shell: pwsh
+        run: |
+          $process = Start-Process -FilePath (Resolve-Path .\dist\AIWACK.exe) -ArgumentList "--self-test" -PassThru -Wait
+          if ($process.ExitCode -ne 0) { throw "EXE self test failed ($($process.ExitCode))" }
+          if (!(Test-Path .\dist\AIWACK.exe)) { throw "AIWACK.exe missing" }
+          Write-Output "Native Windows EXE started and storage self-test passed."
+      - name: Save downloadable Windows EXE
+        uses: actions/upload-artifact@v4
+        with:
+          name: AIWACK-Windows-EXE
+          path: dist/AIWACK.exe
+          if-no-files-found: error
+          retention-days: 30

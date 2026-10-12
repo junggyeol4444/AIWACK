@@ -13,5 +13,5 @@
   ],
   "next_step": 9,
   "current_version": "0.1.1",
-  "notes": "Stages 1-8 prototype. Real Uvicorn HTTP/SQLite/restart and HTTP HTML responses; AI company functions not implemented. PostgreSQL not tested."
+  "notes": "Stages 1-8. Native Tkinter desktop shell and local SQLite persistence smoke tested (not counted as finished next roadmap stage). Windows EXE binary to be verified via GitHub Actions. No AI agents/business logic yet."
 }
