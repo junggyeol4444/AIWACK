@@ -1,0 +1,81 @@
+name: Hourly AIWACK development
+on:
+  schedule:
+    - cron: '30 * * * *'
+      timezone: 'Asia/Seoul'
+  workflow_dispatch:
+permissions:
+  contents: write
+  pull-requests: write
+concurrency:
+  group: hourly-aiwack-development
+  cancel-in-progress: false
+jobs:
+  develop:
+    runs-on: ubuntu-latest
+    timeout-minutes: 50
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install and test
+        run: |
+          python -m pip install -e '.[dev]'
+          python -m pytest -q
+          python scripts/next_step.py | tee -a "$GITHUB_STEP_SUMMARY"
+      - name: Check AI key and existing proposal
+        id: gate
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if [ -z "$OPENAI_API_KEY" ]; then
+            echo "enabled=false" >> "$GITHUB_OUTPUT"
+            echo "OPENAI_API_KEY not configured. Code generation skipped; no AI API costs." >> "$GITHUB_STEP_SUMMARY"
+          elif gh pr list --repo "$GITHUB_REPOSITORY" --state open --json headRefName --jq '.[].headRefName' | grep -q '^automation/'; then
+            echo "enabled=false" >> "$GITHUB_OUTPUT"
+            echo "Existing automation PR awaits review; avoid duplicate edits." >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "enabled=true" >> "$GITHUB_OUTPUT"
+          fi
+      - name: Implement ONE stage with Codex
+        if: steps.gate.outputs.enabled == 'true'
+        uses: openai/codex-action@v1
+        with:
+          openai-api-key: ${{ secrets.OPENAI_API_KEY }}
+          permission-profile: ':workspace'
+          prompt-file: docs/AUTOMATION_PROMPT.md
+      - name: Verify changes
+        if: steps.gate.outputs.enabled == 'true'
+        run: |
+          python -m pytest -q
+          python scripts/next_step.py
+          if git status --porcelain | grep -Eq '(^| )\.github/|(^| )\.env$'; then
+            echo "Protected config change detected."
+            exit 1
+          fi
+      - name: Push proposal branch and create PR
+        if: steps.gate.outputs.enabled == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          git add backend tests docs scripts pyproject.toml README.md .env.example .gitignore
+          if git diff --cached --quiet; then
+            echo "No code changes to propose." >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+          BRANCH="automation/$(date -u +%Y%m%d-%H%M%S)-$GITHUB_RUN_ID"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git checkout -b "$BRANCH"
+          git commit -m "feat: scheduled stage implementation proposal"
+          BASIC=$(printf 'x-access-token:%s' "$GH_TOKEN" | base64 -w0)
+          git -c "http.https://github.com/.extraheader=AUTHORIZATION: basic $BASIC" push origin "HEAD:refs/heads/$BRANCH"
+          if gh pr create --repo "$GITHUB_REPOSITORY" --base main --head "$BRANCH" --title "Hourly development: next stage" --body "Generated stage changes. Please review; tests passed."; then
+            echo "Branch and PR opened; main not auto-merged." >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "Branch pushed but PR creation was restricted. Check repository Actions settings." >> "$GITHUB_STEP_SUMMARY"
+          fi
