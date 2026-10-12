@@ -10,7 +10,7 @@ def test_roadmap_is_exactly_100_ordered_steps():
     assert len(rows) == 100
     assert [int(row["step"]) for row in rows] == list(range(1, 101))
     assert all(row["status"] in {"DONE", "TODO"} for row in rows)
-    assert [int(row["step"]) for row in rows if row["status"] == "DONE"] == list(range(1, 9))
+    assert [int(row["step"]) for row in rows if row["status"] == "DONE"] == list(range(1, 10))
 
 def test_original_spec_is_included():
     text = (ROOT / "docs/original_project_spec.txt").read_text(encoding="utf-8")

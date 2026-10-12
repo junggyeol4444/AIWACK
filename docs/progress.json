@@ -9,9 +9,10 @@
     5,
     6,
     7,
-    8
+    8,
+    9
   ],
-  "next_step": 9,
-  "current_version": "0.1.1",
-  "notes": "Stages 1-8. Native Tkinter desktop shell and local SQLite persistence smoke tested (not counted as finished next roadmap stage). Windows EXE binary to be verified via GitHub Actions. No AI agents/business logic yet."
+  "next_step": 10,
+  "current_version": "0.1.2",
+  "notes": "Stage 9 local owner setup, PBKDF2 authentication and desktop auth-gating; Windows EXE run verification required on CI; no AI agents implemented."
 }

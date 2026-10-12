@@ -1,4 +1,4 @@
-"""AIWACK standalone native window built with Python's Tkinter.
+"""AIWACK standalone native window with single-owner local login.
 
 No HTTP server is started. This is a runnable prototype shell, not an AI company.
 """
@@ -13,7 +13,7 @@ from tkinter import ttk, messagebox
 from desktop.storage import LocalStore
 
 APP_TITLE = "AIWACK | AI Autonomous Company"
-CURRENT_STAGE = 8
+CURRENT_STAGE = 9
 TOTAL_STAGES = 100
 
 
@@ -36,11 +36,78 @@ class AIWACKWindow:
         self.root.minsize(820, 600)
         self.root.configure(bg="#121c2d")
         self.status_text = tk.StringVar(value="로컬 데이터 확인 중")
-        self.note = tk.StringVar(value=self.store.read_note())
+        self.note = tk.StringVar(value="")
         self.feedback = tk.StringVar(value="메모를 저장하고 프로그램을 다시 켜도 남는지 확인해 주세요.")
         self._style()
+        self.main_frame = None
+        self.account_name = tk.StringVar(value="")
+        self.account_password = tk.StringVar(value="")
+        self.password_confirm = tk.StringVar(value="")
+        self.auth_feedback = tk.StringVar(value="")
+        self._show_auth()
+
+    def _show_auth(self) -> None:
+        """Never render protected tabs until an owner is authenticated."""
+        if self.main_frame is not None:
+            self.main_frame.destroy()
+            self.main_frame = None
+        if hasattr(self, "auth_frame"):
+            self.auth_frame.destroy()
+        self.auth_frame = self._panel(self.root)
+        self.auth_frame.pack(expand=True, padx=65, pady=50, fill="x")
+        setup = not self.store.has_owner()
+        self._label(self.auth_frame, "AIWACK · " + ("관리자 첫 설정" if setup else "관리자 로그인"), size=20, weight="bold").pack(anchor="w", pady=(0, 18))
+        self._label(self.auth_frame, "로컬 PC 전용 관리자 계정입니다. 비밀번호를 분실하면 복구 기능은 아직 없습니다.", fg="#bfcfe5").pack(anchor="w", pady=(0, 15))
+        self._label(self.auth_frame, "관리자 ID").pack(anchor="w")
+        self.username_entry = tk.Entry(self.auth_frame, textvariable=self.account_name, font=("Malgun Gothic", 12), width=42)
+        self.username_entry.pack(anchor="w", fill="x", pady=(4, 13), ipady=7)
+        self._label(self.auth_frame, "비밀번호 (12자 이상)" if setup else "비밀번호").pack(anchor="w")
+        self.password_entry = tk.Entry(self.auth_frame, textvariable=self.account_password, show="*", font=("Malgun Gothic", 12))
+        self.password_entry.pack(anchor="w", fill="x", pady=(4, 13), ipady=7)
+        if setup:
+            self._label(self.auth_frame, "비밀번호 확인").pack(anchor="w")
+            self.confirm_entry = tk.Entry(self.auth_frame, textvariable=self.password_confirm, show="*", font=("Malgun Gothic", 12))
+            self.confirm_entry.pack(anchor="w", fill="x", pady=(4, 13), ipady=7)
+        self.auth_button = tk.Button(self.auth_frame, text="관리자 계정 만들기" if setup else "로그인", command=self.submit_setup if setup else self.submit_login,
+                                     bg="#4c83e6", fg="white", padx=24, pady=11, font=("Malgun Gothic", 11, "bold"))
+        self.auth_button.pack(anchor="w", pady=(4, 10))
+        self._label(self.auth_frame, "", fg="#ffd3a9", textvariable=self.auth_feedback, wraplength=830).pack(anchor="w")
+        self.username_entry.focus_set()
+
+    def submit_setup(self) -> None:
+        if self.account_password.get() != self.password_confirm.get():
+            self.auth_feedback.set("비밀번호 확인이 일치하지 않습니다.")
+            return
+        try:
+            self.store.setup_owner(self.account_name.get(), self.account_password.get())
+        except (ValueError, PermissionError) as exc:
+            self.auth_feedback.set(str(exc))
+            return
+        self._enter_dashboard()
+
+    def submit_login(self) -> None:
+        try:
+            self.store.login(self.account_name.get(), self.account_password.get())
+        except PermissionError as exc:
+            self.auth_feedback.set(str(exc))
+            self.account_password.set("")
+            return
+        self._enter_dashboard()
+
+    def _enter_dashboard(self) -> None:
+        self.account_password.set("")
+        self.password_confirm.set("")
+        self.auth_frame.destroy()
+        self.note.set(self.store.read_note())
         self._layout()
         self.refresh()
+
+    def sign_out(self) -> None:
+        self.store.logout()
+        self.note.set("")
+        self.account_name.set("")
+        self.account_password.set("")
+        self._show_auth()
 
     def _style(self) -> None:
         style = ttk.Style(self.root)
@@ -60,9 +127,11 @@ class AIWACKWindow:
 
     def _layout(self) -> None:
         outer = tk.Frame(self.root, bg="#121c2d", padx=25, pady=20)
+        self.main_frame = outer
         outer.pack(fill="both", expand=True)
         tk.Label(outer, text="AIWACK", font=("Malgun Gothic", 26, "bold"), fg="#ffffff", bg="#121c2d").pack(anchor="w")
         tk.Label(outer, text="AI Autonomous Company  ·  Windows 데스크톱 초기 개발판", font=("Malgun Gothic", 11), fg="#abc2df", bg="#121c2d").pack(anchor="w", pady=(2, 15))
+        tk.Button(outer, text="로그아웃", command=self.sign_out, bg="#304561", fg="#f4f7ff", padx=12, pady=5).pack(anchor="e")
         self.tabs = ttk.Notebook(outer)
         self.tabs.pack(fill="both", expand=True)
         dashboard = tk.Frame(self.tabs, bg="#121c2d", padx=12, pady=16)
@@ -87,12 +156,12 @@ class AIWACKWindow:
         summary.pack(fill="x", pady=(0, 16))
         self._label(summary, f"{CURRENT_STAGE} / {TOTAL_STAGES}단계 — 초기 프로토타입", size=17, weight="bold").pack(anchor="w")
         ttk.Progressbar(summary, style="Progress.Horizontal.TProgressbar", maximum=TOTAL_STAGES, value=CURRENT_STAGE).pack(fill="x", pady=(15, 9))
-        self._label(summary, "다음 개발 단계: 9단계 · 회사 소유자 계정과 기본 권한 구성", fg="#bfcfe5").pack(anchor="w")
+        self._label(summary, "다음 개발 단계: 10단계 · 관리자 화면 기본 틀 구축", fg="#bfcfe5").pack(anchor="w")
         missing = self._panel(parent)
         missing.pack(fill="both", expand=True)
         self._label(missing, "아직 없는 기능", size=16, weight="bold").pack(anchor="w")
         self._label(missing, "총괄 AI / 부서별 직원 AI / 자율 업무 실행 / 사업 및 매출 시스템", fg="#f7cb92", wraplength=850, justify="left").pack(anchor="w", pady=(10, 5))
-        self._label(missing, "현재 확인 가능한 기능은 데스크톱 실행, 로컬 데이터 저장 및 재실행 후 데이터 유지입니다.", fg="#bfcfe5", wraplength=850, justify="left").pack(anchor="w")
+        self._label(missing, "현재 확인 가능한 기능은 관리자 로그인·권한 검사, 데스크톱 실행, 로컬 데이터 저장 및 재시작 후 유지입니다.", fg="#bfcfe5", wraplength=850, justify="left").pack(anchor="w")
 
     def _persistence(self, parent: tk.Frame) -> None:
         panel = self._panel(parent)

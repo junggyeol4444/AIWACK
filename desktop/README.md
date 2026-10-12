@@ -7,3 +7,5 @@ No HTTP server is started. User data path: `%LOCALAPPDATA%/AIWACK/aiwack.sqlite3
 Windows artifact is produced by GitHub Actions `windows-exe.yml` with PyInstaller on a Windows runner. A Linux/Mac Python process is **not** a native Windows executable; the artifact must pass Windows build and self-test before being called verified.
 
 Current initial functionality: 3 tabs (status/notes/100-step roadmap), SQLite persistence, restart test. All AI-company business behavior remains future work.
+
+Stage 9: single local owner login, salted PBKDF2 password hashes, 5 failed login attempts/60 sec lockout, logged-in permission guard for note read/write and owner-only role scope. First run creates owner; existing notes remain. No password reset, multiuser, full-disk encryption, or external auth.
