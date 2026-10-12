@@ -27,8 +27,8 @@ jobs:
       - name: Execute compiled Windows EXE and check database operations
         shell: pwsh
         run: |
-          & .\dist\AIWACK.exe --self-test
-          if ($LASTEXITCODE -ne 0) { throw "EXE self test failed ($LASTEXITCODE)" }
+          $process = Start-Process -FilePath (Resolve-Path .\dist\AIWACK.exe) -ArgumentList "--self-test" -PassThru -Wait
+          if ($process.ExitCode -ne 0) { throw "EXE self test failed ($($process.ExitCode))" }
           if (!(Test-Path .\dist\AIWACK.exe)) { throw "AIWACK.exe missing" }
           Write-Output "Native Windows EXE started and storage self-test passed."
       - name: Save downloadable Windows EXE
