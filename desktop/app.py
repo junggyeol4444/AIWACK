@@ -14,7 +14,7 @@ from desktop.storage import LocalStore
 from desktop.admin_sections import SECTIONS, section_for
 
 APP_TITLE = "AIWACK | AI Autonomous Company"
-CURRENT_STAGE = 10
+CURRENT_STAGE = 11
 TOTAL_STAGES = 100
 
 
@@ -139,14 +139,17 @@ class AIWACKWindow:
         persistence = tk.Frame(self.tabs, bg="#121c2d", padx=12, pady=16)
         roadmap = tk.Frame(self.tabs, bg="#121c2d", padx=12, pady=16)
         administration = tk.Frame(self.tabs, bg="#121c2d", padx=12, pady=16)
+        company = tk.Frame(self.tabs, bg="#121c2d", padx=12, pady=16)
         self.tabs.add(dashboard, text="개발 현황")
         self.tabs.add(persistence, text="로컬 저장 실사")
         self.tabs.add(roadmap, text="100단계 계획")
         self.tabs.add(administration, text="관리자 센터")
+        self.tabs.add(company, text="회사·목표 관리")
         self._dashboard(dashboard)
         self._persistence(persistence)
         self._roadmap(roadmap)
         self._administration(administration)
+        self._company(company)
         tk.Label(outer, text="실행 중인 웹 서버 없음  ·  사용자 PC의 로컬 SQLite 파일만 사용  ·  외부 전송 없음", bg="#121c2d", fg="#91aacd", font=("Malgun Gothic", 9)).pack(anchor="w", pady=(13, 0))
 
     def _dashboard(self, parent: tk.Frame) -> None:
@@ -160,12 +163,12 @@ class AIWACKWindow:
         summary.pack(fill="x", pady=(0, 16))
         self._label(summary, f"{CURRENT_STAGE} / {TOTAL_STAGES}단계 — 초기 프로토타입", size=17, weight="bold").pack(anchor="w")
         ttk.Progressbar(summary, style="Progress.Horizontal.TProgressbar", maximum=TOTAL_STAGES, value=CURRENT_STAGE).pack(fill="x", pady=(15, 9))
-        self._label(summary, "다음 개발 단계: 11단계 · 회사 정보 및 운영 목표 관리", fg="#bfcfe5").pack(anchor="w")
+        self._label(summary, "다음 개발 단계: 12단계 · 부서 생성·수정·삭제 기능", fg="#bfcfe5").pack(anchor="w")
         missing = self._panel(parent)
         missing.pack(fill="both", expand=True)
         self._label(missing, "아직 없는 기능", size=16, weight="bold").pack(anchor="w")
         self._label(missing, "총괄 AI / 부서별 직원 AI / 자율 업무 실행 / 사업 및 매출 시스템", fg="#f7cb92", wraplength=850, justify="left").pack(anchor="w", pady=(10, 5))
-        self._label(missing, "현재 확인 가능한 기능은 관리자 로그인·권한 검사, 데스크톱 실행, 로컬 데이터 저장 및 재시작 후 유지입니다.", fg="#bfcfe5", wraplength=850, justify="left").pack(anchor="w")
+        self._label(missing, "현재 확인 가능한 기능: 관리자 로그인, 회사 정보·목표 관리, 로컬 저장 및 재시작 후 유지.", fg="#bfcfe5", wraplength=850, justify="left").pack(anchor="w")
 
     def _persistence(self, parent: tk.Frame) -> None:
         panel = self._panel(parent)
@@ -261,6 +264,134 @@ class AIWACKWindow:
             self.admin_realtime.set("실제 데이터 및 실행 기능은 아직 없습니다.")
         for button_key, button in self.admin_navigation.items():
             button.configure(bg="#3659ab" if button_key == key else "#304561")
+
+    def _company(self, parent: tk.Frame) -> None:
+        """Owner-only native profile form and goal CRUD; no external API."""
+        self.store.require_permission("company:manage")
+        self.company_feedback = tk.StringVar(value="회사 설정과 목표는 이 PC의 SQLite에만 저장됩니다.")
+        profile = self.store.read_company()
+        self.company_name = tk.StringVar(value=profile["name"])
+        self.company_description = tk.StringVar(value=profile["description"])
+        self.company_mission = tk.StringVar(value=profile["mission"])
+        upper = self._panel(parent)
+        upper.pack(fill="x", pady=(0, 10))
+        self._label(upper, "회사 정보", size=16, weight="bold").grid(row=0, column=0, sticky="w", columnspan=2, pady=(0, 9))
+        for i, (caption, value) in enumerate((("회사명", self.company_name), ("회사 소개", self.company_description), ("운영 방향", self.company_mission)), start=1):
+            self._label(upper, caption).grid(row=i, column=0, sticky="w", pady=4, padx=(0, 12))
+            tk.Entry(upper, textvariable=value, font=("Malgun Gothic", 10), width=63).grid(row=i, column=1, sticky="ew", pady=4, ipady=3)
+        upper.grid_columnconfigure(1, weight=1)
+        self.company_save_button = tk.Button(upper, text="회사 정보 저장", command=self.save_company, bg="#4c83e6", fg="white", padx=15, pady=6)
+        self.company_save_button.grid(row=4, column=1, sticky="w", pady=(9, 0))
+        lower = self._panel(parent)
+        lower.pack(fill="both", expand=True)
+        self._label(lower, "운영 목표", size=16, weight="bold").pack(anchor="w", pady=(0, 5))
+        row = tk.Frame(lower, bg="#1c2a40")
+        row.pack(fill="x")
+        self.goal_title = tk.StringVar(value="")
+        self.goal_detail = tk.StringVar(value="")
+        self.goal_status = tk.StringVar(value="planned")
+        self._label(row, "목표명").grid(row=0, column=0, padx=(0, 5), sticky="w")
+        tk.Entry(row, textvariable=self.goal_title, width=35).grid(row=0, column=1, sticky="ew", padx=(0, 9), ipady=4)
+        self._label(row, "설명").grid(row=0, column=2, padx=(0, 5), sticky="w")
+        tk.Entry(row, textvariable=self.goal_detail, width=32).grid(row=0, column=3, sticky="ew", ipady=4)
+        row.grid_columnconfigure(1, weight=2)
+        row.grid_columnconfigure(3, weight=3)
+        controls = tk.Frame(lower, bg="#1c2a40")
+        controls.pack(fill="x", pady=(7, 7))
+        self._label(controls, "상태").pack(side="left")
+        self.goal_status_selector = ttk.Combobox(controls, textvariable=self.goal_status,
+                                                 values=["planned", "active", "paused", "done"],
+                                                 state="readonly", width=12)
+        self.goal_status_selector.pack(side="left", padx=(6, 12))
+        self.goal_add_button = tk.Button(controls, text="목표 추가", command=self.add_goal, bg="#4c83e6", fg="white")
+        self.goal_add_button.pack(side="left", padx=(0, 8))
+        self.goal_update_button = tk.Button(controls, text="선택 목표 수정", command=self.update_goal)
+        self.goal_update_button.pack(side="left", padx=(0, 8))
+        self.goal_delete_button = tk.Button(controls, text="선택 목표 삭제", command=self.delete_goal)
+        self.goal_delete_button.pack(side="left")
+        listing = tk.Frame(lower)
+        listing.pack(fill="both", expand=True)
+        self.goal_tree = ttk.Treeview(listing, columns=("id", "title", "status", "detail"), show="headings", height=5)
+        for key, title, width in (("id", "번호", 58), ("title", "목표명", 220), ("status", "상태", 90), ("detail", "설명", 320)):
+            self.goal_tree.heading(key, text=title)
+            self.goal_tree.column(key, width=width, stretch=(key != "id"))
+        self.goal_tree.pack(side="left", fill="both", expand=True)
+        scroll = ttk.Scrollbar(listing, orient="vertical", command=self.goal_tree.yview)
+        scroll.pack(side="right", fill="y")
+        self.goal_tree.configure(yscrollcommand=scroll.set)
+        self.goal_tree.bind("<<TreeviewSelect>>", self._load_goal_selection)
+        self._label(lower, "", textvariable=self.company_feedback, fg="#9cdbbb", wraplength=740).pack(anchor="w", pady=(5, 0))
+        self._reload_goals()
+
+    def _reload_goals(self, selected_id: int | None = None) -> None:
+        self.store.require_permission("company:manage")
+        for row in self.goal_tree.get_children():
+            self.goal_tree.delete(row)
+        for item in self.store.list_goals():
+            self.goal_tree.insert("", "end", iid=str(item["id"]),
+                                  values=(item["id"], item["title"], item["status"], item["detail"]))
+        if selected_id is not None and self.goal_tree.exists(str(selected_id)):
+            self.goal_tree.selection_set(str(selected_id))
+
+    def _load_goal_selection(self, event=None) -> None:
+        self.store.require_permission("company:manage")
+        selection = self.goal_tree.selection()
+        if not selection:
+            return
+        for item in self.store.list_goals():
+            if str(item["id"]) == selection[0]:
+                self.goal_title.set(str(item["title"]))
+                self.goal_detail.set(str(item["detail"]))
+                self.goal_status.set(str(item["status"]))
+                return
+
+    def _selected_goal_id(self) -> int:
+        self.store.require_permission("company:manage")
+        selection = self.goal_tree.selection()
+        if not selection:
+            raise ValueError("목표 목록에서 수정·삭제할 대상을 먼저 선택하세요.")
+        return int(selection[0])
+
+    def save_company(self) -> None:
+        try:
+            self.store.save_company(self.company_name.get(), self.company_description.get(), self.company_mission.get())
+            self.company_feedback.set("회사 정보가 로컬 DB에 저장됐습니다.")
+        except (ValueError, PermissionError) as exc:
+            self.company_feedback.set(f"저장 실패: {exc}")
+
+    def add_goal(self) -> None:
+        try:
+            goal_id = self.store.add_goal(self.goal_title.get(), self.goal_detail.get())
+            self.goal_status.set("planned")
+            self._reload_goals(goal_id)
+            self.company_feedback.set("새 목표가 저장됐습니다.")
+        except (ValueError, PermissionError) as exc:
+            self.company_feedback.set(f"목표 추가 실패: {exc}")
+
+    def update_goal(self) -> None:
+        try:
+            goal_id = self._selected_goal_id()
+            self.store.update_goal(goal_id, self.goal_title.get(), self.goal_detail.get(), self.goal_status.get())
+            self._reload_goals(goal_id)
+            self.company_feedback.set("선택한 목표가 수정됐습니다.")
+        except (ValueError, PermissionError) as exc:
+            self.company_feedback.set(f"목표 수정 실패: {exc}")
+
+    def delete_goal(self) -> None:
+        try:
+            goal_id = self._selected_goal_id()
+            # Always require explicit confirmation for deletion in normal UI.
+            if not messagebox.askyesno("목표 삭제", "선택한 목표를 정말 삭제하시겠습니까?", parent=self.root):
+                self.company_feedback.set("목표 삭제가 취소됐습니다.")
+                return
+            self.store.delete_goal(goal_id)
+            self.goal_title.set("")
+            self.goal_detail.set("")
+            self.goal_status.set("planned")
+            self._reload_goals()
+            self.company_feedback.set("선택한 목표가 삭제됐습니다.")
+        except (ValueError, PermissionError) as exc:
+            self.company_feedback.set(f"목표 삭제 실패: {exc}")
 
     def refresh(self) -> None:
         try:

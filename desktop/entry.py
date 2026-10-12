@@ -30,6 +30,20 @@ def self_test() -> int:
             return 1
         if instance.health()["status"] != "ok":
             return 1
+        # Exercise Stage 11 using the *compiled Windows EXE process*, not just pytest.
+        instance.save_company("EXE company", "Real Windows binary", "Verify durable goals")
+        goal_id = instance.add_goal("ship runnable exe", "stage 11 runtime")
+        instance.update_goal(goal_id, "ship verified exe", "stage 11 runtime", "active")
+        instance.logout()
+        instance = LocalStore(path)
+        instance.login("exe_tester", "test-password-long-2026")
+        if instance.read_company()["name"] != "EXE company":
+            return 1
+        if instance.list_goals() != [{"id": goal_id, "title": "ship verified exe", "detail": "stage 11 runtime", "status": "active"}]:
+            return 1
+        instance.delete_goal(goal_id)
+        if instance.list_goals():
+            return 1
     return 0
 
 
