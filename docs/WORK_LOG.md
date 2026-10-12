@@ -98,3 +98,11 @@
 - 검증: pytest, Xvfb 실제 GUI, 독립 프로세스, GitHub Windows EXE 자체 self-test가 성공한 경우에만 완료로 판정.
 
 다음 단계: 14단계 AI 직원 정보 저장 구조.
+
+## 2026-10-12 14단계 — AI 직원 정보 저장 구조
+
+- SQLite ai_employee_profiles 테이블: 안정적인 employee_key, 표시명, 설명, 부서 ID, 직급·직무·역할 ID, 초기 상태(draft/inactive), 생성·수정 시각.
+- 참조 FK와 분류별 트리거로 유효하지 않은 연결·연결된 항목 삭제·분류 변경 차단. 13단계 이전 데이터 보존.
+- 관리자 인증이 필요한 add_employee_draft/list_employee_records/read_employee_record 기반 저장·조회. 실제 AI 실행 없음.
+- 실제 Windows EXE --self-test에 직원 초안 데이터 저장·재열기·FK 삭제 제한 검사.
+- 15단계: 직원 생성·수정·비활성화 UI 및 라이프사이클.

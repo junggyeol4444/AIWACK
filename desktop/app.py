@@ -14,7 +14,7 @@ from desktop.storage import LocalStore
 from desktop.admin_sections import SECTIONS, section_for
 
 APP_TITLE = "AIWACK | AI Autonomous Company"
-CURRENT_STAGE = 13
+CURRENT_STAGE = 14
 TOTAL_STAGES = 100
 
 
@@ -169,7 +169,7 @@ class AIWACKWindow:
         summary.pack(fill="x", pady=(0, 16))
         self._label(summary, f"{CURRENT_STAGE} / {TOTAL_STAGES}단계 — 초기 프로토타입", size=17, weight="bold").pack(anchor="w")
         ttk.Progressbar(summary, style="Progress.Horizontal.TProgressbar", maximum=TOTAL_STAGES, value=CURRENT_STAGE).pack(fill="x", pady=(15, 9))
-        self._label(summary, "다음 개발 단계: 14단계 · AI 직원 정보 저장 구조", fg="#bfcfe5").pack(anchor="w")
+        self._label(summary, "다음 개발 단계: 15단계 · AI 직원 생성·수정·비활성화", fg="#bfcfe5").pack(anchor="w")
         missing = self._panel(parent)
         missing.pack(fill="both", expand=True)
         self._label(missing, "아직 없는 기능", size=16, weight="bold").pack(anchor="w")
@@ -265,7 +265,7 @@ class AIWACKWindow:
             status = self.store.health()
             self.admin_realtime.set("SQLite 정상 · " + status["database"])
         elif section.key == "departments":
-            self.admin_realtime.set(f"등록 부서 {len(self.store.list_departments())}개 · 직급·직무·역할 {len(self.store.list_designations())}개 (직원 AI 미구현)")
+            self.admin_realtime.set(f"등록 부서 {len(self.store.list_departments())}개 · 직급·직무·역할 {len(self.store.list_designations())}개 · AI 직원 정보 {len(self.store.list_employee_records())}건 (AI 실행 미구현)")
         elif section.key == "permissions":
             self.admin_realtime.set("현재 로그인 역할: " + str(self.store.role()) + " (기본 권한 확인 완료)")
         else:

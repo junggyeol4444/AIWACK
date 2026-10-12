@@ -75,6 +75,35 @@ def self_test() -> int:
             ("rank", "EXE 팀장"), ("job", "EXE 개발"), ("role", "EXE 품질검수")
         ]:
             return 1
+        # Stage 14: COMPILED Windows EXE must verify actual FK-backed draft
+        # persistence across a fresh LocalStore and closed SQLite handles.
+        department_id = instance.add_department("EXE Agent Team", "metadata only")
+        employee_id = instance.add_employee_draft(
+            "exe_employee_001", "EXE 직원 정보", "실행하지 않는 초안",
+            department_id=department_id, rank_id=rank_id, job_id=job_id, role_id=role_id,
+        )
+        instance.logout()
+        instance = LocalStore(path)
+        try:
+            instance.list_employee_records()
+            return 1
+        except AuthenticationError:
+            pass
+        instance.login("exe_tester", "test-password-long-2026")
+        profile = instance.read_employee_record(employee_id)
+        if profile["lifecycle"] != "draft" or profile["department_id"] != department_id:
+            return 1
+        if (profile["rank_id"], profile["job_id"], profile["role_id"]) != (rank_id, job_id, role_id):
+            return 1
+        try:
+            instance.delete_department(department_id)
+            return 1
+        except ValueError:
+            pass
+        # Stage 15 provides employee lifecycle & removal. Scoped test DB cleanup.
+        with instance._connect() as con:
+            con.execute("DELETE FROM ai_employee_profiles WHERE id=?", (employee_id,))
+        instance.delete_department(department_id)
         for identifier in (rank_id, job_id, role_id):
             instance.delete_designation(identifier)
         if instance.list_designations():
