@@ -5,3 +5,5 @@
 - 테스트가 통과하고 실제 구현됐다면 로드맵의 다음 단계 한 행만 DONE으로 바꾸고 progress.json completed_steps, next_step 및 WORK_LOG를 함께 수정하세요.
 - 구현 또는 테스트가 실패하면 완료로 표시하지 마세요. 원인을 작업 로그에 기록하세요.
 - GitHub main에는 절대 직접 push/merge하지 마세요. 이 작업은 워크스페이스 내 수정만 수행합니다.
+
+- 사용자가 직접 실행하는 프로그램은 Windows AIWACK.exe입니다. 데스크톱 코드 desktop/을 유지하며, 웹사이트를 최종 제품으로 대체하지 마세요. 각 작업 시 데스크톱 GUI 및 Windows EXE 빌드를 검증하세요.

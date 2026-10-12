@@ -44,3 +44,12 @@
 - 이후 개발: 9단계 회사 소유자 및 기본 권한 기능.
 
 - Chromium 실제 브라우저 클릭 검증은 샌드박스 관리자 네트워크 정책(127.0.0.1 차단)으로 실행 불가. 브라우저 구문 검사 통과. 사용자 PC 실사 확인 요청.
+
+
+## 데스크톱 프로그램 전환 (100단계 진행 수는 유지)
+
+- 사용자 요청에 따라 Windows EXE가 주요 배포 형태이며 웹 UI는 배포판에서 사용하지 않음.
+- `desktop/entry.py`, `desktop/app.py`, `desktop/storage.py`로 Tkinter 데스크톱 창, 로컬 SQLite, 데이터 재실행 후 보존 기능 구현.
+- `scripts/desktop_gui_smoke.py`에서 실제 네이티브 창의 버튼을 호출하고 다시 열어 데이터 유지 검증.
+- GitHub Actions `windows-exe.yml`로 Windows 빌드와 실행파일 자체 저장 검사 및 다운로드 가능한 Artifact 준비.
+- 전체 AI 회사의 자율 동작은 미구현; 관리자 화면 로드맵의 완성으로 간주하지 않음. 진행률 8/100 유지.

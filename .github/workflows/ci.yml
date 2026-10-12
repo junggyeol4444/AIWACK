@@ -13,8 +13,18 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
-      - run: python -m pip install -e '.[dev]'
-      - run: python -m pytest -q
-      - name: Real HTTP start-save-restart smoke test
+      - name: Install dependencies
+        run: python -m pip install -e '.[dev]'
+      - name: Code / storage tests
+        run: python -m pytest -q
+      - name: Native app data self-test
+        run: python -m desktop.entry --self-test
+      - name: Start and click actual GUI under Xvfb
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq xvfb python3-tk
+          xvfb-run -a python -m scripts.desktop_gui_smoke
+      - name: Legacy API integration (developer compatibility)
         run: python scripts/real_smoke_test.py
-      - run: python scripts/next_step.py
+      - name: Verify roadmap progression
+        run: python scripts/next_step.py
