@@ -6,6 +6,7 @@ def test_root_endpoint():
     r = client.get("/")
     assert r.status_code == 200
     assert r.json()["status"] == "development"
+    assert r.json()["docs"] == "/docs"
 
 def test_health_endpoint():
     r = client.get("/health")

@@ -8,9 +8,10 @@
     4,
     5,
     6,
-    7
+    7,
+    8
   ],
-  "next_step": 8,
-  "current_version": "0.1.0",
-  "notes": "Stages 1-7 sandbox test; GitHub CI not yet independently verified. No external deployment/production PostgreSQL."
+  "next_step": 9,
+  "current_version": "0.1.1",
+  "notes": "Stages 1-8 prototype. Real Uvicorn HTTP/SQLite/restart and HTTP HTML responses; AI company functions not implemented. PostgreSQL not tested."
 }

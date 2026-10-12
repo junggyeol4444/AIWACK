@@ -15,4 +15,6 @@ jobs:
           python-version: '3.12'
       - run: python -m pip install -e '.[dev]'
       - run: python -m pytest -q
+      - name: Real HTTP start-save-restart smoke test
+        run: python scripts/real_smoke_test.py
       - run: python scripts/next_step.py
