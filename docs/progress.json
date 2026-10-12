@@ -12,9 +12,10 @@
     8,
     9,
     10,
-    11
+    11,
+    12
   ],
-  "next_step": 12,
-  "current_version": "0.1.4",
-  "notes": "Stage 11 local company profile and operating goal management, owner-auth SQLite persistence, GUI. Not autonomous AI execution."
+  "next_step": 13,
+  "current_version": "0.1.5",
+  "notes": "Stage 12 native Windows department CRUD: owner authorization, SQLite persistence, real Tk interaction, case-insensitive name collision guard, explicit delete confirmation; no AI employees yet."
 }
