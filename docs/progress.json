@@ -15,9 +15,10 @@
     11,
     12,
     13,
-    14
+    14,
+    15
   ],
-  "next_step": 15,
-  "current_version": "0.1.7",
-  "notes": "Stage 14 local AI employee metadata schema, typed designation links, owner-only draft storage, FK delete restrictions and EXE real storage test. No employee creation UI or AI execution."
+  "next_step": 16,
+  "current_version": "0.1.8",
+  "notes": "Stage 15 authenticated native employee profile creation, editable metadata and inactive/draft lifecycle, persistent SQLite FKs, real Tk GUI and compiled EXE self-test. AI execution is NOT implemented."
 }

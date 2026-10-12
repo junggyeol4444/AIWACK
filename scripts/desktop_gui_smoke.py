@@ -28,7 +28,7 @@ def main() -> None:
             root.update()
             assert app.store.is_authenticated
             assert len(app.roadmap_tree.get_children()) == 100
-            assert app.tabs.index("end") == 7, "admin center must be an actual notebook view"
+            assert app.tabs.index("end") == 8, "employee manager must be a native notebook view"
             app.tabs.select(3)
             root.update()
             for key, title in (("overview", "회사 현황"), ("departments", "조직·직원"),
@@ -102,6 +102,46 @@ def main() -> None:
             assert "3개" in app.admin_realtime.get()
             assert "AI 직원 정보 0건" in app.admin_realtime.get()
             assert app.store.list_employee_records() == []
+            # Stage 15: actual Tk buttons: create, update, deactivate, restore.
+            app.tabs.select(7)
+            root.update()
+            assert app.employee_tree.get_children() == ()
+            app.employee_key.set("gui_employee_001")
+            app.employee_name.set("실사 직원")
+            app.employee_description.set("첫 저장")
+            for kind, value in (("department", app.store.list_departments()[0]),
+                                ("rank", app.store.list_designations("rank")[0]),
+                                ("job", app.store.list_designations("job")[0]),
+                                ("role", app.store.list_designations("role")[0])):
+                app.employee_links[kind].set(f"{value['id']} · {value['name']}")
+            app.employee_create_button.invoke()
+            root.update()
+            employees = app.store.list_employee_records()
+            assert len(employees) == 1
+            eid = employees[0]["id"]
+            assert employees[0]["department_id"] is not None
+            app.employee_tree.selection_set(str(eid))
+            root.update()
+            app.employee_name.set("수정된 실사 직원")
+            app.employee_update_button.invoke()
+            root.update()
+            assert app.store.read_employee_record(eid)["display_name"] == "수정된 실사 직원"
+            from tkinter import messagebox
+            previous_confirm = messagebox.askyesno
+            try:
+                messagebox.askyesno = lambda *args, **kwargs: False
+                app.employee_inactive_button.invoke()
+                assert app.store.read_employee_record(eid)["lifecycle"] == "draft"
+                messagebox.askyesno = lambda *args, **kwargs: True
+                app.employee_inactive_button.invoke()
+            finally:
+                messagebox.askyesno = previous_confirm
+            assert app.store.read_employee_record(eid)["lifecycle"] == "inactive"
+            app.employee_restore_button.invoke()
+            root.update()
+            assert app.store.read_employee_record(eid)["lifecycle"] == "draft"
+            app.store.set_employee_inactive(eid)
+            app.reload_employees(eid)
             app.tabs.select(1)
             app.note.set("PC 앱 로그인 뒤 저장 성공")
             app.save_button.invoke()
@@ -168,7 +208,7 @@ def main() -> None:
                 messagebox.askyesno = lambda *args, **kwargs: True
                 app2.department_delete_button.invoke()
                 root2.update()
-                assert app2.store.list_departments() == []
+                assert len(app2.store.list_departments()) == 1  # employee FK protects data
             finally:
                 messagebox.askyesno = saved_confirm
             app2.tabs.select(6)
@@ -186,16 +226,21 @@ def main() -> None:
                 messagebox.askyesno = lambda *args, **kwargs: True
                 app2.designation_delete_button.invoke()
                 root2.update()
-                assert len(app2.store.list_designations()) == 2
+                assert len(app2.store.list_designations()) == 3  # employee FK protects role
             finally:
                 messagebox.askyesno = saved_confirm
+            app2.tabs.select(7)
+            root2.update()
+            assert len(app2.employee_tree.get_children()) == 1
+            assert app2.store.read_employee_record(eid)["lifecycle"] == "inactive"
+            assert app2.store.read_employee_record(eid)["display_name"] == "수정된 실사 직원"
             app2.tabs.select(3)
             app2.admin_navigation["permissions"].invoke()
             assert app2.current_admin_section == "permissions"
             assert root2.winfo_exists()
         finally:
             root2.destroy()
-    print("PASS: native Tk login, company/goal/department/designation CRUD, restart, persistence, access checks")
+    print("PASS: native Tk login, employee creation/edit/deactivate/reactivate, restart, persistence, access checks")
 
 
 if __name__ == "__main__":

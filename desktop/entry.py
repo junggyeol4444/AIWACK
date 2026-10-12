@@ -75,7 +75,7 @@ def self_test() -> int:
             ("rank", "EXE 팀장"), ("job", "EXE 개발"), ("role", "EXE 품질검수")
         ]:
             return 1
-        # Stage 14: COMPILED Windows EXE must verify actual FK-backed draft
+        # Stage 14: the COMPILED Windows EXE must verify actual FK-backed draft
         # persistence across a fresh LocalStore and closed SQLite handles.
         department_id = instance.add_department("EXE Agent Team", "metadata only")
         employee_id = instance.add_employee_draft(
@@ -97,10 +97,25 @@ def self_test() -> int:
             return 1
         try:
             instance.delete_department(department_id)
-            return 1
+            return 1  # referenced department must not be silently destroyed.
         except ValueError:
             pass
-        # Stage 15 provides employee lifecycle & removal. Scoped test DB cleanup.
+        # Stage 15: the real compiled binary exercises updates, inactivation,
+        # persistence and reactivation; no AI model should be started.
+        instance.update_employee_record(employee_id, "EXE 수정된 직원", "수정 후에도 안전한 초안",
+                                        department_id=department_id, rank_id=rank_id,
+                                        job_id=job_id, role_id=role_id)
+        instance.set_employee_inactive(employee_id)
+        instance.logout()
+        instance = LocalStore(path)
+        instance.login("exe_tester", "test-password-long-2026")
+        if (instance.read_employee_record(employee_id)["lifecycle"] != "inactive" or
+                instance.read_employee_record(employee_id)["display_name"] != "EXE 수정된 직원"):
+            return 1
+        instance.restore_employee_draft(employee_id)
+        if instance.read_employee_record(employee_id)["lifecycle"] != "draft":
+            return 1
+        # Only the disposable self-test DB is cleaned up using direct SQL.
         with instance._connect() as con:
             con.execute("DELETE FROM ai_employee_profiles WHERE id=?", (employee_id,))
         instance.delete_department(department_id)

@@ -14,7 +14,7 @@ from desktop.storage import LocalStore
 from desktop.admin_sections import SECTIONS, section_for
 
 APP_TITLE = "AIWACK | AI Autonomous Company"
-CURRENT_STAGE = 14
+CURRENT_STAGE = 15
 TOTAL_STAGES = 100
 
 
@@ -142,6 +142,7 @@ class AIWACKWindow:
         company = tk.Frame(self.tabs, bg="#121c2d", padx=12, pady=16)
         departments = tk.Frame(self.tabs, bg="#121c2d", padx=12, pady=16)
         designations = tk.Frame(self.tabs, bg="#121c2d", padx=12, pady=16)
+        employees = tk.Frame(self.tabs, bg="#121c2d", padx=12, pady=16)
         self.tabs.add(dashboard, text="개발 현황")
         self.tabs.add(persistence, text="로컬 저장 실사")
         self.tabs.add(roadmap, text="100단계 계획")
@@ -149,6 +150,7 @@ class AIWACKWindow:
         self.tabs.add(company, text="회사·목표 관리")
         self.tabs.add(departments, text="부서 관리")
         self.tabs.add(designations, text="직급·직무·역할")
+        self.tabs.add(employees, text="AI 직원 관리")
         self._dashboard(dashboard)
         self._persistence(persistence)
         self._roadmap(roadmap)
@@ -156,6 +158,8 @@ class AIWACKWindow:
         self._company(company)
         self._departments(departments)
         self._designations(designations)
+        self._employees(employees)
+        self.tabs.bind("<<NotebookTabChanged>>", self._tab_changed)
         tk.Label(outer, text="실행 중인 웹 서버 없음  ·  사용자 PC의 로컬 SQLite 파일만 사용  ·  외부 전송 없음", bg="#121c2d", fg="#91aacd", font=("Malgun Gothic", 9)).pack(anchor="w", pady=(13, 0))
 
     def _dashboard(self, parent: tk.Frame) -> None:
@@ -169,7 +173,7 @@ class AIWACKWindow:
         summary.pack(fill="x", pady=(0, 16))
         self._label(summary, f"{CURRENT_STAGE} / {TOTAL_STAGES}단계 — 초기 프로토타입", size=17, weight="bold").pack(anchor="w")
         ttk.Progressbar(summary, style="Progress.Horizontal.TProgressbar", maximum=TOTAL_STAGES, value=CURRENT_STAGE).pack(fill="x", pady=(15, 9))
-        self._label(summary, "다음 개발 단계: 15단계 · AI 직원 생성·수정·비활성화", fg="#bfcfe5").pack(anchor="w")
+        self._label(summary, "다음 개발 단계: 16단계 · 총괄 AI·부서장·직원 계층 연결", fg="#bfcfe5").pack(anchor="w")
         missing = self._panel(parent)
         missing.pack(fill="both", expand=True)
         self._label(missing, "아직 없는 기능", size=16, weight="bold").pack(anchor="w")
@@ -649,6 +653,196 @@ class AIWACKWindow:
             self.designation_feedback.set("선택한 항목을 삭제했습니다.")
         except (ValueError, PermissionError) as error:
             self.designation_feedback.set(f"삭제 실패: {error}")
+
+
+    # Stage 15: real owner-only Tk form. Records are NOT executable agents.
+    def _employees(self, parent: tk.Frame) -> None:
+        self.store.require_permission("agents:manage")
+        panel = self._panel(parent)
+        panel.pack(fill="both", expand=True)
+        self._label(panel, "AI 직원 정보 관리", size=17, weight="bold").pack(anchor="w")
+        self._label(panel, "직원 정보의 등록·수정·비활성화만 가능합니다. AI 실행/모델 연결은 미구현입니다.",
+                    fg="#f7cb92", wraplength=770).pack(anchor="w", pady=(3, 7))
+        self.employee_key = tk.StringVar()
+        self.employee_name = tk.StringVar()
+        self.employee_description = tk.StringVar()
+        self.employee_feedback = tk.StringVar(value="부서·직급·직무·역할은 선택 사항입니다.")
+        self.employee_links = {kind: tk.StringVar() for kind in ("department", "rank", "job", "role")}
+        form = tk.Frame(panel, bg="#1c2a40")
+        form.pack(fill="x", pady=(2, 5))
+        for row, (label, variable) in enumerate((
+            ("직원 식별자", self.employee_key), ("표시 이름", self.employee_name),
+            ("설명", self.employee_description),
+        )):
+            self._label(form, label).grid(row=row, column=0, sticky="w", padx=(0, 7), pady=3)
+            tk.Entry(form, textvariable=variable, width=58).grid(
+                row=row, column=1, columnspan=3, sticky="ew", ipady=4, pady=3)
+        for col, (kind, label) in enumerate((("department", "부서"), ("rank", "직급"),
+                                             ("job", "직무"), ("role", "역할"))):
+            self._label(form, label).grid(row=3, column=col, sticky="w", pady=(6, 1))
+        self.employee_choices: dict[str, ttk.Combobox] = {}
+        for col, kind in enumerate(("department", "rank", "job", "role")):
+            combo = ttk.Combobox(form, textvariable=self.employee_links[kind],
+                                 state="readonly", width=18)
+            combo.grid(row=4, column=col, sticky="ew", padx=(0, 8), pady=3)
+            self.employee_choices[kind] = combo
+        for col in range(4):
+            form.grid_columnconfigure(col, weight=1)
+        controls = tk.Frame(panel, bg="#1c2a40")
+        controls.pack(anchor="w", pady=(5, 6))
+        operations = (
+            ("직원 등록", self.create_employee), ("선택 직원 수정", self.update_employee),
+            ("비활성화", self.deactivate_employee), ("초안으로 복귀", self.restore_employee),
+            ("목록 새로고침", self.reload_employees),
+        )
+        self.employee_buttons = {}
+        for label, callback in operations:
+            btn = tk.Button(controls, text=label, command=callback, padx=8, pady=5,
+                            bg="#426cba" if label == "직원 등록" else "#304561", fg="white")
+            btn.pack(side="left", padx=(0, 6))
+            self.employee_buttons[label] = btn
+        self.employee_create_button = self.employee_buttons["직원 등록"]
+        self.employee_update_button = self.employee_buttons["선택 직원 수정"]
+        self.employee_inactive_button = self.employee_buttons["비활성화"]
+        self.employee_restore_button = self.employee_buttons["초안으로 복귀"]
+        listing = tk.Frame(panel)
+        listing.pack(fill="both", expand=True)
+        cols = ("id", "employee_key", "display_name", "department", "rank", "job", "role", "lifecycle")
+        self.employee_tree = ttk.Treeview(listing, columns=cols, show="headings", height=6)
+        headings = ("번호", "식별자", "이름", "부서", "직급", "직무", "역할", "상태")
+        widths = (47, 126, 130, 95, 75, 75, 75, 85)
+        for key, title, width in zip(cols, headings, widths):
+            self.employee_tree.heading(key, text=title)
+            self.employee_tree.column(key, width=width, stretch=key != "id")
+        self.employee_tree.pack(side="left", fill="both", expand=True)
+        scroll = ttk.Scrollbar(listing, orient="vertical", command=self.employee_tree.yview)
+        scroll.pack(side="right", fill="y")
+        self.employee_tree.configure(yscrollcommand=scroll.set)
+        self.employee_tree.bind("<<TreeviewSelect>>", self._load_employee_selection)
+        self._label(panel, "", textvariable=self.employee_feedback,
+                    fg="#9cdbbb", wraplength=770).pack(anchor="w", pady=(7, 0))
+        self.refresh_employee_choices()
+        self.reload_employees()
+
+    def _tab_changed(self, event=None) -> None:
+        if self.store.is_authenticated and self.tabs.select() == str(self.tabs.tabs()[-1]):
+            self.refresh_employee_choices()
+            self.reload_employees()
+
+    def refresh_employee_choices(self) -> None:
+        self.store.require_permission("agents:manage")
+        catalogs = {"department": self.store.list_departments()}
+        catalogs.update({kind: self.store.list_designations(kind)
+                         for kind in ("rank", "job", "role")})
+        self.employee_catalogs: dict[str, dict[int, str]] = {}
+        for kind, rows in catalogs.items():
+            existing = self.employee_links[kind].get()
+            names = {int(x["id"]): str(x["name"]) for x in rows}
+            self.employee_catalogs[kind] = names
+            options = [""] + [f"{identifier} · {name}" for identifier, name in names.items()]
+            self.employee_choices[kind]["values"] = options
+            self.employee_links[kind].set(existing if existing in options else "")
+
+    @staticmethod
+    def _employee_choice_id(text: str) -> int | None:
+        if not text:
+            return None
+        try:
+            value = int(text.split(" · ", 1)[0])
+        except (ValueError, IndexError) as exc:
+            raise ValueError("부서·직급·직무·역할을 목록에서 선택하세요.") from exc
+        if value < 1:
+            raise ValueError("항목 번호가 올바르지 않습니다.")
+        return value
+
+    def _employee_values(self) -> dict[str, int | None]:
+        result = {}
+        for kind in ("department", "rank", "job", "role"):
+            selection = self.employee_links[kind].get()
+            if selection and selection not in self.employee_choices[kind]["values"]:
+                raise ValueError("이전 목록의 항목입니다. 선택 목록을 새로고침하세요.")
+            result[kind + "_id"] = self._employee_choice_id(selection)
+        return result
+
+    def reload_employees(self, selected_id: int | None = None) -> None:
+        self.store.require_permission("agents:manage")
+        for item in self.employee_tree.get_children():
+            self.employee_tree.delete(item)
+        for record in self.store.list_employee_records():
+            names = [self.employee_catalogs[kind].get(record[kind + "_id"], "—")
+                     for kind in ("department", "rank", "job", "role")]
+            self.employee_tree.insert("", "end", iid=str(record["id"]),
+                                      values=(record["id"], record["employee_key"],
+                                              record["display_name"], *names,
+                                              "비활성" if record["lifecycle"] == "inactive" else "초안"))
+        if selected_id is not None and self.employee_tree.exists(str(selected_id)):
+            self.employee_tree.selection_set(str(selected_id))
+
+    def _load_employee_selection(self, event=None) -> None:
+        self.store.require_permission("agents:manage")
+        selection = self.employee_tree.selection()
+        if not selection:
+            return
+        record = self.store.read_employee_record(int(selection[0]))
+        self.employee_key.set(str(record["employee_key"]))
+        self.employee_name.set(str(record["display_name"]))
+        self.employee_description.set(str(record["description"]))
+        self.refresh_employee_choices()
+        for kind in ("department", "rank", "job", "role"):
+            identifier = record[kind + "_id"]
+            name = self.employee_catalogs[kind].get(identifier)
+            self.employee_links[kind].set(f"{identifier} · {name}" if name is not None else "")
+        self.employee_feedback.set(f"선택 직원 #{record['id']} · 상태: {record['lifecycle']}")
+
+    def _selected_employee_id(self) -> int:
+        selection = self.employee_tree.selection()
+        if not selection:
+            raise ValueError("직원 목록에서 항목을 선택하세요.")
+        return int(selection[0])
+
+    def create_employee(self) -> None:
+        try:
+            identifier = self.store.add_employee_draft(self.employee_key.get(),
+                self.employee_name.get(), self.employee_description.get(), **self._employee_values())
+            self.reload_employees(selected_id=identifier)
+            self.employee_feedback.set("AI 직원 정보를 초안으로 등록했습니다. AI는 실행되지 않습니다.")
+        except (ValueError, PermissionError) as exc:
+            self.employee_feedback.set(f"등록 실패: {exc}")
+
+    def update_employee(self) -> None:
+        try:
+            identifier = self._selected_employee_id()
+            record = self.store.read_employee_record(identifier)
+            if record["employee_key"] != self.employee_key.get():
+                raise ValueError("식별자는 수정할 수 없습니다.")
+            self.store.update_employee_record(identifier, self.employee_name.get(),
+                self.employee_description.get(), **self._employee_values())
+            self.reload_employees(selected_id=identifier)
+            self.employee_feedback.set("AI 직원 정보 수정 완료 (AI 미실행).")
+        except (ValueError, PermissionError) as exc:
+            self.employee_feedback.set(f"수정 실패: {exc}")
+
+    def deactivate_employee(self) -> None:
+        try:
+            identifier = self._selected_employee_id()
+            if not messagebox.askyesno("직원 비활성화", "선택 직원 정보를 비활성화하시겠습니까?",
+                                       parent=self.root):
+                self.employee_feedback.set("비활성화를 취소했습니다.")
+                return
+            self.store.set_employee_inactive(identifier)
+            self.reload_employees(selected_id=identifier)
+            self.employee_feedback.set("직원 정보를 비활성화했습니다. 실행 중인 AI는 없습니다.")
+        except (ValueError, PermissionError) as exc:
+            self.employee_feedback.set(f"비활성화 실패: {exc}")
+
+    def restore_employee(self) -> None:
+        try:
+            identifier = self._selected_employee_id()
+            self.store.restore_employee_draft(identifier)
+            self.reload_employees(selected_id=identifier)
+            self.employee_feedback.set("비활성 정보를 초안으로 복귀했습니다. AI는 실행되지 않습니다.")
+        except (ValueError, PermissionError) as exc:
+            self.employee_feedback.set(f"복귀 실패: {exc}")
 
     def refresh(self) -> None:
         try:
