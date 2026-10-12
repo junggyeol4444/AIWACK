@@ -17,6 +17,7 @@ import time
 
 APP_DIR_NAME = "AIWACK"
 CHECKPOINT_KEY = "local_manual_test"
+DESIGNATION_KINDS = frozenset({"rank", "job", "role"})  # Rank / job / responsibility role; NOT RBAC permissions.
 HASH_ITERATIONS = 310_000
 MAX_FAILURES = 5
 LOCK_SECONDS = 60
@@ -114,6 +115,20 @@ class LocalStore:
                     description TEXT NOT NULL DEFAULT '',
                     created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
                     updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+                )
+            """)
+
+            # Stage 13: job/position taxonomy with stable IDs for future employee assignment.
+            # Role labels here do not grant any operating-system or owner privileges.
+            con.execute("""
+                CREATE TABLE IF NOT EXISTS company_designations (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    kind TEXT NOT NULL CHECK(kind IN ('rank', 'job', 'role')),
+                    name TEXT NOT NULL COLLATE NOCASE,
+                    description TEXT NOT NULL DEFAULT '',
+                    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                    updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                    UNIQUE (kind, name)
                 )
             """)
 
@@ -327,6 +342,89 @@ class LocalStore:
                 raise ValueError("연결된 직원이나 데이터가 있어 부서를 삭제할 수 없습니다.") from exc
             if cursor.rowcount != 1:
                 raise ValueError("선택한 부서를 찾을 수 없습니다.")
+
+    # Stage 13. Catalog metadata only; account/agent permissions remain untouched.
+    @staticmethod
+    def _validate_designation_kind(kind: str) -> str:
+        if not isinstance(kind, str) or kind not in DESIGNATION_KINDS:
+            raise ValueError("직급·직무·역할 유형 중 하나를 선택하세요.")
+        return kind
+
+    @staticmethod
+    def _designation_id(designation_id: int) -> None:
+        if isinstance(designation_id, bool) or not isinstance(designation_id, int) or designation_id < 1:
+            raise ValueError("올바른 직급·직무·역할 번호가 필요합니다.")
+
+    @staticmethod
+    def _unique_designation(con: sqlite3.Connection, kind: str, name: str,
+                            except_id: int | None = None) -> None:
+        rows = con.execute("SELECT id, name FROM company_designations WHERE kind=?", (kind,)).fetchall()
+        if any(existing_name.casefold() == name.casefold() and identifier != except_id
+               for identifier, existing_name in rows):
+            raise ValueError("같은 유형에 동일한 이름이 이미 존재합니다.")
+
+    def list_designations(self, kind: str | None = None) -> list[dict[str, object]]:
+        self.require_permission("company:manage")
+        if kind is not None:
+            self._validate_designation_kind(kind)
+        with self._connect() as con:
+            if kind is None:
+                rows = con.execute(
+                    "SELECT id, kind, name, description FROM company_designations ORDER BY id"
+                ).fetchall()
+            else:
+                rows = con.execute(
+                    "SELECT id, kind, name, description FROM company_designations WHERE kind=? ORDER BY id",
+                    (kind,),
+                ).fetchall()
+        return [dict(zip(("id", "kind", "name", "description"), row)) for row in rows]
+
+    def add_designation(self, kind: str, name: str, description: str = "") -> int:
+        self.require_permission("company:manage")
+        kind = self._validate_designation_kind(kind)
+        name = self._validated_text(name, "명칭", 80, required=True)
+        description = self._validated_text(description, "설명", 500)
+        with self._connect() as con:
+            self._unique_designation(con, kind, name)
+            try:
+                cursor = con.execute(
+                    "INSERT INTO company_designations (kind, name, description) VALUES (?, ?, ?)",
+                    (kind, name, description),
+                )
+            except sqlite3.IntegrityError as exc:
+                raise ValueError("같은 유형에 동일한 이름이 이미 존재합니다.") from exc
+            return int(cursor.lastrowid)
+
+    def update_designation(self, designation_id: int, kind: str, name: str,
+                           description: str = "") -> None:
+        self.require_permission("company:manage")
+        self._designation_id(designation_id)
+        kind = self._validate_designation_kind(kind)
+        name = self._validated_text(name, "명칭", 80, required=True)
+        description = self._validated_text(description, "설명", 500)
+        with self._connect() as con:
+            self._unique_designation(con, kind, name, except_id=designation_id)
+            try:
+                cursor = con.execute(
+                    "UPDATE company_designations SET kind=?, name=?, description=?, "
+                    "updated_at=CURRENT_TIMESTAMP WHERE id=?",
+                    (kind, name, description, designation_id),
+                )
+            except sqlite3.IntegrityError as exc:
+                raise ValueError("같은 유형에 동일한 이름이 이미 존재합니다.") from exc
+            if cursor.rowcount != 1:
+                raise ValueError("선택한 직급·직무·역할을 찾을 수 없습니다.")
+
+    def delete_designation(self, designation_id: int) -> None:
+        self.require_permission("company:manage")
+        self._designation_id(designation_id)
+        with self._connect() as con:
+            try:
+                cursor = con.execute("DELETE FROM company_designations WHERE id=?", (designation_id,))
+            except sqlite3.IntegrityError as exc:
+                raise ValueError("사용 중인 직급·직무·역할은 삭제할 수 없습니다.") from exc
+            if cursor.rowcount != 1:
+                raise ValueError("선택한 직급·직무·역할을 찾을 수 없습니다.")
 
     def save_note(self, value: str) -> None:
         self.require_permission("notes:write")

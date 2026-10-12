@@ -10,7 +10,7 @@ def test_roadmap_is_exactly_100_ordered_steps():
     assert len(rows) == 100
     assert [int(row["step"]) for row in rows] == list(range(1, 101))
     assert all(row["status"] in {"DONE", "TODO"} for row in rows)
-    assert [int(row["step"]) for row in rows if row["status"] == "DONE"] == list(range(1, 13))
+    assert [int(row["step"]) for row in rows if row["status"] == "DONE"] == list(range(1, 14))
 
 def test_original_spec_is_included():
     text = (ROOT / "docs/original_project_spec.txt").read_text(encoding="utf-8")
@@ -25,3 +25,10 @@ def test_traceability_covers_all_20_original_tests():
 def test_required_project_directories_exist():
     for d in ["backend", "backend/agents", "backend/orchestration", "backend/database", "frontend", "frontend/dashboard", "model_configs", "agent_templates", "tool_plugins", "migrations", "tests", "scripts", "deployment", "docs"]:
         assert (ROOT/d).is_dir(), d
+
+
+def test_markdown_plan_matches_csv_status():
+    text = (ROOT / "docs/roadmap_100.md").read_text(encoding="utf-8")
+    for number in range(1, 14):
+        assert f"- [x] {number:03d}." in text
+    assert "- [ ] 014." in text

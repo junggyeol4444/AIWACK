@@ -14,7 +14,7 @@ from desktop.storage import LocalStore
 from desktop.admin_sections import SECTIONS, section_for
 
 APP_TITLE = "AIWACK | AI Autonomous Company"
-CURRENT_STAGE = 12
+CURRENT_STAGE = 13
 TOTAL_STAGES = 100
 
 
@@ -141,18 +141,21 @@ class AIWACKWindow:
         administration = tk.Frame(self.tabs, bg="#121c2d", padx=12, pady=16)
         company = tk.Frame(self.tabs, bg="#121c2d", padx=12, pady=16)
         departments = tk.Frame(self.tabs, bg="#121c2d", padx=12, pady=16)
+        designations = tk.Frame(self.tabs, bg="#121c2d", padx=12, pady=16)
         self.tabs.add(dashboard, text="개발 현황")
         self.tabs.add(persistence, text="로컬 저장 실사")
         self.tabs.add(roadmap, text="100단계 계획")
         self.tabs.add(administration, text="관리자 센터")
         self.tabs.add(company, text="회사·목표 관리")
         self.tabs.add(departments, text="부서 관리")
+        self.tabs.add(designations, text="직급·직무·역할")
         self._dashboard(dashboard)
         self._persistence(persistence)
         self._roadmap(roadmap)
         self._administration(administration)
         self._company(company)
         self._departments(departments)
+        self._designations(designations)
         tk.Label(outer, text="실행 중인 웹 서버 없음  ·  사용자 PC의 로컬 SQLite 파일만 사용  ·  외부 전송 없음", bg="#121c2d", fg="#91aacd", font=("Malgun Gothic", 9)).pack(anchor="w", pady=(13, 0))
 
     def _dashboard(self, parent: tk.Frame) -> None:
@@ -166,7 +169,7 @@ class AIWACKWindow:
         summary.pack(fill="x", pady=(0, 16))
         self._label(summary, f"{CURRENT_STAGE} / {TOTAL_STAGES}단계 — 초기 프로토타입", size=17, weight="bold").pack(anchor="w")
         ttk.Progressbar(summary, style="Progress.Horizontal.TProgressbar", maximum=TOTAL_STAGES, value=CURRENT_STAGE).pack(fill="x", pady=(15, 9))
-        self._label(summary, "다음 개발 단계: 13단계 · 직급·직무·역할 관리", fg="#bfcfe5").pack(anchor="w")
+        self._label(summary, "다음 개발 단계: 14단계 · AI 직원 정보 저장 구조", fg="#bfcfe5").pack(anchor="w")
         missing = self._panel(parent)
         missing.pack(fill="both", expand=True)
         self._label(missing, "아직 없는 기능", size=16, weight="bold").pack(anchor="w")
@@ -262,7 +265,7 @@ class AIWACKWindow:
             status = self.store.health()
             self.admin_realtime.set("SQLite 정상 · " + status["database"])
         elif section.key == "departments":
-            self.admin_realtime.set(f"실제 등록된 부서 {len(self.store.list_departments())}개 · 부서 관리 탭에서 수정")
+            self.admin_realtime.set(f"등록 부서 {len(self.store.list_departments())}개 · 직급·직무·역할 {len(self.store.list_designations())}개 (직원 AI 미구현)")
         elif section.key == "permissions":
             self.admin_realtime.set("현재 로그인 역할: " + str(self.store.role()) + " (기본 권한 확인 완료)")
         else:
@@ -514,6 +517,138 @@ class AIWACKWindow:
             self.department_feedback.set("선택한 부서를 삭제했습니다.")
         except (ValueError, PermissionError) as error:
             self.department_feedback.set(f"삭제 실패: {error}")
+
+    def _designations(self, parent: tk.Frame) -> None:
+        """Authenticated native rank/job/role catalog. No AI employee or permission grants."""
+        self.store.require_permission("company:manage")
+        panel = self._panel(parent)
+        panel.pack(fill="both", expand=True)
+        self._label(panel, "직급·직무·역할 관리", size=18, weight="bold").pack(anchor="w")
+        self._label(panel, "직급(서열), 직무(담당 업무), 역할(책임)을 등록합니다. 실제 AI 직원 배치는 14~17단계에 구현합니다.",
+                    fg="#bfcfe5", wraplength=750).pack(anchor="w", pady=(6, 12))
+        self.designation_kind = tk.StringVar(value="rank")
+        self.designation_name = tk.StringVar(value="")
+        self.designation_description = tk.StringVar(value="")
+        self.designation_feedback = tk.StringVar(value="관리자 로그인 후 변경할 수 있습니다.")
+        form = tk.Frame(panel, bg="#1c2a40")
+        form.pack(fill="x", pady=(0, 9))
+        self._label(form, "구분").grid(row=0, column=0, sticky="w", padx=(0, 8))
+        self.designation_kind_selector = ttk.Combobox(
+            form, textvariable=self.designation_kind, values=("rank", "job", "role"),
+            state="readonly", width=13)
+        self.designation_kind_selector.grid(row=0, column=1, sticky="w", pady=5)
+        self._label(form, "rank=직급 · job=직무 · role=책임 역할 (관리자 권한 부여와 무관)",
+                    fg="#bfcfe5").grid(row=0, column=2, sticky="w", padx=8)
+        self._label(form, "명칭").grid(row=1, column=0, sticky="w", padx=(0, 8), pady=5)
+        tk.Entry(form, textvariable=self.designation_name, width=42).grid(
+            row=1, column=1, columnspan=2, sticky="ew", ipady=5, pady=5)
+        self._label(form, "설명·책임").grid(row=2, column=0, sticky="w", padx=(0, 8), pady=5)
+        tk.Entry(form, textvariable=self.designation_description, width=64).grid(
+            row=2, column=1, columnspan=2, sticky="ew", ipady=5, pady=5)
+        form.grid_columnconfigure(2, weight=1)
+        controls = tk.Frame(panel, bg="#1c2a40")
+        controls.pack(anchor="w", pady=(5, 9))
+        self.designation_add_button = tk.Button(
+            controls, text="새 항목 추가", command=self.add_designation,
+            bg="#4c83e6", fg="white", padx=12, pady=7)
+        self.designation_add_button.pack(side="left", padx=(0, 8))
+        self.designation_update_button = tk.Button(
+            controls, text="선택 항목 수정", command=self.update_designation, padx=12, pady=7)
+        self.designation_update_button.pack(side="left", padx=(0, 8))
+        self.designation_delete_button = tk.Button(
+            controls, text="선택 항목 삭제", command=self.delete_designation, padx=12, pady=7)
+        self.designation_delete_button.pack(side="left", padx=(0, 8))
+        self.designation_clear_button = tk.Button(
+            controls, text="입력 초기화", command=self.clear_designation, padx=12, pady=7)
+        self.designation_clear_button.pack(side="left")
+        listing = tk.Frame(panel)
+        listing.pack(fill="both", expand=True)
+        self.designation_tree = ttk.Treeview(
+            listing, columns=("id", "kind", "name", "description"), show="headings", height=9)
+        for key, label, width in (("id", "번호", 60), ("kind", "구분", 100),
+                                  ("name", "명칭", 190), ("description", "설명", 320)):
+            self.designation_tree.heading(key, text=label)
+            self.designation_tree.column(key, width=width, stretch=(key != "id"))
+        self.designation_tree.pack(side="left", fill="both", expand=True)
+        scrollbar = ttk.Scrollbar(listing, orient="vertical", command=self.designation_tree.yview)
+        scrollbar.pack(side="right", fill="y")
+        self.designation_tree.configure(yscrollcommand=scrollbar.set)
+        self.designation_tree.bind("<<TreeviewSelect>>", self._load_designation_selection)
+        self._label(panel, "", textvariable=self.designation_feedback,
+                    fg="#9cdbbb", wraplength=760).pack(anchor="w", pady=(12, 0))
+        self.reload_designations()
+
+    def reload_designations(self, selected_id: int | None = None) -> None:
+        self.store.require_permission("company:manage")
+        for row in self.designation_tree.get_children():
+            self.designation_tree.delete(row)
+        for item in self.store.list_designations():
+            self.designation_tree.insert("", "end", iid=str(item["id"]),
+                                         values=(item["id"], item["kind"], item["name"], item["description"]))
+        if selected_id is not None and self.designation_tree.exists(str(selected_id)):
+            self.designation_tree.selection_set(str(selected_id))
+
+    def _load_designation_selection(self, event=None) -> None:
+        self.store.require_permission("company:manage")
+        selected = self.designation_tree.selection()
+        if selected:
+            for item in self.store.list_designations():
+                if str(item["id"]) == selected[0]:
+                    self.designation_kind.set(str(item["kind"]))
+                    self.designation_name.set(str(item["name"]))
+                    self.designation_description.set(str(item["description"]))
+                    return
+
+    def _selected_designation_id(self) -> int:
+        self.store.require_permission("company:manage")
+        selected = self.designation_tree.selection()
+        if not selected:
+            raise ValueError("목록에서 직급·직무·역할 항목을 선택하세요.")
+        return int(selected[0])
+
+    def clear_designation(self) -> None:
+        self.store.require_permission("company:manage")
+        self.designation_tree.selection_remove(self.designation_tree.selection())
+        self.designation_kind.set("rank")
+        self.designation_name.set("")
+        self.designation_description.set("")
+        self.designation_feedback.set("입력을 초기화했습니다.")
+
+    def add_designation(self) -> None:
+        try:
+            identifier = self.store.add_designation(
+                self.designation_kind.get(), self.designation_name.get(),
+                self.designation_description.get())
+            self.reload_designations(identifier)
+            self.designation_feedback.set("항목이 추가됐습니다.")
+        except (ValueError, PermissionError) as error:
+            self.designation_feedback.set(f"추가 실패: {error}")
+
+    def update_designation(self) -> None:
+        try:
+            identifier = self._selected_designation_id()
+            self.store.update_designation(
+                identifier, self.designation_kind.get(), self.designation_name.get(),
+                self.designation_description.get())
+            self.reload_designations(identifier)
+            self.designation_feedback.set("항목이 수정됐습니다.")
+        except (ValueError, PermissionError) as error:
+            self.designation_feedback.set(f"수정 실패: {error}")
+
+    def delete_designation(self) -> None:
+        try:
+            identifier = self._selected_designation_id()
+            if not messagebox.askyesno("직급·직무·역할 삭제",
+                                       "선택한 항목을 삭제하시겠습니까?\n삭제한 항목은 복원할 수 없습니다.",
+                                       parent=self.root):
+                self.designation_feedback.set("삭제를 취소했습니다.")
+                return
+            self.store.delete_designation(identifier)
+            self.clear_designation()
+            self.reload_designations()
+            self.designation_feedback.set("선택한 항목을 삭제했습니다.")
+        except (ValueError, PermissionError) as error:
+            self.designation_feedback.set(f"삭제 실패: {error}")
 
     def refresh(self) -> None:
         try:

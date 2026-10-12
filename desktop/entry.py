@@ -57,6 +57,28 @@ def self_test() -> int:
         instance.delete_department(department_id)
         if instance.list_departments():
             return 1
+        # Stage 13: compiled Windows binary exercises catalog CRUD, persistence,
+        # role classification and session restrictions (not permission grants).
+        rank_id = instance.add_designation("rank", "EXE 팀장", "level test")
+        job_id = instance.add_designation("job", "EXE 개발", "work test")
+        role_id = instance.add_designation("role", "EXE 검수", "responsibility test")
+        instance.update_designation(role_id, "role", "EXE 품질검수", "quality test")
+        instance.logout()
+        instance = LocalStore(path)
+        try:
+            instance.list_designations()
+            return 1
+        except AuthenticationError:
+            pass
+        instance.login("exe_tester", "test-password-long-2026")
+        if [(item["kind"], item["name"]) for item in instance.list_designations()] != [
+            ("rank", "EXE 팀장"), ("job", "EXE 개발"), ("role", "EXE 품질검수")
+        ]:
+            return 1
+        for identifier in (rank_id, job_id, role_id):
+            instance.delete_designation(identifier)
+        if instance.list_designations():
+            return 1
     return 0
 
 
