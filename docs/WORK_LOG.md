@@ -101,8 +101,18 @@
 
 ## 2026-10-12 14단계 — AI 직원 정보 저장 구조
 
-- SQLite ai_employee_profiles 테이블: 안정적인 employee_key, 표시명, 설명, 부서 ID, 직급·직무·역할 ID, 초기 상태(draft/inactive), 생성·수정 시각.
-- 참조 FK와 분류별 트리거로 유효하지 않은 연결·연결된 항목 삭제·분류 변경 차단. 13단계 이전 데이터 보존.
-- 관리자 인증이 필요한 add_employee_draft/list_employee_records/read_employee_record 기반 저장·조회. 실제 AI 실행 없음.
-- 실제 Windows EXE --self-test에 직원 초안 데이터 저장·재열기·FK 삭제 제한 검사.
-- 15단계: 직원 생성·수정·비활성화 UI 및 라이프사이클.
+- 로컬 SQLite `ai_employee_profiles` 테이블에 안정적인 employee_key, 표시명, 설명, 부서 ID 및 직급·직무·역할 ID 참조, 초기 상태(draft/inactive), 생성·수정 시각을 추가.
+- FK ON DELETE RESTRICT와 분류별 트리거로 유효하지 않은 부서·직급·직무·역할 연결을 차단하며 기존 13단계 데이터는 그대로 유지.
+- 관리자 인증이 필요한 `add_employee_draft`, `list_employee_records`, `read_employee_record` 저장·조회 기능을 구현. AI 직원 자동 생성 GUI와 실행/비활성화는 15단계 이후의 업무로 구분.
+- 실제 Windows EXE `--self-test`에 직원 메타데이터 저장·프로세스 재열기·FK 삭제 제한 검사를 추가. 관리자 센터의 직원 정보 건수는 읽기 전용 표시.
+- 다음 15단계: AI 직원 생성·수정·비활성화 UI 및 라이프사이클 제어.
+
+## 2026-10-12 15단계 — AI 직원 생성·수정·비활성화
+
+- Windows EXE 네이티브 Tk `AI 직원 관리` 탭: 식별자·이름·설명·부서·직급·직무·역할 관리.
+- 로그인한 관리자만 조작 가능; 초안 생성, 수정(식별자 고정), 비활성화, 초안 복귀.
+- DB `lifecycle`을 안전한 `draft`/`inactive`로 유지. 활성 AI 실행은 향후 16~27단계에서 구현.
+- 참조 무결성/부서 등 연결 삭제 방지; 기존 로컬 정보는 보존.
+- Python 테스트, 실제 Tk GUI 버튼/데이터 보존 및 Windows EXE 자체 --self-test 후 GitHub 병합.
+
+다음: 16단계 총괄 AI·부서장·직원 계층 연결.

@@ -526,6 +526,55 @@ class LocalStore:
                 raise ValueError("중복 직원 식별자 또는 유효하지 않은 부서·직급·직무·역할입니다.") from exc
             return int(cursor.lastrowid)
 
+    def update_employee_record(self, employee_id: int, display_name: str,
+                               description: str = '', *, department_id: int | None = None,
+                               rank_id: int | None = None, job_id: int | None = None,
+                               role_id: int | None = None) -> None:
+        """Edit only metadata. Employee key and lifecycle remain immutable here."""
+        self.require_permission("agents:manage")
+        self._validate_employee_id(employee_id)
+        values = (
+            self._validated_text(display_name, "직원명", 80, required=True),
+            self._validated_text(description, "직원 설명", 500),
+            self._validate_reference(department_id, "부서"),
+            self._validate_reference(rank_id, "직급"),
+            self._validate_reference(job_id, "직무"),
+            self._validate_reference(role_id, "역할"),
+            employee_id,
+        )
+        try:
+            with self._connect() as con:
+                cursor = con.execute("""
+                    UPDATE ai_employee_profiles
+                    SET display_name=?, description=?, department_id=?, rank_id=?,
+                        job_id=?, role_id=?, updated_at=CURRENT_TIMESTAMP
+                    WHERE id=?
+                """, values)
+                if cursor.rowcount != 1:
+                    raise ValueError("수정할 직원 정보를 찾을 수 없습니다.")
+        except sqlite3.IntegrityError as exc:
+            raise ValueError("유효하지 않은 부서·직급·직무·역할입니다.") from exc
+
+    def set_employee_inactive(self, employee_id: int) -> None:
+        """Deactivate a stored profile; no AI worker is running at this stage."""
+        self._set_employee_lifecycle(employee_id, expected='draft', target='inactive')
+
+    def restore_employee_draft(self, employee_id: int) -> None:
+        """Restore an inactive profile to a non-executable draft, never start AI."""
+        self._set_employee_lifecycle(employee_id, expected='inactive', target='draft')
+
+    def _set_employee_lifecycle(self, employee_id: int, *, expected: str,
+                                target: str) -> None:
+        self.require_permission("agents:manage")
+        self._validate_employee_id(employee_id)
+        with self._connect() as con:
+            cursor = con.execute("""
+                UPDATE ai_employee_profiles SET lifecycle=?, updated_at=CURRENT_TIMESTAMP
+                WHERE id=? AND lifecycle=?
+            """, (target, employee_id, expected))
+            if cursor.rowcount != 1:
+                raise ValueError("직원 정보가 없거나 이미 해당 상태입니다.")
+
     def list_employee_records(self) -> list[dict[str, object]]:
         """Inspect stored drafts only; never implies running AI employees."""
         self.require_permission("agents:manage")

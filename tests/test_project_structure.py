@@ -10,7 +10,7 @@ def test_roadmap_is_exactly_100_ordered_steps():
     assert len(rows) == 100
     assert [int(row["step"]) for row in rows] == list(range(1, 101))
     assert all(row["status"] in {"DONE", "TODO"} for row in rows)
-    assert [int(row["step"]) for row in rows if row["status"] == "DONE"] == list(range(1, 15))
+    assert [int(row["step"]) for row in rows if row["status"] == "DONE"] == list(range(1, 16))
 
 def test_original_spec_is_included():
     text = (ROOT / "docs/original_project_spec.txt").read_text(encoding="utf-8")
@@ -31,4 +31,4 @@ def test_markdown_plan_matches_csv_status():
     text = (ROOT / "docs/roadmap_100.md").read_text(encoding="utf-8")
     for number in range(1, 15):
         assert f"- [x] {number:03d}." in text
-    assert "- [ ] 015." in text
+    assert "- [ ] 016." in text
