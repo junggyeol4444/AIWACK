@@ -28,7 +28,7 @@ def main() -> None:
             root.update()
             assert app.store.is_authenticated
             assert len(app.roadmap_tree.get_children()) == 100
-            assert app.tabs.index("end") == 4, "admin center must be an actual notebook view"
+            assert app.tabs.index("end") == 5, "admin center must be an actual notebook view"
             app.tabs.select(3)
             root.update()
             for key, title in (("overview", "회사 현황"), ("departments", "조직·직원"),
@@ -44,6 +44,27 @@ def main() -> None:
             assert "owner" in app.admin_realtime.get()
             app.admin_navigation["overview"].invoke()
             assert "SQLite 정상" in app.admin_realtime.get()
+            app.tabs.select(4)
+            app.company_name.set("AIWACK 실사 회사")
+            app.company_description.set("GUI에서 저장한 회사 설명")
+            app.company_mission.set("윈도우 앱에서 실제 업무 관리")
+            app.company_save_button.invoke()
+            root.update()
+            assert app.store.read_company()["name"] == "AIWACK 실사 회사"
+            app.goal_title.set("창에서 직접 목표 추가")
+            app.goal_detail.set("상태 변경/삭제도 확인")
+            app.goal_add_button.invoke()
+            root.update()
+            assert len(app.goal_tree.get_children()) == 1
+            goal_id = int(app.goal_tree.get_children()[0])
+            app.goal_tree.selection_set(str(goal_id))
+            root.update()
+            app.goal_title.set("업데이트 된 목표")
+            app.goal_status.set("active")
+            app.goal_update_button.invoke()
+            root.update()
+            assert app.store.list_goals()[0]["title"] == "업데이트 된 목표"
+            assert app.store.list_goals()[0]["status"] == "active"
             app.tabs.select(1)
             app.note.set("PC 앱 로그인 뒤 저장 성공")
             app.save_button.invoke()
@@ -83,13 +104,27 @@ def main() -> None:
             app2.auth_button.invoke()
             root2.update()
             assert app2.note.get() == "PC 앱 로그인 뒤 저장 성공"
+            app2.tabs.select(4)
+            assert app2.company_name.get() == "AIWACK 실사 회사"
+            assert app2.store.list_goals()[0]["title"] == "업데이트 된 목표"
+            # The delete UI requires explicit confirmation; stub only the dialog.
+            from tkinter import messagebox
+            original_confirm = messagebox.askyesno
+            try:
+                messagebox.askyesno = lambda *args, **kwargs: True
+                app2.goal_tree.selection_set(app2.goal_tree.get_children()[0])
+                app2.goal_delete_button.invoke()
+                root2.update()
+                assert app2.store.list_goals() == []
+            finally:
+                messagebox.askyesno = original_confirm
             app2.tabs.select(3)
             app2.admin_navigation["permissions"].invoke()
             assert app2.current_admin_section == "permissions"
             assert root2.winfo_exists()
         finally:
             root2.destroy()
-    print("PASS: Tk login, owner-only admin navigation, 7 sections, logout denial, restart and persisted note")
+    print("PASS: real Tk GUI login/company edit/goal CRUD/notes/restart/persistence/permission checks")
 
 
 if __name__ == "__main__":

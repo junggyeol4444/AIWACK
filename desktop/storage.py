@@ -85,6 +85,26 @@ class LocalStore:
                 )
             """)
 
+            con.execute("""
+                CREATE TABLE IF NOT EXISTS company_profile (
+                    id INTEGER PRIMARY KEY CHECK (id = 1),
+                    name TEXT NOT NULL,
+                    description TEXT NOT NULL DEFAULT '',
+                    mission TEXT NOT NULL DEFAULT '',
+                    updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+                )
+            """)
+            con.execute("""
+                CREATE TABLE IF NOT EXISTS company_goals (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    title TEXT NOT NULL,
+                    detail TEXT NOT NULL DEFAULT '',
+                    status TEXT NOT NULL DEFAULT 'planned',
+                    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                    updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+                )
+            """)
+
     def has_owner(self) -> bool:
         with self._connect() as con:
             return con.execute("SELECT 1 FROM owner_accounts WHERE id = 1").fetchone() is not None
@@ -152,6 +172,81 @@ class LocalStore:
 
     def role(self) -> str | None:
         return "owner" if self._logged_in else None
+
+    @staticmethod
+    def _validated_text(value: str, field: str, limit: int, *, required: bool = False) -> str:
+        if not isinstance(value, str):
+            raise ValueError(f"{field} 항목은 문자열이어야 합니다.")
+        cleaned = value.strip()
+        if len(cleaned) > limit or (required and not cleaned):
+            raise ValueError(f"{field} 항목은 {'1~' if required else '0~'}{limit}자여야 합니다.")
+        return cleaned
+
+    def read_company(self) -> dict[str, str]:
+        """Return the persisted company profile or safe empty first-run defaults."""
+        self.require_permission("company:manage")
+        with self._connect() as con:
+            row = con.execute("SELECT name, description, mission FROM company_profile WHERE id=1").fetchone()
+        return dict(zip(("name", "description", "mission"), row)) if row else {
+            "name": "AI Autonomous Company", "description": "", "mission": ""
+        }
+
+    def save_company(self, name: str, description: str, mission: str) -> None:
+        """Write only after an authenticated owner confirms the changes."""
+        self.require_permission("company:manage")
+        fields = (
+            self._validated_text(name, "회사명", 80, required=True),
+            self._validated_text(description, "회사 소개", 500),
+            self._validated_text(mission, "운영 방향", 500),
+        )
+        with self._connect() as con:
+            con.execute("""
+                INSERT INTO company_profile (id, name, description, mission) VALUES (1, ?, ?, ?)
+                ON CONFLICT(id) DO UPDATE SET name=excluded.name,
+                    description=excluded.description, mission=excluded.mission,
+                    updated_at=CURRENT_TIMESTAMP
+            """, fields)
+
+    def list_goals(self) -> list[dict[str, object]]:
+        self.require_permission("company:manage")
+        with self._connect() as con:
+            rows = con.execute("SELECT id, title, detail, status FROM company_goals ORDER BY id").fetchall()
+        return [dict(zip(("id", "title", "detail", "status"), row)) for row in rows]
+
+    def _require_goal_id(self, goal_id: int) -> None:
+        if not isinstance(goal_id, int) or isinstance(goal_id, bool) or goal_id < 1:
+            raise ValueError("올바른 목표 ID가 필요합니다.")
+
+    def add_goal(self, title: str, detail: str = "") -> int:
+        self.require_permission("company:manage")
+        validated = (self._validated_text(title, "목표명", 120, required=True),
+                     self._validated_text(detail, "목표 설명", 500))
+        with self._connect() as con:
+            cursor = con.execute("INSERT INTO company_goals (title, detail) VALUES (?, ?)", validated)
+            return int(cursor.lastrowid)
+
+    def update_goal(self, goal_id: int, title: str, detail: str, status: str) -> None:
+        self.require_permission("company:manage")
+        self._require_goal_id(goal_id)
+        if status not in {"planned", "active", "done", "paused"}:
+            raise ValueError("올바르지 않은 목표 상태입니다.")
+        values = (self._validated_text(title, "목표명", 120, required=True),
+                  self._validated_text(detail, "목표 설명", 500), status, goal_id)
+        with self._connect() as con:
+            cursor = con.execute("""
+                UPDATE company_goals SET title=?, detail=?, status=?, updated_at=CURRENT_TIMESTAMP
+                WHERE id=?
+            """, values)
+            if cursor.rowcount != 1:
+                raise ValueError("선택한 목표를 찾을 수 없습니다.")
+
+    def delete_goal(self, goal_id: int) -> None:
+        self.require_permission("company:manage")
+        self._require_goal_id(goal_id)
+        with self._connect() as con:
+            cursor = con.execute("DELETE FROM company_goals WHERE id=?", (goal_id,))
+            if cursor.rowcount != 1:
+                raise ValueError("선택한 목표를 찾을 수 없습니다.")
 
     def save_note(self, value: str) -> None:
         self.require_permission("notes:write")
