@@ -6,6 +6,8 @@ external AI, financial activity, or autonomous operations are implemented.
 from __future__ import annotations
 
 import os
+from contextlib import contextmanager
+from collections.abc import Iterator
 from pathlib import Path
 import sqlite3
 
@@ -35,10 +37,17 @@ class LocalStore:
         self.path.parent.mkdir(parents=True, exist_ok=True)
         self._init_schema()
 
-    def _connect(self) -> sqlite3.Connection:
+    @contextmanager
+    def _connect(self) -> Iterator[sqlite3.Connection]:
+        # SQLite connection context managers commit but do not close files.
+        # Windows requires explicit closure to remove test DBs and reopen files.
         connection = sqlite3.connect(self.path, timeout=10)
-        connection.execute("PRAGMA busy_timeout = 10000")
-        return connection
+        try:
+            connection.execute("PRAGMA busy_timeout = 10000")
+            with connection:
+                yield connection
+        finally:
+            connection.close()
 
     def _init_schema(self) -> None:
         # Matches the existing development table for future migration support.
