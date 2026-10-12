@@ -13,9 +13,10 @@
     9,
     10,
     11,
-    12
+    12,
+    13
   ],
-  "next_step": 13,
-  "current_version": "0.1.5",
-  "notes": "Stage 12 native Windows department CRUD: owner authorization, SQLite persistence, real Tk interaction, case-insensitive name collision guard, explicit delete confirmation; no AI employees yet."
+  "next_step": 14,
+  "current_version": "0.1.6",
+  "notes": "Stage 13 owner-only rank/job/responsibility-role catalog CRUD, SQLite persist and native Tk GUI. Catalog roles do NOT modify authentication privileges; no AI employees yet."
 }
