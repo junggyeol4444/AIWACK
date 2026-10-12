@@ -1,4 +1,5 @@
 import csv
+import json
 import re
 from pathlib import Path
 ROOT=Path(__file__).resolve().parents[1]
@@ -9,7 +10,9 @@ def test_roadmap_is_exactly_100_ordered_steps():
     assert len(rows)==100
     assert [int(r["step"]) for r in rows]==list(range(1,101))
     assert all(r["status"] in {"DONE","TODO"} for r in rows)
-    assert [int(r["step"]) for r in rows if r["status"]=="DONE"]==list(range(1,8))
+    progress=json.loads((ROOT/"docs/progress.json").read_text(encoding="utf-8"))
+    assert [int(r["step"]) for r in rows if r["status"]=="DONE"]==progress["completed_steps"]
+    assert progress["next_step"]==len(progress["completed_steps"])+1
 
 def test_original_spec_is_included():
     x=(ROOT/"docs/original_project_spec.txt").read_text(encoding="utf-8")
