@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import os
 import sys
+import json
 import tempfile
 import time
 import tkinter as tk
@@ -85,7 +86,15 @@ def fill_prompt(root):
         return
     click(visible)
     pyautogui.write('Investigate the local market safely',.007)
-    root.after(550,lambda:pyautogui.press('enter'))
+    def confirm_user_dialog():
+        # Physically click the Windows/Tk OK button; Return alone may be
+        # consumed by the entry or another focused Windows control.
+        ok=find_button(visible.winfo_toplevel(),'OK')
+        if ok is not None and ok.winfo_viewable():
+            click(ok)
+        else:
+            pyautogui.press('enter')
+    root.after(550,confirm_user_dialog)
 
 
 def main():
@@ -130,15 +139,18 @@ def main():
                 wait_for(root,lambda:next((w for w in toplevels(root)
                   if w.winfo_exists() and '총괄 AI 지시 초안' in w.title()),None),timeout=55)
             except AssertionError:
-                print('REAL_GUI_CHIEF_ORDER_FAILURE',office.status.get(),
-                      'dialogs',[(w.title(),w.winfo_geometry()) for w in toplevels(root)],
-                      'chief_model_calls',len(store.list_employee_model_calls(chief)),
-                      flush=True)
                 dest=os.environ.get('AIWACK_CHIEF_LIVE_SCREENSHOT')
                 if dest:
                     failure=Path(dest).with_name('chief-staff-native-subprocess-failure.png')
                     failure.parent.mkdir(parents=True,exist_ok=True)
                     pyautogui.screenshot().save(failure)
+                # GitHub Windows Python stdout can be CP1252. Use safe ASCII
+                # JSON so the *real* failure is not replaced by UnicodeError.
+                details={'status':office.status.get(),
+                         'dialogs':[(w.title(),w.winfo_geometry()) for w in toplevels(root)],
+                         'chief_model_calls':len(store.list_employee_model_calls(chief))}
+                print('REAL_GUI_CHIEF_ORDER_FAILURE',
+                      json.dumps(details,ensure_ascii=True),flush=True)
                 raise
             dialog=next(w for w in toplevels(root)
               if '총괄 AI 지시 초안' in w.title())
