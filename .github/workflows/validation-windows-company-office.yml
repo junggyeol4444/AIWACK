@@ -106,6 +106,13 @@ jobs:
           python -m PyInstaller --noconfirm --clean --onefile --console --name AIWACK-ModelStub (Join-Path $env:GITHUB_WORKSPACE 'validation/windows_fake_llm.py')
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           if (-not (Test-Path 'dist/AIWACK-ModelStub.exe')) { throw 'Synthetic Windows-native test binary missing' }
+      - name: Test packaged synthetic runner with Korean input under Windows cp1252
+        shell: pwsh
+        env:
+          AIWACK_NATIVE_SYNTHETIC_RUNNER: ${{ runner.temp }}/aiwack-office-src/AIWACK-Stage54/dist/AIWACK-ModelStub.exe
+        run: |
+          python -m pytest -q validation/test_windows_fake_llm_encoding.py
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
       - name: Physically run chief-to-worker model subprocess via owner GUI
         shell: pwsh
         env:
