@@ -646,8 +646,17 @@ class CompanyOffice:
                 raise ValueError('실제 총괄 AI 회수 보고서가 없습니다. 먼저 회수 검토를 실행하세요.')
             dialog=tk.Toplevel(self.root)
             dialog.title('AIWACK | 총괄 AI 회수 보고서 · 소유자 검토')
-            dialog.geometry('790x490')
+            # Place the actual owner decision controls in the center of the
+            # application instead of unexpectedly opening at desktop (0, 0).
+            self.root.update_idletasks()
+            x=max(0,min(self.root.winfo_screenwidth()-790,
+                        self.root.winfo_rootx()+(self.root.winfo_width()-790)//2))
+            y=max(0,min(self.root.winfo_screenheight()-490,
+                        self.root.winfo_rooty()+(self.root.winfo_height()-490)//2))
+            dialog.geometry(f'790x490+{x}+{y}')
             dialog.configure(bg=BG)
+            dialog.transient(self.root)
+            dialog.lift()
             self._label(dialog,
                 f"결과물 #{artifact_id} · 총괄 보고서 #{report['id']} · 상태: {report['owner_decision']}",
                 bg=BG,size=11,bold=True).pack(fill='x',padx=15,pady=(10,6))

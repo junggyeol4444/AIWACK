@@ -132,6 +132,14 @@ jobs:
           $exe = Join-Path $env:RUNNER_TEMP 'aiwack-office-src/AIWACK-Stage54/dist/AIWACK.exe'
           python validation/windows_office_e2e.py $exe
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Preserve built AIWACK Windows company EXE
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: aiwack-company-program-${{ matrix.os }}
+          path: ${{ runner.temp }}/aiwack-office-src/AIWACK-Stage54/dist/AIWACK.exe
+          if-no-files-found: ignore
+          retention-days: 14
       - name: Preserve real Windows office screenshots and errors
         uses: actions/upload-artifact@v4
         if: always()
