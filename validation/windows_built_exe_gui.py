@@ -65,10 +65,9 @@ def shutdown(w,p):
         raise AssertionError("EXE did not exit on Alt+F4")
 
 def open_notes(w):
-    # Actually open the dropdown with mouse and click its second visible item.
-    click(w,309,163)
-    snapshot("navigation-dropdown-open")
-    click(w,185,203)
+    # The real app compresses many tabs into ~13px each on a 1024px runner.
+    # Physically click its SECOND notebook tab, not a Python Tk select() call.
+    click(w,45,203)
     time.sleep(1)
 
 def kill_tree(p):
