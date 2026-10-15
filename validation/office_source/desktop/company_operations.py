@@ -43,6 +43,7 @@ def company_snapshot(store) -> dict:
                              employee_id=assignment['employee_id'], priority=task.get('priority','normal')))
     return dict(company=store.read_company(), chief=chief, departments=departments, team=team,
                 tasks=workload, total_tasks=len(tasks), artifacts=len(artifacts),
+                open_tasks=sum(t['status'] not in ('done','cancelled') for t in tasks),
                 completed=sum(t['status']=='done' for t in tasks),
                 running=sum(t['status']=='in_progress' for t in tasks),
                 emergency=emergency,
