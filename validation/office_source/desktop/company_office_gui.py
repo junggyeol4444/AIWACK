@@ -21,6 +21,7 @@ class CompanyOffice:
         self.worker=None
         self.generation=app._session_generation
         self.status=tk.StringVar(value='회사 업무를 불러오는 중')
+        self.latest_output='실제 직원·총괄 AI의 실행 결과는 아직 없습니다.'
         self.title=tk.StringVar()
         self.cards={}
         self._draw()
@@ -66,13 +67,13 @@ class CompanyOffice:
         self.chief_label=tk.StringVar(value='총괄 AI 확인 중')
         tk.Label(left,textvariable=self.chief_label,bg='#284464',fg='#e4f1ff',
                  anchor='w',wraplength=380,justify='left',padx=10,pady=8).pack(fill='x',pady=(0,8))
-        self.staff=ttk.Treeview(left,columns=('team','model','state'),show='headings',height=8)
+        self.staff=ttk.Treeview(left,columns=('team','model','state'),show='headings',height=3)
         for key,label,width in [('team','직원 / 부서',190),('model','모델',145),('state','상태',95)]:
             self.staff.heading(key,text=label)
             self.staff.column(key,width=width,stretch=key!='state')
         self.staff.pack(fill='both',expand=True)
         self.label(right,'현재 회사 업무',size=14,bold=True).pack(anchor='w',pady=(0,8))
-        self.jobs=ttk.Treeview(right,columns=('job','owner','state'),show='headings',height=8)
+        self.jobs=ttk.Treeview(right,columns=('job','owner','state'),show='headings',height=3)
         for key,label,width in [('job','업무',205),('owner','담당 AI',140),('state','상태',100)]:
             self.jobs.heading(key,text=label)
             self.jobs.column(key,width=width,stretch=key!='state')
@@ -89,6 +90,7 @@ class CompanyOffice:
         self.button(controls,'선택 업무 실행',self.run_selected,strong=True)
         self.button(controls,'최대 3개 실행',self.run_batch)
         self.button(controls,'총괄 AI 진단',self.ask_chief)
+        self.button(controls,'결과 창',self.open_result)
         self.button(controls,'비상 중지',self.stop)
         self.label(self.parent,'실제 GGUF 실행은 직원에게 모델을 배정해야 합니다. 결과는 검수 대기이며 자동 완료·실매출이 아닙니다.',
                    bg=BG,fg='#eebd83').pack(fill='x',padx=13)
@@ -96,19 +98,22 @@ class CompanyOffice:
         feedback.pack(fill='both',expand=False,padx=10,pady=(4,0))
         self.label(feedback,'',bg=BG,fg='#88dbaf').config(textvariable=self.status)
         tk.Label(feedback,textvariable=self.status,bg=BG,fg='#88dbaf',anchor='w',wraplength=925).pack(fill='x')
-        self.report=tk.Text(feedback,height=3,bg='#182940',fg=WHITE,wrap='word',font=('Malgun Gothic',10))
-        self.report.pack(fill='x',pady=(3,0))
-        self.report.insert('1.0','총괄 AI 및 직원 AI의 실제 실행 결과가 여기에 표시됩니다. 가상 직원 응답을 만들지 않습니다.')
-        self.report.configure(state='disabled')
+
+    def open_result(self):
+        """Show model output in a real independent resizable window."""
+        dialog=tk.Toplevel(self.root)
+        dialog.title('AIWACK | 실제 AI 실행 결과')
+        dialog.geometry('850x560')
+        box=tk.Text(dialog,wrap='word',font=('Malgun Gothic',11),bg='#17253a',fg='#f4f7ff')
+        box.pack(fill='both',expand=True,padx=10,pady=10)
+        box.insert('1.0',self.latest_output)
+        box.configure(state='disabled')
 
     def _say(self, message):
         self.status.set(str(message)[:350])
 
     def _show_output(self,message):
-        self.report.configure(state='normal')
-        self.report.delete('1.0','end')
-        self.report.insert('1.0',str(message)[:5000])
-        self.report.configure(state='disabled')
+        self.latest_output=str(message)[:20000]
 
     def refresh(self):
         try:
