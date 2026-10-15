@@ -95,6 +95,36 @@ def apply(root: Path) -> None:
             test_path.write_text(updated, encoding="utf-8")
             print("Applied Windows regression fixture fix:", filename)
 
+        # Keep the 32KiB invalid file payload but shorten its pytest node ID:
+        # Windows limits PYTEST_CURRENT_TEST environment variable to 32767 chars.
+        # Independently, ensure Korean child-process stdout is UTF-8.
+        extra_windows_test_fixes = (
+            (
+                "test_offline_research_imports.py",
+                "    ('invalid_binary.txt', b'a\\x00b'),\n])",
+                "    ('invalid_binary.txt', b'a\\x00b'),\n], ids=['bad_extension', 'invalid_utf8', 'empty', 'oversized', 'script_only', 'nul_byte'])",
+            ),
+            (
+                "test_designations.py",
+                '    p = subprocess.run([sys.executable, "-c", reader, str(path)], check=True,\n'
+                '                       capture_output=True, text=True, timeout=20)',
+                '    p = subprocess.run([sys.executable, "-c", reader, str(path)], check=False,\n'
+                '                       capture_output=True, text=True, encoding="utf-8",\n'
+                '                       env={**__import__("os").environ, "PYTHONIOENCODING": "utf-8"},\n'
+                '                       timeout=20)\n'
+                '    assert p.returncode == 0, p.stderr',
+            ),
+        )
+        for filename, needle, replacement in extra_windows_test_fixes:
+            test_path = root / "tests" / filename
+            source = test_path.read_text(encoding="utf-8")
+            if source.count(needle) != 1:
+                raise RuntimeError("Unexpected Windows regression target: " + filename)
+            updated = source.replace(needle, replacement, 1)
+            ast.parse(updated, filename=str(test_path))
+            test_path.write_text(updated, encoding="utf-8")
+            print("Applied Windows regression fix:", filename)
+
         # Three legacy POSIX fixture helpers never launch their fake scripts
         # in Windows-compatible tests. Use the actual trusted Windows
         # python.exe path for config validation, without weakening the real

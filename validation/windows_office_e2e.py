@@ -14,6 +14,7 @@ from pathlib import Path
 
 import pyautogui
 import windows_built_exe_gui as gui
+from company_tab_locator import selected_company_tab_y
 
 NAME = 'Windows real-user company operations task'
 
@@ -23,27 +24,29 @@ def snapshot(name):
 
 
 def wait_company_view(window, seconds=100):
-    """Wait for a visible blue selected '회사 현황' navigation button."""
+    """Check the visible selected company tab on the real Windows EXE screen.
+
+    Windows Server 2022/2025 rendered the tab near relative y=260, not 234.
+    Inspect screenshot pixels instead of relying on a stale fixed offset.
+    """
     deadline = time.monotonic() + seconds
     while time.monotonic() < deadline:
-        image = pyautogui.screenshot().convert('RGB')
-        x, y = window.left + 88, window.top + 234
-        if 0 <= x < image.width and 0 <= y < image.height:
-            r, g, b = image.getpixel((x, y))
-            if 40 <= r <= 130 and 80 <= g <= 200 and b >= 170 and b > r + 60:
-                time.sleep(.75)
-                print('PACKAGED_EXE_COMPANY_OVERVIEW_VISIBLE', (r, g, b), flush=True)
-                return
+        image = pyautogui.screenshot().convert("RGB")
+        nav_y = selected_company_tab_y(image, window.left, window.top, window.height)
+        if nav_y is not None:
+            time.sleep(.75)
+            print("PACKAGED_EXE_COMPANY_OVERVIEW_VISIBLE", "nav_y=", nav_y, flush=True)
+            return nav_y
         time.sleep(.5)
-    snapshot('company-not-visible')
-    raise AssertionError('Actual Windows packaged EXE company overview not visible')
+    snapshot("company-not-visible")
+    raise AssertionError("Actual Windows packaged EXE company overview not visible")
 
 
-def open_work(window):
-    # Real user click on the visible '업무 실행' top navigation.
-    gui.click(window, 425, 233)
+def open_work(window, nav_y):
+    # Physically click the visible work tab at the observed navigation row.
+    gui.click(window, 425, nav_y)
     time.sleep(.8)
-    snapshot('work-board-visible')
+    snapshot("work-board-visible")
 
 
 def run(exe):
@@ -60,18 +63,18 @@ def run(exe):
         gui.type_text(window, 175, 483, gui.PASS)
         gui.click(window, 175, 545)
         gui.expect_db(db, 'SELECT username FROM owner_accounts WHERE id=1', gui.USER)
-        wait_company_view(window)
+        nav_y = wait_company_view(window)
         snapshot('company-dashboard-after-first-setup')
-        open_work(window)
+        open_work(window, nav_y)
         gui.type_text(window, 320, 585, NAME)
         snapshot('task-entry-filled')
         gui.click(window, 936, 584)
         gui.expect_db(db, 'SELECT title FROM company_tasks ORDER BY id DESC LIMIT 1', NAME)
         snapshot('task-created-from-real-gui')
         # Real user opens org screen, then results/approval list.
-        gui.click(window, 196, 233)
+        gui.click(window, 196, nav_y)
         snapshot('real-organization-screen')
-        gui.click(window, 560, 233)
+        gui.click(window, 560, nav_y)
         snapshot('results-approval-screen')
         gui.shutdown(window, process)
         process = None
@@ -82,8 +85,8 @@ def run(exe):
         gui.type_text(window, 175, 395, gui.USER)
         gui.type_text(window, 175, 437, gui.PASS)
         gui.click(window, 175, 480)
-        wait_company_view(window)
-        open_work(window)
+        nav_y = wait_company_view(window)
+        open_work(window, nav_y)
         gui.expect_db(db, 'SELECT title FROM company_tasks ORDER BY id DESC LIMIT 1', NAME)
         snapshot('reopened-company-task-still-visible')
         gui.shutdown(window, process)

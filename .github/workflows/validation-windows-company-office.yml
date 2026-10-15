@@ -113,6 +113,11 @@ jobs:
         run: |
           python -m pytest -q validation/test_windows_fake_llm_encoding.py
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Regression test for selected company tab detection
+        shell: pwsh
+        run: |
+          python -m pytest -q validation/test_company_tab_locator.py
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
       - name: Physically run chief-to-worker model subprocess via owner GUI
         shell: pwsh
         env:
