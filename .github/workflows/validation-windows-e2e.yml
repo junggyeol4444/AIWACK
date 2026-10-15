@@ -10,9 +10,9 @@ permissions:
   contents: read
 
 concurrency:
-  group: aiwack-windows-validation-${{ github.ref }}-${{ github.workflow }}
-  # Preserve already-running full regression jobs when a new validation
-  # commit arrives; incomplete shards must not be mistaken for passed tests.
+  # GitHub concurrency retains only one pending run per group. Isolate each
+  # commit so newer pushes cannot silently replace a queued full pytest run.
+  group: aiwack-windows-validation-${{ github.workflow }}-${{ github.sha }}
   cancel-in-progress: false
 
 jobs:
