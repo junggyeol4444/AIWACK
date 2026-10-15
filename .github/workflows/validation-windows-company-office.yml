@@ -43,7 +43,7 @@ jobs:
         run: |
           Set-Location (Join-Path $env:RUNNER_TEMP 'aiwack-office-src/AIWACK-Stage54')
           $env:PYTHONPATH = (Get-Location).Path
-          python -m pytest -q tests/test_company_operations_center.py tests/test_company_planning_cockpit.py --maxfail=1
+          python -m pytest -q tests/test_company_operations_center.py tests/test_company_planning_cockpit.py tests/test_company_model_onboarding.py --maxfail=1
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
       - name: Drive owner planning screen with real Windows mouse input
         shell: pwsh
@@ -54,6 +54,16 @@ jobs:
           New-Item -ItemType Directory -Force (Join-Path $env:RUNNER_TEMP 'aiwack-office-screenshots') | Out-Null
           $env:PYTHONPATH = (Get-Location).Path
           python scripts/company_planning_gui_smoke.py
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Actually click local model registration wizard on Windows desktop
+        shell: pwsh
+        env:
+          AIWACK_MODEL_WIZARD_SCREENSHOT: ${{ runner.temp }}/aiwack-office-screenshots/model-connector-native-gui.png
+        run: |
+          Set-Location (Join-Path $env:RUNNER_TEMP 'aiwack-office-src/AIWACK-Stage54')
+          New-Item -ItemType Directory -Force (Join-Path $env:RUNNER_TEMP 'aiwack-office-screenshots') | Out-Null
+          $env:PYTHONPATH = (Get-Location).Path
+          python scripts/company_model_setup_gui_smoke.py
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
       - name: Build packaged Windows AIWACK.exe (actual company application)
         shell: pwsh

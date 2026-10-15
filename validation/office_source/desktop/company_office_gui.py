@@ -202,6 +202,7 @@ class CompanyOffice:
         top.pack(fill='x', pady=(0, 7))
         self._label(top, 'AI 조직도  /  직급 · 부서 · 모델', size=12, bold=True).pack(side='left')
         self._action(top, '15개 부서 초기 구성', self.seed_blueprint, strong=True, compact=True)
+        self._action(top, '로컬 모델 연결', self.connect_model, strong=True, compact=True)
         self._action(top, '모델 배정 화면 ↗', lambda: self._goto_native('직원별 모델'), compact=True)
         self.staff = self._table(card, [('name', '직원 AI', 195), ('department', '부서', 145),
                                         ('tier', '직급', 75), ('model', '로컬 모델', 170),
@@ -293,6 +294,10 @@ class CompanyOffice:
             button.configure(bg=BLUE if selected else CARD2,
                              fg='#ffffff' if selected else MUTED,
                              activebackground=BLUE)
+
+    def connect_model(self):
+        from desktop.company_model_connect_ui import ConnectLocalModelDialog
+        return ConnectLocalModelDialog(self)
 
     def _goto_native(self, label_fragment):
         choices = list(self.app.quick_navigation['values'])
@@ -434,7 +439,10 @@ class CompanyOffice:
         if kind == 'error':
             self._say('실제 AI 실행 실패: '+str(result))
         else:
-            if self.after_action == 'planning':
+            if self.after_action == 'model_probe':
+                self._say('로컬 직원 모델이 실제 응답했습니다. 진단 감사 기록만 저장했습니다.')
+                self._text_dialog('로컬 AI 직원 모델 호출 진단', str(result))
+            elif self.after_action == 'planning':
                 self.set_view('planning')
                 self._say('실제 총괄 모델 제안 초안 저장 · 관리자 승인 전에는 실행되지 않습니다.')
             elif self.after_action == 'chief':

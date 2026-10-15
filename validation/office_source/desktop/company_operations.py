@@ -280,3 +280,68 @@ def create_active_company_goal(store, title: str) -> int:
     goal=store.add_goal(title.strip())
     store.update_goal(goal,title.strip(),'','active')
     return goal
+
+
+def eligible_model_employees(store) -> list[dict]:
+    """Return only owners' existing draft profiles; never invent running workers."""
+    store.require_permission('agents:manage')
+    return [{'id': int(e['id']), 'name': e['display_name']}
+            for e in store.list_employee_records() if e['lifecycle'] == 'draft']
+
+
+def connect_employee_model(store, employee_id: int, config) -> int:
+    """Validate trusted local paths and bind one existing employee, with rollback.
+
+    Model registration itself is not inference. Refuse implicit replacement of
+    an existing employee assignment; require a deliberate native settings edit.
+    """
+    from desktop.model_runtime import validate_config
+    store.require_permission('agents:manage')
+    if type(employee_id) is not int or employee_id <= 0:
+        raise ValueError('연결할 AI 직원 번호가 올바르지 않습니다.')
+    if employee_id not in {p['id'] for p in eligible_model_employees(store)}:
+        raise ValueError('선택한 직원이 없거나 비활성화됐습니다.')
+    if store.read_employee_model(employee_id) is not None:
+        raise ValueError('이미 모델이 배정돼 있습니다. 모델 변경은 직원별 모델 설정에서 승인하세요.')
+    clean = validate_config(config)
+    model_id = store.add_local_model(clean)
+    try:
+        # Re-check before binding, for concurrent admin changes.
+        if store.read_employee_model(employee_id) is not None:
+            raise ValueError('다른 설정 창에서 이미 모델이 배정됐습니다.')
+        store.set_employee_model(employee_id, model_id)
+    except Exception:
+        # No orphan registration on failure, even after concurrent edits.
+        try:
+            store.delete_local_model(model_id)
+        except (ValueError, PermissionError):
+            pass
+        raise
+    return model_id
+
+
+def probe_employee_model(store, employee_id: int, *, cancel: threading.Event | None = None) -> str:
+    """Call REAL local configured runner, recording a genuine employee-model audit.
+
+    No result is stored as an approved task, revenue or completed project.
+    A synthetic subprocess test still proves only the adapter, not GGUF inference.
+    """
+    from desktop.employee_model_runtime import invoke_employee_model
+    assert_running_allowed(store)
+    if type(employee_id) is not int or employee_id <= 0:
+        raise ValueError('올바른 직원 번호를 선택하세요.')
+    if employee_id not in {p['id'] for p in eligible_model_employees(store)}:
+        raise ValueError('직원이 없거나 비활성화됐습니다.')
+    if store.read_employee_model(employee_id) is None:
+        raise ValueError('직원에게 실제 로컬 모델을 먼저 연결하세요.')
+    if cancel is not None and cancel.is_set():
+        raise InterruptedError('실행 전 취소되었습니다.')
+    reply = invoke_employee_model(store, employee_id,
+        '당신은 AIWACK 로컬 AI 직원입니다. 이 요청은 연결 진단입니다. '
+        '한국어로 두 문장으로 자신이 실행됐음을 설명하고, 실제 사업 실행이나 매출이 '
+        '발생했다고 주장하지 마세요.', timeout=60, cancel=cancel)
+    if cancel is not None and cancel.is_set():
+        raise InterruptedError('관리자 취소 후의 결과는 폐기합니다.')
+    if not reply.strip():
+        raise RuntimeError('로컬 모델에서 빈 텍스트가 반환됐습니다.')
+    return reply[:20000]
