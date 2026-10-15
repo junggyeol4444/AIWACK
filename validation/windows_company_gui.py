@@ -108,7 +108,7 @@ def exercise(exe):
         gui.type_text(w,200,goal_y,GOAL)
         gui.type_text(w,700,goal_y,DETAIL)
         snapshot("goal-text-typed")
-        gui.click(w,280,blue_button_y(w,280,goal_y+22,goal_y+110))
+        gui.click(w,245,blue_button_y(w,245,goal_y+22,goal_y+110))
         gui.expect_db(db,"SELECT title FROM company_goals ORDER BY id DESC LIMIT 1",GOAL)
         snapshot("company-goal-saved")
         gui.shutdown(w,proc);proc=None
