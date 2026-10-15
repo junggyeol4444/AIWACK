@@ -79,10 +79,13 @@ def fill_prompt(root):
              and w.winfo_exists() and w.winfo_viewable()]
     visible=next((find_input(d) for d in dialogs if find_input(d) is not None),None)
     if visible is None:
-        raise AssertionError('Expected a visible owner objective entry dialog')
+        # Windows may need longer than 350 ms to construct the native dialog.
+        # Retry finding the *visible* entry; never write to a hidden widget.
+        root.after(180,lambda:fill_prompt(root))
+        return
     click(visible)
     pyautogui.write('Investigate the local market safely',.007)
-    root.after(250,lambda:pyautogui.press('enter'))
+    root.after(550,lambda:pyautogui.press('enter'))
 
 
 def main():
@@ -121,10 +124,22 @@ def main():
             app.submit_login()
             office=app.company_office
             click_task_row(root,office,task)
-            root.after(350,lambda:fill_prompt(root))
+            root.after(650,lambda:fill_prompt(root))
             click(find_button(office.views['work'],'총괄 AI 지시 초안'))
-            wait_for(root,lambda:next((w for w in toplevels(root)
-              if w.winfo_exists() and '총괄 AI 지시 초안' in w.title()),None),timeout=45)
+            try:
+                wait_for(root,lambda:next((w for w in toplevels(root)
+                  if w.winfo_exists() and '총괄 AI 지시 초안' in w.title()),None),timeout=55)
+            except AssertionError:
+                print('REAL_GUI_CHIEF_ORDER_FAILURE',office.status.get(),
+                      'dialogs',[(w.title(),w.winfo_geometry()) for w in toplevels(root)],
+                      'chief_model_calls',len(store.list_employee_model_calls(chief)),
+                      flush=True)
+                dest=os.environ.get('AIWACK_CHIEF_LIVE_SCREENSHOT')
+                if dest:
+                    failure=Path(dest).with_name('chief-staff-native-subprocess-failure.png')
+                    failure.parent.mkdir(parents=True,exist_ok=True)
+                    pyautogui.screenshot().save(failure)
+                raise
             dialog=next(w for w in toplevels(root)
               if '총괄 AI 지시 초안' in w.title())
             assert store.read_chief_task_order(task) is None
