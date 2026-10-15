@@ -35,6 +35,34 @@ def apply(root: Path) -> None:
     ast.parse(text, filename=str(path))
     path.write_text(text, encoding="utf-8")
     print("Applied validation-branch Python 3.11-compatible immutable trigger patch:", path)
+    # The original source snapshot genuinely has 54 DONE and 46 BLOCKED stages.
+    # No fabricated step 101 exists. Keep the test strict about blocked status
+    # and the absence of a runnable next stage; never claim 100 completed.
+    roadmap_test = root / "tests" / "test_project_structure.py"
+    old_test = roadmap_test.read_text(encoding="utf-8")
+    expectation = (
+        '    assert progress["next_step"] == next((n for n in range(1, 101)\\n'
+        '             if n not in set(progress["completed_steps"]) | blocked), 101)'
+    )
+    replacement = (
+        '    # There is no stage 101. All remaining stages may be blocked.\\n'
+        '    runnable = next((n for n in range(1, 101)\\n'
+        '             if n not in set(progress["completed_steps"]) | blocked), None)\\n'
+        '    assert progress["next_step"] == runnable\\n'
+        '    if runnable is None:\\n'
+        '        assert len(progress["completed_steps"]) + len(blocked) == 100\\n'
+        '        assert all(row["status"] != "TODO" for row in rows)'
+    )
+    # Convert the marker's escaped line separators to literal line endings.
+    expectation = expectation.replace("\\\\n", "\\n")
+    replacement = replacement.replace("\\\\n", "\\n")
+    if old_test.count(expectation) != 1:
+        raise RuntimeError("Cannot locate obsolete roadmap test step-101 sentinel")
+    corrected = old_test.replace(expectation, replacement, 1)
+    ast.parse(corrected, filename=str(roadmap_test))
+    roadmap_test.write_text(corrected, encoding="utf-8")
+    print("Applied validation-branch true-blocked-roadmap consistency assertion")
+
     if sys.platform == "win32":
         # Three legacy POSIX fixture helpers never launch their fake scripts
         # in Windows-compatible tests. Use the actual trusted Windows
