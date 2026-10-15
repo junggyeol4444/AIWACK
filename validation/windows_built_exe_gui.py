@@ -68,7 +68,7 @@ def note_input_y(w):
     """Observe the REAL EXE screenshot. A wide white input band exists only on notes page."""
     screen=pyautogui.screenshot().convert("RGB")
     width,height=screen.size
-    for y in range(305,515):
+    for y in range(345,475):
         points=[(w.left+x,w.top+y) for x in (180,330,560,790)]
         if any(px<0 or px>=width or py<0 or py>=height for px,py in points):
             continue
@@ -80,7 +80,9 @@ def note_input_y(w):
 def open_notes(w):
     # Human operation: physically click a plainly visible button in the packaged EXE.
     # Never mark success merely because the click command returned.
-    click(w,370,163)
+    print("PACKAGED_WINDOW_RECT",w.left,w.top,w.width,w.height,flush=True)
+    click(w,370,175)
+    snapshot("clicked-notes-button")
     until=time.monotonic()+12
     while time.monotonic()<until:
         field_y=note_input_y(w)
@@ -158,7 +160,7 @@ def test(exe):
         clipboard=pyperclip.paste()
         assert clipboard==NOTE, "Real EXE display did not show persisted note: "+repr(clipboard)
         snapshot("reopen-note-visible-and-matches")
-        click(w,960,163)
+        click(w,960,175)
         time.sleep(1.1)
         snapshot("user-logged-out")
         shutdown(w,process)
