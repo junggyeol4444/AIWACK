@@ -11,7 +11,7 @@ permissions:
 
 concurrency:
   group: aiwack-windows-validation-${{ github.ref }}-${{ github.workflow }}
-  cancel-in-progress: false
+  cancel-in-progress: true
 
 jobs:
   windows-pytest:
