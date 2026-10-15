@@ -48,6 +48,21 @@ jobs:
           $exe = Join-Path $env:RUNNER_TEMP 'aiwack-built-exe/AIWACK-Stage54/dist/AIWACK.exe'
           python validation/windows_built_exe_gui.py $exe
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Actually click company settings and goal through built EXE; close and reopen
+        shell: pwsh
+        env:
+          AIWACK_PACKAGED_GUI_ARTIFACTS: ${{ runner.temp }}/packaged-company-e2e
+        run: |
+          $exe = Join-Path $env:RUNNER_TEMP 'aiwack-built-exe/AIWACK-Stage54/dist/AIWACK.exe'
+          python validation/windows_company_gui.py $exe
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Save company-form GUI screenshots and errors
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: aiwack-real-company-exe-${{ matrix.os }}
+          path: ${{ runner.temp }}/packaged-company-e2e/
+          if-no-files-found: warn
       - name: Save GUI screenshots and errors
         if: always()
         uses: actions/upload-artifact@v4
