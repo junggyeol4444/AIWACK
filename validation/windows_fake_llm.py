@@ -19,9 +19,9 @@ def main() -> None:
     # Opt-in delay for subprocess cancellation and timeout CI. Never AI inference.
     stall = os.environ.get("AIWACK_SYNTHETIC_STALL_SECONDS")
     if stall is not None:
-        if stall != "6":
-            raise ValueError("Only the test-defined 6-second stall is supported")
-        time.sleep(6)
+        if stall != "15":
+            raise ValueError("Only the test-defined 15-second stall is supported")
+        time.sleep(15)
     print("AIWACK_WINDOWS_NATIVE_CLI", " ".join(sys.argv[1:])[:180])
 
 

@@ -21,7 +21,7 @@ def native_runner(tmp_path):
     path.write_text(
         "#!/usr/bin/env python3\n"
         "import os,sys,time\n"
-        "if os.environ.get('AIWACK_SYNTHETIC_STALL_SECONDS') == '6': time.sleep(6)\n"
+        "if os.environ.get('AIWACK_SYNTHETIC_STALL_SECONDS') == '15': time.sleep(15)\n"
         "print('AIWACK_WINDOWS_NATIVE_CLI', ' '.join(sys.argv[1:])[:180])\n",
         encoding="utf-8")
     path.chmod(0o700)
@@ -35,7 +35,11 @@ def audit_spawn(monkeypatch):
     children = []
     def wrapper(*args, **kwargs):
         child = real_popen(*args, **kwargs)
-        children.append(child)
+        cmd = args[0] if args else kwargs.get("args", [])
+        exe = str(cmd[0] if isinstance(cmd, (list, tuple)) and cmd else cmd)
+        # A Windows taskkill helper is not another AI model invocation.
+        if Path(exe).name.lower() not in ("taskkill", "taskkill.exe"):
+            children.append(child)
         return child
     monkeypatch.setattr(subprocess, "Popen", wrapper)
     return children
@@ -50,21 +54,18 @@ def test_precancelled_request_never_launches_model(native_runner, monkeypatch):
         run_local_model(config(native_runner), "실행 전 관리자 취소", cancel=event)
 
 def test_windows_native_timeout_kills_child(native_runner, monkeypatch):
-    monkeypatch.setenv("AIWACK_SYNTHETIC_STALL_SECONDS", "6")
+    monkeypatch.setenv("AIWACK_SYNTHETIC_STALL_SECONDS", "15")
     children = audit_spawn(monkeypatch)
     start = time.monotonic()
     with pytest.raises(TimeoutError):
         run_local_model(config(native_runner), "timeout lifecycle", timeout=1)
-    # Windows PyInstaller --onefile can spend several seconds cleaning up
-    # its extraction process after the timeout/cancel signal. The contract
-    # is: promptly raise the requested exception AND reap the child.
-    # Keep a generous upper bound for hangs, rather than treating bootloader
-    # cleanup latency as an incorrect cancellation.
-    assert time.monotonic() - start < (20 if os.name == "nt" else 5.5)
+    # The synthetic runner stalls for 15 seconds; a real cancellation must
+    # terminate PyInstaller's process tree and release inherited pipes sooner.
+    assert time.monotonic() - start < (10 if os.name == "nt" else 5.5)
     assert len(children) == 1 and children[0].poll() is not None
 
 def test_inflight_owner_cancel_kills_child(native_runner, monkeypatch):
-    monkeypatch.setenv("AIWACK_SYNTHETIC_STALL_SECONDS", "6")
+    monkeypatch.setenv("AIWACK_SYNTHETIC_STALL_SECONDS", "15")
     children = audit_spawn(monkeypatch)
     event = threading.Event()
     trigger = threading.Thread(target=lambda: (time.sleep(.45), event.set()), daemon=True)
@@ -73,12 +74,9 @@ def test_inflight_owner_cancel_kills_child(native_runner, monkeypatch):
     with pytest.raises(InterruptedError):
         run_local_model(config(native_runner), "cancel lifecycle", timeout=8, cancel=event)
     trigger.join(timeout=2)
-    # Windows PyInstaller --onefile can spend several seconds cleaning up
-    # its extraction process after the timeout/cancel signal. The contract
-    # is: promptly raise the requested exception AND reap the child.
-    # Keep a generous upper bound for hangs, rather than treating bootloader
-    # cleanup latency as an incorrect cancellation.
-    assert time.monotonic() - start < (20 if os.name == "nt" else 5.5)
+    # The synthetic runner stalls for 15 seconds; a real cancellation must
+    # terminate PyInstaller's process tree and release inherited pipes sooner.
+    assert time.monotonic() - start < (10 if os.name == "nt" else 5.5)
     assert len(children) == 1 and children[0].poll() is not None
 
 def test_successful_relaunch_after_abort(native_runner, monkeypatch):

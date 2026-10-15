@@ -68,6 +68,16 @@ def patch_model_cancel_before_spawn(root: Path) -> None:
         "        raise InterruptedError('모델 실행을 취소했습니다.')\n"
     )
     updated = source.replace(anchor, guard + anchor, 1)
+    # Strict validation of the immutable Stage100 runner shape; no blind edits.
+    runtime_tree_edits = (
+        ("import os\nimport subprocess\n", "import os\nimport signal\nimport subprocess\n"),
+        ("                                   stdin=subprocess.DEVNULL, env=env)", "                                   stdin=subprocess.DEVNULL, env=env,\n                                   start_new_session=(os.name != \"nt\"))"),
+        ("    except (TimeoutError, InterruptedError):\n        process.kill()\n        process.communicate()\n        raise\n", "    except (TimeoutError, InterruptedError):\n        # Descendants of PyInstaller/llama launchers may retain inherited\n        # stdout/stderr handles. Killing only Popen's parent can then block\n        # forever in communicate(). Terminate the whole process tree.\n        if os.name == \"nt\":\n            try:\n                subprocess.run([\"taskkill\", \"/T\", \"/F\", \"/PID\", str(process.pid)],\n                               stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,\n                               check=False, timeout=8)\n            except (OSError, subprocess.TimeoutExpired):\n                pass\n        else:\n            try:\n                os.killpg(process.pid, signal.SIGKILL)\n            except ProcessLookupError:\n                pass\n        if process.poll() is None:\n            process.kill()\n        try:\n            process.communicate(timeout=8)\n        except subprocess.TimeoutExpired as exc:\n            process.kill()\n            raise RuntimeError(\"모델 종료 후 출력 핸들이 해제되지 않았습니다.\") from exc\n        raise\n"),
+    )
+    for needle, replacement in runtime_tree_edits:
+        if updated.count(needle) != 1:
+            raise RuntimeError("Unexpected original subprocess shutdown code")
+        updated = updated.replace(needle, replacement, 1)
     ast.parse(updated, filename=str(path))
     path.write_text(updated, encoding="utf-8")
     print("Pre-cancelled local model request no longer starts a subprocess:", path)
