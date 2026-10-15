@@ -46,6 +46,21 @@ def apply(project: Path) -> None:
                      'AI Autonomous Company  ·  AI 조직·업무·실제 모델 실행 현황','subtitle')
     src=replace_once(src,'실행 중인 웹 서버 없음  ·  사용자 PC의 로컬 SQLite 파일만 사용  ·  외부 전송 없음',
                      '실행 상태는 실제 SQLite·로컬 모델 기준  ·  대외 판매·결제는 별도 연동 검증 필요','footer')
+    # Desktop 1040x720 first-launch window: reserve space for the actual company
+    # action bar and status, instead of wasting 80px above the application.
+    src=replace_once(src,'outer = tk.Frame(self.root, bg="#121c2d", padx=25, pady=20)',
+                     'outer = tk.Frame(self.root, bg="#121c2d", padx=17, pady=11)',
+                     'outer top whitespace')
+    src=replace_once(src,'font=("Malgun Gothic", 26, "bold")',
+                     'font=("Malgun Gothic", 22, "bold")','header size')
+    src=replace_once(src,'pack(anchor="w", pady=(2, 15))',
+                     'pack(anchor="w", pady=(1, 7))','header subtitle spacing')
+    src=replace_once(src,'dashboard = tk.Frame(self.tabs, bg="#121c2d", padx=12, pady=16)',
+                     'dashboard = tk.Frame(self.tabs, bg="#121c2d", padx=5, pady=6)',
+                     'office viewport padding')
+    src=replace_once(src,'font=("Malgun Gothic", 9)).pack(anchor="w", pady=(13, 0))',
+                     'font=("Malgun Gothic", 9)).pack(anchor="w", pady=(5, 0))',
+                     'footer spacing')
     ast.parse(src,filename=str(app_path))
     app_path.write_text(src,encoding='utf-8')
     store_path=project/'desktop/storage.py'

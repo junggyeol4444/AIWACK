@@ -1,232 +1,476 @@
-"""A functional first-screen AI company operations center, not an empty demo dashboard."""
+"""AIWACK company cockpit. Real SQLite organization, tasks and model runs.
+
+This is a GUI for the owner, never a simulation of active AI employees or sales.
+All run buttons delegate to the existing authenticated local-model runtime.
+"""
 from __future__ import annotations
+
 import queue
 import threading
 import tkinter as tk
-from tkinter import ttk, messagebox
+from tkinter import messagebox, simpledialog, ttk
 
 from desktop import company_operations as ops
 
-BG='#101d30'; PANEL='#1d3048'; SUB='#aec5de'; WHITE='#f6f9ff'; ACCENT='#377ee5'
+BG = '#0b1220'
+CARD = '#151f30'
+CARD2 = '#1b2a40'
+EDGE = '#293954'
+INK = '#f5f8ff'
+MUTED = '#9caec7'
+BLUE = '#468bfa'
+TEAL = '#6addc4'
+AMBER = '#ffce82'
+RED = '#ff8194'
+FONT = 'Malgun Gothic'
 
 
 class CompanyOffice:
     def __init__(self, app, parent):
-        self.app=app
-        self.root=app.root
-        self.store=app.store
-        self.parent=parent
-        self.pending=queue.Queue()
-        self.cancel=threading.Event()
-        self.worker=None
-        self.generation=app._session_generation
-        self.status=tk.StringVar(value='회사 업무를 불러오는 중')
-        self.latest_output='실제 직원·총괄 AI의 실행 결과는 아직 없습니다.'
-        self.title=tk.StringVar()
-        self.cards={}
+        self.app, self.root, self.store = app, app.root, app.store
+        self.parent = parent
+        self.pending = queue.Queue()
+        self.cancel = threading.Event()
+        self.worker = None
+        self.generation = app._session_generation
+        self.status = tk.StringVar(value='회사 운영 데이터 연결 중')
+        self.title = tk.StringVar()
+        self.latest_output = '아직 실제 AI 모델 실행 기록이 없습니다.'
+        self.cards = {}
+        self.nav_buttons = {}
+        self.views = {}
+        self.chief_label = tk.StringVar(value='총괄 AI 확인 중')
+        self.chief_state = tk.StringVar(value='설정 확인 중')
+        self.live_badge = tk.StringVar(value='운영 상태 조회 중')
+        self.team_summary = tk.StringVar(value='직원 모델을 확인하고 있습니다.')
+        self.review_summary = tk.StringVar(value='저장된 결과물 없음')
+        self.view_name = 'overview'
         self._draw()
         self.refresh()
 
-    def label(self,parent,text,*,size=10,bold=False,fg=WHITE,bg=PANEL):
-        return tk.Label(parent,text=text,font=('Malgun Gothic',size,'bold' if bold else 'normal'),
-                        bg=bg,fg=fg,anchor='w')
+    def _label(self, parent, text='', *, size=10, bold=False, color=INK, bg=CARD, **kwargs):
+        return tk.Label(parent, text=text, bg=bg, fg=color,
+                        font=(FONT, size, 'bold' if bold else 'normal'),
+                        anchor='w', **kwargs)
 
-    def button(self,parent,text,action,*,strong=False):
-        b=tk.Button(parent,text=text,command=action,fg=WHITE,bg=ACCENT if strong else '#2e4b70',
-                    activebackground='#4b83c6',padx=11,pady=7,relief='flat',font=('Malgun Gothic',10,'bold'))
-        b.pack(side='left',padx=(0,8),pady=4)
+    def _action(self, parent, label, command, *, strong=False, danger=False, compact=False):
+        color = '#903c53' if danger else BLUE if strong else '#293d58'
+        b = tk.Button(parent, text=label, command=command, relief='flat',
+                      borderwidth=0, bg=color, fg=INK,
+                      activebackground='#5d92e8' if strong else '#3a5373',
+                      activeforeground='white', cursor='hand2',
+                      padx=10 if compact else 13, pady=6 if compact else 8,
+                      font=(FONT, 9 if compact else 10, 'bold'))
+        b.pack(side='left', padx=(0, 6), pady=2)
         return b
+
+    def _card(self, parent, *, padx=12, pady=10):
+        return tk.Frame(parent, bg=CARD, highlightthickness=1,
+                        highlightbackground=EDGE, padx=padx, pady=pady)
+
+    def _divider(self, parent):
+        tk.Frame(parent, bg=EDGE, height=1).pack(fill='x', pady=8)
+
+    def _configure_tables(self):
+        style = ttk.Style(self.root)
+        style.configure('Office.Treeview', background=CARD, foreground=INK,
+                        fieldbackground=CARD, borderwidth=0, rowheight=29,
+                        font=(FONT, 9))
+        style.configure('Office.Treeview.Heading', background='#26364e',
+                        foreground=INK, font=(FONT, 9, 'bold'), relief='flat', padding=(7, 6))
+        style.map('Office.Treeview', background=[('selected', '#2e60a5')],
+                  foreground=[('selected', '#ffffff')])
+        style.map('Office.Treeview.Heading', background=[('active', '#324661')])
+
+    def _table(self, parent, specs, *, height=5):
+        keys = [key for key, *_ in specs]
+        wrap = tk.Frame(parent, bg=CARD)
+        wrap.pack(fill='both', expand=True)
+        tree = ttk.Treeview(wrap, columns=keys, show='headings', height=height,
+                            style='Office.Treeview', selectmode='browse')
+        for key, title, width in specs:
+            tree.heading(key, text=title)
+            tree.column(key, width=width, stretch=True, anchor='w')
+        scroll = ttk.Scrollbar(wrap, orient='vertical', command=tree.yview)
+        tree.configure(yscrollcommand=scroll.set)
+        tree.pack(side='left', fill='both', expand=True)
+        scroll.pack(side='right', fill='y')
+        tree.tag_configure('warn', foreground=AMBER)
+        tree.tag_configure('ready', foreground=TEAL)
+        return tree
 
     def _draw(self):
         self.parent.configure(bg=BG)
-        header=tk.Frame(self.parent,bg=BG)
-        header.pack(fill='x',padx=8,pady=(0,10))
-        self.label(header,'AI 회사 운영센터',size=22,bold=True,bg=BG).pack(anchor='w')
-        self.label(header,'총괄 AI · 부서 · 직원 AI · 실제 업무 · 실행 기록   |   미배정 모델은 실행하지 않습니다',
-                   fg=SUB,bg=BG).pack(anchor='w',pady=(3,0))
-        kpis=tk.Frame(self.parent,bg=BG)
-        kpis.pack(fill='x',padx=8,pady=(0,9))
-        for col,key,title in ((0,'departments','부서'),(1,'employees','AI 직원'),
-                              (2,'tasks','업무'),(3,'completed','완료')):
-            frame=tk.Frame(kpis,bg=PANEL,padx=16,pady=11,highlightbackground='#38577b',highlightthickness=1)
-            frame.grid(row=0,column=col,sticky='nsew',padx=4)
-            kpis.grid_columnconfigure(col,weight=1)
-            self.label(frame,title,fg=SUB).pack(anchor='w')
-            var=tk.StringVar(value='—')
-            self.label(frame,'',size=23,bold=True).config(textvariable=var)
-            self.label(frame,'',size=23,bold=True).pack_forget() if False else None
-            tk.Label(frame,textvariable=var,font=('Malgun Gothic',22,'bold'),fg=WHITE,bg=PANEL).pack(anchor='w')
-            self.cards[key]=var
-        middle=tk.PanedWindow(self.parent,orient='horizontal',bg=BG,sashwidth=7,sashrelief='flat')
-        middle.pack(fill='both',expand=True,padx=8,pady=(0,7))
-        left=tk.Frame(middle,bg=PANEL,padx=12,pady=10)
-        right=tk.Frame(middle,bg=PANEL,padx=12,pady=10)
-        middle.add(left,stretch='always',minsize=285)
-        middle.add(right,stretch='always',minsize=365)
-        self.label(left,'조직 / AI 직원',size=14,bold=True).pack(anchor='w',pady=(0,8))
-        self.chief_label=tk.StringVar(value='총괄 AI 확인 중')
-        tk.Label(left,textvariable=self.chief_label,bg='#284464',fg='#e4f1ff',
-                 anchor='w',wraplength=380,justify='left',padx=10,pady=8).pack(fill='x',pady=(0,8))
-        self.staff=ttk.Treeview(left,columns=('team','model','state'),show='headings',height=3)
-        for key,label,width in [('team','직원 / 부서',190),('model','모델',145),('state','상태',95)]:
-            self.staff.heading(key,text=label)
-            self.staff.column(key,width=width,stretch=key!='state')
-        self.staff.pack(fill='both',expand=True)
-        self.label(right,'현재 회사 업무',size=14,bold=True).pack(anchor='w',pady=(0,8))
-        self.jobs=ttk.Treeview(right,columns=('job','owner','state'),show='headings',height=3)
-        for key,label,width in [('job','업무',205),('owner','담당 AI',140),('state','상태',100)]:
-            self.jobs.heading(key,text=label)
-            self.jobs.column(key,width=width,stretch=key!='state')
-        self.jobs.pack(fill='both',expand=True)
-        editor=tk.Frame(right,bg=PANEL)
-        editor.pack(fill='x',pady=(7,0))
-        self.task_entry=tk.Entry(editor,textvariable=self.title,font=('Malgun Gothic',11))
-        self.task_entry.pack(side='left',fill='x',expand=True,padx=(0,7),ipady=6)
-        self.button(editor,'업무 등록',self.create, strong=True)
-        controls=tk.Frame(self.parent,bg=BG)
-        controls.pack(fill='x',padx=10,pady=4)
-        self.button(controls,'새로고침',self.refresh)
-        self.button(controls,'15부서 구성',self.seed_blueprint)
-        self.button(controls,'담당 AI 배정',self.assign)
-        self.button(controls,'선택 업무 실행',self.run_selected,strong=True)
-        self.button(controls,'최대 3개 실행',self.run_batch)
-        self.button(controls,'총괄 AI 진단',self.ask_chief)
-        self.button(controls,'결과 창',self.open_result)
-        self.button(controls,'비상 중지',self.stop)
-        self.label(self.parent,'실제 GGUF 실행은 직원에게 모델을 배정해야 합니다. 결과는 검수 대기이며 자동 완료·실매출이 아닙니다.',
-                   bg=BG,fg='#eebd83').pack(fill='x',padx=13)
-        feedback=tk.Frame(self.parent,bg=BG)
-        feedback.pack(fill='both',expand=False,padx=10,pady=(4,0))
-        self.label(feedback,'',bg=BG,fg='#88dbaf').config(textvariable=self.status)
-        tk.Label(feedback,textvariable=self.status,bg=BG,fg='#88dbaf',anchor='w',wraplength=925).pack(fill='x')
+        self._configure_tables()
+        top = tk.Frame(self.parent, bg=BG)
+        top.pack(fill='x', padx=12, pady=(6, 9))
+        name = tk.Frame(top, bg=BG)
+        name.pack(side='left', fill='x', expand=True)
+        self._label(name, 'AIWACK   /   COMPANY CONTROL', size=9, bold=True,
+                    color=TEAL, bg=BG).pack(anchor='w')
+        self._label(name, 'AI 회사 운영센터', size=19, bold=True,
+                    bg=BG).pack(anchor='w')
+        right = tk.Frame(top, bg=BG)
+        right.pack(side='right', anchor='e')
+        self._label(right, '', size=9, color=AMBER, bg=BG,
+                    textvariable=self.live_badge).pack(anchor='e', pady=(2, 4))
+        self._action(right, '↻  새로고침', self.refresh, compact=True)
 
-    def open_result(self):
-        """Show model output in a real independent resizable window."""
-        dialog=tk.Toplevel(self.root)
-        dialog.title('AIWACK | 실제 AI 실행 결과')
-        dialog.geometry('850x560')
-        box=tk.Text(dialog,wrap='word',font=('Malgun Gothic',11),bg='#17253a',fg='#f4f7ff')
-        box.pack(fill='both',expand=True,padx=10,pady=10)
-        box.insert('1.0',self.latest_output)
-        box.configure(state='disabled')
+        navigation = tk.Frame(self.parent, bg=BG)
+        navigation.pack(fill='x', padx=12, pady=(0, 8))
+        for key, label in [('overview', '◈  회사 현황'), ('organization', '♧  AI 조직'),
+                           ('work', '☷  업무 실행'), ('results', '▤  결과 · 승인')]:
+            button = tk.Button(navigation, text=label, command=lambda v=key: self.set_view(v),
+                               relief='flat', borderwidth=0, padx=15, pady=7,
+                               font=(FONT, 10, 'bold'), cursor='hand2')
+            button.pack(side='left', padx=(0, 6))
+            self.nav_buttons[key] = button
 
-    def _say(self, message):
-        self.status.set(str(message)[:350])
+        kpis = tk.Frame(self.parent, bg=BG)
+        kpis.pack(fill='x', padx=9, pady=(0, 8))
+        for col, (key, label) in enumerate([('departments', 'DEPARTMENTS  /  부서'),
+                                             ('employees', 'AI EMPLOYEES  /  직원'),
+                                             ('tasks', 'OPEN TASKS  /  진행 업무'),
+                                             ('pending', 'REVIEW  /  검수 대기')]):
+            kpis.columnconfigure(col, weight=1, uniform='metrics')
+            card = self._card(kpis, padx=12, pady=7)
+            card.grid(row=0, column=col, sticky='nsew', padx=3)
+            self._label(card, label, size=8, color=MUTED).pack(anchor='w')
+            number = tk.StringVar(value='—')
+            self._label(card, '', size=21, bold=True, textvariable=number).pack(anchor='w')
+            self.cards[key] = number
+        # Kept for backward-compatible smoke tests, not shown in the KPI row.
+        self.cards['completed'] = tk.StringVar(value='0')
 
-    def _show_output(self,message):
-        self.latest_output=str(message)[:20000]
+        self.content = tk.Frame(self.parent, bg=BG)
+        self.content.pack(fill='both', expand=True, padx=12, pady=(0, 7))
+        for key in ('overview', 'organization', 'work', 'results'):
+            self.views[key] = tk.Frame(self.content, bg=BG)
+        self._draw_overview(self.views['overview'])
+        self._draw_organization(self.views['organization'])
+        self._draw_work(self.views['work'])
+        self._draw_results(self.views['results'])
+
+        foot = tk.Frame(self.parent, bg=BG)
+        foot.pack(fill='x', padx=12, pady=(2, 5))
+        self._label(foot, '', color=TEAL, size=9, bg=BG,
+                    textvariable=self.status, wraplength=970).pack(fill='x')
+        self.set_view('overview')
+
+    def _draw_overview(self, frame):
+        frame.columnconfigure(0, weight=2, uniform='center')
+        frame.columnconfigure(1, weight=3, uniform='center')
+        frame.rowconfigure(0, weight=1)
+        left = self._card(frame)
+        left.grid(row=0, column=0, sticky='nsew', padx=(0, 5))
+        self._label(left, '총괄 AI  /  EXECUTIVE', size=12, bold=True).pack(anchor='w')
+        self._divider(left)
+        self._label(left, '', size=12, bold=True, textvariable=self.chief_label,
+                    wraplength=285).pack(anchor='w', pady=(0, 3))
+        self._label(left, '', color=AMBER, size=9, textvariable=self.chief_state,
+                    wraplength=285).pack(anchor='w', pady=(0, 10))
+        self._label(left, '모델 준비 및 실행 현황', size=10, bold=True).pack(anchor='w')
+        self._label(left, '', size=9, color=MUTED, textvariable=self.team_summary,
+                    wraplength=285, justify='left').pack(anchor='w', pady=(4, 10))
+        shortcut = tk.Frame(left, bg=CARD)
+        shortcut.pack(anchor='w')
+        self._action(shortcut, '총괄 AI 진단', self.ask_chief, strong=True, compact=True)
+        self._action(shortcut, '15개 부서 구성', self.seed_blueprint, compact=True)
+        self._label(left, '모델 미배정 상태에서는 직원이 실제 일하지 않습니다.',
+                    size=8, color=MUTED, wraplength=270).pack(anchor='w', pady=(7, 0))
+
+        right = self._card(frame)
+        right.grid(row=0, column=1, sticky='nsew', padx=(5, 0))
+        header = tk.Frame(right, bg=CARD)
+        header.pack(fill='x', pady=(0, 7))
+        self._label(header, '최근 회사 업무', size=12, bold=True).pack(side='left')
+        self._action(header, '전체 업무 보기 →', lambda: self.set_view('work'), compact=True)
+        self.jobs = self._table(right, [('job', '업무', 220), ('owner', '담당 직원', 125),
+                                        ('state', '상태', 82)], height=5)
+        self.jobs.bind('<Double-1>', lambda _event: self.set_view('work'))
+        self._label(right, '업무 실행은 사람의 명시적 시작 명령 후 진행됩니다.',
+                    size=8, color=MUTED).pack(anchor='w', pady=(7, 0))
+
+    def _draw_organization(self, frame):
+        card = self._card(frame)
+        card.pack(fill='both', expand=True)
+        top = tk.Frame(card, bg=CARD)
+        top.pack(fill='x', pady=(0, 7))
+        self._label(top, 'AI 조직도  /  직급 · 부서 · 모델', size=12, bold=True).pack(side='left')
+        self._action(top, '15개 부서 초기 구성', self.seed_blueprint, strong=True, compact=True)
+        self._action(top, '모델 배정 화면 ↗', lambda: self._goto_native('직원별 모델'), compact=True)
+        self.staff = self._table(card, [('name', '직원 AI', 195), ('department', '부서', 145),
+                                        ('tier', '직급', 75), ('model', '로컬 모델', 170),
+                                        ('state', '상태', 90)], height=8)
+        self._label(card, '총괄 AI → 부서장 AI → 직원 AI.  초안 직원은 모델 실행 인스턴스가 아닙니다.',
+                    color=MUTED, size=9).pack(anchor='w', pady=(6, 0))
+
+    def _draw_work(self, frame):
+        main = self._card(frame)
+        main.pack(fill='both', expand=True)
+        head = tk.Frame(main, bg=CARD)
+        head.pack(fill='x', pady=(0, 5))
+        self._label(head, '업무 지휘실  /  TASK BOARD', size=12, bold=True).pack(side='left')
+        self._action(head, '담당 AI 자동 배정', self.assign, compact=True)
+        self._action(head, '선택 업무 실행', self.run_selected, strong=True, compact=True)
+        self.work_jobs = self._table(main, [('job', '업무', 290), ('owner', '담당 AI', 150),
+                                            ('state', '진행', 95)], height=4)
+        self.work_jobs.bind('<<TreeviewSelect>>', self._sync_work_selection)
+        editor = tk.Frame(main, bg=CARD)
+        editor.pack(fill='x', pady=(8, 0))
+        self.task_entry = tk.Entry(editor, textvariable=self.title, font=(FONT, 10),
+                                   bg='#f6f8fc', fg='#152134', relief='flat')
+        self.task_entry.pack(side='left', fill='x', expand=True, ipady=7, padx=(0, 8))
+        self.task_entry.bind('<Return>', lambda _event: self.create())
+        self._action(editor, '+  업무 등록', self.create, strong=True, compact=True)
+        controls = tk.Frame(main, bg=CARD)
+        controls.pack(fill='x', pady=(6, 0))
+        self._action(controls, '최대 3개 실행', self.run_batch, compact=True)
+        self._action(controls, '실행 결과', lambda: self.set_view('results'), compact=True)
+        self._action(controls, '비상 정지', self.stop, danger=True, compact=True)
+        self._label(main, '업무를 선택 → 담당 AI 배정 → 모델 실행.  모델이 없으면 실패 사유를 표시합니다.',
+                    size=8, color=MUTED).pack(anchor='w', pady=(7, 0))
+
+    def _draw_results(self, frame):
+        card = self._card(frame)
+        card.pack(fill='both', expand=True)
+        head = tk.Frame(card, bg=CARD)
+        head.pack(fill='x', pady=(0, 6))
+        self._label(head, 'AI 결과물  /  REVIEW QUEUE', size=12, bold=True).pack(side='left')
+        self._action(head, '결과 열기', self.open_result, compact=True)
+        self._action(head, '승인', self.approve_selected, strong=True, compact=True)
+        self._action(head, '수정 요청', self.request_changes, compact=True)
+        self._action(head, '반려', self.reject_selected, danger=True, compact=True)
+        self.artifact_list = self._table(card, [('name', '실제 AI 생성 결과', 300),
+                                               ('task', '업무 #', 72),
+                                               ('review', '검수 상태', 112)], height=5)
+        self.artifact_list.bind('<Double-1>', lambda _event: self.open_result())
+        self._label(card, '', size=9, color=AMBER, textvariable=self.review_summary).pack(anchor='w', pady=(5, 0))
+        self._label(card, '실제 생성 결과가 없으면 표시하지 않습니다. 승인해도 업무가 자동 완료되지 않습니다.',
+                    size=8, color=MUTED).pack(anchor='w', pady=(3, 0))
+
+    def set_view(self, name):
+        if name not in self.views:
+            raise ValueError('존재하지 않는 회사 화면입니다.')
+        for frame in self.views.values():
+            frame.pack_forget()
+        self.views[name].pack(fill='both', expand=True)
+        self.view_name = name
+        for key, button in self.nav_buttons.items():
+            selected = key == name
+            button.configure(bg=BLUE if selected else CARD2,
+                             fg='#ffffff' if selected else MUTED,
+                             activebackground=BLUE)
+
+    def _goto_native(self, label_fragment):
+        choices = list(self.app.quick_navigation['values'])
+        found = next((i for i, name in enumerate(choices) if label_fragment in name), None)
+        if found is None:
+            self._say('모델 설정 화면을 찾을 수 없습니다.')
+            return
+        self.app.tabs.select(found)
+        self.app.quick_navigation.current(found)
+
+    def _say(self, text):
+        self.status.set(str(text)[:350])
+
+    def _show_output(self, text):
+        self.latest_output = str(text)[:20000]
 
     def refresh(self):
         try:
-            data=ops.company_snapshot(self.store)
+            data = ops.company_snapshot(self.store)
             self.cards['departments'].set(str(len(data['departments'])))
             self.cards['employees'].set(str(len(data['team'])))
-            self.cards['tasks'].set(str(data['total_tasks']))
+            self.cards['tasks'].set(str(data['total_tasks'] - data['completed']))
             self.cards['completed'].set(str(data['completed']))
-            chief=data['chief']
-            self.chief_label.set('총괄 AI: '+(chief['display_name'] if chief else '미지정')+
-                                 ('  | 모델: '+str(chief.get('model_name') or '미배정') if chief else '')+
-                                 ('  | 비상 정지 적용 중' if data['emergency'] else ''))
-            self.staff.delete(*self.staff.get_children())
-            for row in data['team']:
-                self.staff.insert('','end',iid='employee-'+str(row['id']),
-                    values=(row['name']+' / '+row['department'],row['model'],row['lifecycle']))
-            selection=self.jobs.selection()
-            self.jobs.delete(*self.jobs.get_children())
-            for row in data['tasks']:
-                self.jobs.insert('','end',iid=str(row['id']),
-                    values=(row['title'],row['assignee'],row['status']))
-            if selection and self.jobs.exists(selection[0]):self.jobs.selection_set(selection[0])
-            self._say('회사 실데이터 새로고침 완료 · 미배정 모델은 자동으로 실행하지 않습니다.')
-        except (ValueError,PermissionError,RuntimeError) as exc:
-            self._say('조회 실패: '+str(exc))
+            self.cards['pending'].set(str(data['pending_reviews']))
+            chief = data['chief']
+            self.chief_label.set(str(chief['display_name']) if chief else '총괄 AI 미지정')
+            ready = bool(data['live_model_ready'])
+            self.chief_state.set('실행 가능한 모델 배정됨' if ready else '실제 모델 미배정 · 총괄 AI 준비 필요')
+            self.live_badge.set('●  비상 정지 활성' if data['emergency'] else
+                                '●  총괄 AI 실행 가능' if ready else '●  AI 모델 설정 필요')
+            self.team_summary.set(f"총 {len(data['team'])}명 중 모델 배정 {data['model_ready_count']}명\n"
+                                  f"실행 중 업무 {data['running']}건 · 완료 {data['completed']}건\n"
+                                  f"실제 매출·판매는 아직 검증되지 않았습니다.")
+            for tree in (self.staff, self.jobs, self.work_jobs, self.artifact_list):
+                selected = tree.selection()
+                tree.delete(*tree.get_children())
+                if tree is self.staff:
+                    for e in data['team']:
+                        self.staff.insert('', 'end', iid='employee-'+str(e['id']),
+                            values=(e['name'], e['department'], e['tier'], e['model'], e['lifecycle']),
+                            tags=('ready',) if e['model'] != '모델 미배정' else ('warn',))
+                elif tree in (self.jobs, self.work_jobs):
+                    for item in data['tasks']:
+                        tree.insert('', 'end', iid=str(item['id']),
+                            values=(item['title'], item['assignee'], item['status']),
+                            tags=('warn',) if item['assignee']=='담당자 미배정' else ())
+                else:
+                    for art in data['recent_artifacts']:
+                        tree.insert('', 'end', iid=str(art['id']),
+                            values=(art['title'], art['task_id'], art['review_status']),
+                            tags=('warn',) if art['review_status']=='pending' else ())
+                if selected and tree.exists(selected[0]):
+                    tree.selection_set(selected[0])
+            self.review_summary.set(f"총 결과물 {data['artifacts']}건 · 검수 대기 {data['pending_reviews']}건")
+            self._say('실제 회사 데이터 연결됨 · 허위 AI 활동이나 매출을 표시하지 않습니다.')
+        except (ValueError, PermissionError, RuntimeError) as exc:
+            self._say('회사 조회 실패: '+str(exc))
+
+    def _sync_work_selection(self, _event=None):
+        selected = self.work_jobs.selection()
+        if selected and self.jobs.exists(selected[0]):
+            self.jobs.selection_set(selected[0])
 
     def selected_task(self):
-        picked=self.jobs.selection()
-        if not picked:
-            raise ValueError('먼저 업무 목록에서 한 건을 클릭하세요.')
-        return int(picked[0])
+        selected = self.work_jobs.selection() if self.view_name == 'work' else self.jobs.selection()
+        if not selected:
+            raise ValueError('목록에서 실제 업무 한 건을 선택하세요.')
+        return int(selected[0])
 
     def create(self):
         try:
-            task_id=ops.create_task(self.store,self.title.get())
+            task_id = ops.create_task(self.store, self.title.get())
             self.title.set('')
             self.refresh()
-            self.jobs.selection_set(str(task_id))
-            self.jobs.see(str(task_id))
-            self._say(f'실제 SQLite 업무 #{task_id} 등록 완료 · 아직 AI가 수행한 것은 아닙니다.')
-        except (ValueError,PermissionError) as exc:self._say(str(exc))
+            self.set_view('work')
+            self.work_jobs.selection_set(str(task_id))
+            self.work_jobs.see(str(task_id))
+            self._say(f'업무 #{task_id} 등록됨 · 직원 AI 실행 전 단계')
+        except (ValueError, PermissionError) as exc:
+            self._say(str(exc))
 
     def seed_blueprint(self):
-        if not messagebox.askyesno('AIWACK 조직 초기 구성',
-                '원본 기획의 15개 부서, 총괄 AI 1명과 부서장·직원 초안 30명을 만듭니다.\\n'
-                '이 직원들은 실제 모델을 배정하기 전에는 실행되지 않습니다.\\n'
-                '빈 조직에서만 실행합니다. 계속하시겠습니까?',parent=self.root):
+        if not messagebox.askyesno('AI 조직 첫 설정',
+                '15개 부서 및 31개 AI 직원 초안을 만듭니다.\n'
+                '실제 모델을 배정하지 않는 한 AI는 실행되지 않습니다.\n'
+                '현재 빈 조직에서만 생성합니다. 계속할까요?', parent=self.root):
             return
         try:
-            result=ops.initialize_company_blueprint(self.store)
+            info = ops.initialize_company_blueprint(self.store)
             self.refresh()
-            self._say(f"초기 구성 완료: 부서 {result['departments']}개, 모델 미배정 AI 직원 초안 {result['draft_ai_profiles']}명")
-        except (ValueError,PermissionError) as exc:self._say(str(exc))
+            self.set_view('organization')
+            self._say(f"부서 {info['departments']}개 · AI 직원 초안 {info['draft_ai_profiles']}명 생성됨")
+        except (ValueError, PermissionError) as exc:
+            self._say(str(exc))
 
     def assign(self):
         try:
-            info=ops.assign_task(self.store,self.selected_task())
+            info = ops.assign_task(self.store, self.selected_task())
             self.refresh()
-            self._say('담당 직원 AI 배정: '+str(info['employee_name'])+' · 아직 모델 미실행')
-        except (ValueError,PermissionError) as exc:self._say(str(exc))
+            self._say('담당 직원 AI: '+str(info['employee_name'])+' · 실제 실행은 별도 명령이 필요합니다.')
+        except (ValueError, PermissionError) as exc:
+            self._say(str(exc))
 
-    def _start(self,job):
+    def _start(self, task):
         if self.worker and self.worker.is_alive():
-            self._say('AI 작업이 실행 중입니다. 중복 실행하지 않습니다.')
+            self._say('이미 AI가 실행 중입니다. 새 실행을 시작하지 않습니다.')
             return
         self.cancel.clear()
-        self._say('실제 로컬 AI 실행 중… 완료 후 결과물 감사 기록을 남깁니다.')
+        self._say('실제 로컬 AI 실행 중 · 감사 기록과 결과물을 저장합니다.')
         def work():
-            try: self.pending.put(('result',job()))
-            except Exception as exc: self.pending.put(('error',type(exc).__name__+': '+str(exc)))
-        self.worker=threading.Thread(target=work,daemon=True,name='AIWACK-office-user-request')
+            try:
+                self.pending.put(('result', task()))
+            except Exception as exc:
+                self.pending.put(('error', type(exc).__name__+': '+str(exc)))
+        self.worker = threading.Thread(target=work, daemon=True, name='AIWACK-company-office')
         self.worker.start()
-        self.root.after(200,self._poll)
+        self.root.after(200, self._poll)
 
     def _poll(self):
-        if self.generation!=self.app._session_generation or self.app.main_frame is None:
-            self.cancel.set();return
-        try: kind,result=self.pending.get_nowait()
-        except queue.Empty:
-            if self.worker and self.worker.is_alive():self.root.after(200,self._poll)
+        if self.generation != self.app._session_generation or self.app.main_frame is None:
+            self.cancel.set()
             return
-        if kind=='error':
-            self._say('실제 작업 실패: '+str(result))
-            self._show_output(str(result))
-        else:
-            self._show_output(result)
-            self._say('실제 실행 결과 수신 · 승인 전 초안/검수 대기')
+        try:
+            kind, result = self.pending.get_nowait()
+        except queue.Empty:
+            if self.worker and self.worker.is_alive():
+                self.root.after(200, self._poll)
+            return
+        self._show_output(result)
         self.refresh()
-        self._say('AI 실행 완료(초안). 저장된 결과물은 기존 업무 결과물·검수 화면에서 확인하세요.'
-                  if kind=='result' else '실제 작업 실패: '+str(result))
+        if kind == 'error':
+            self._say('실제 AI 실행 실패: '+str(result))
+        else:
+            self._say('로컬 AI 실행 결과 수신 · 결과물은 승인 대기이며 매출이 아닙니다.')
+            self.set_view('results')
 
     def run_selected(self):
-        try: task=self.selected_task()
-        except ValueError as exc:self._say(str(exc));return
-        self._start(lambda:ops.execute_task(self.store,task,cancel=self.cancel))
+        try:
+            task_id = self.selected_task()
+        except ValueError as exc:
+            self._say(str(exc))
+            return
+        self._start(lambda: ops.execute_task(self.store, task_id, cancel=self.cancel))
 
     def run_batch(self):
-        self._start(lambda:ops.execute_batch(self.store,max_tasks=3,cancel=self.cancel))
+        self._start(lambda: ops.execute_batch(self.store, max_tasks=3, cancel=self.cancel))
 
     def ask_chief(self):
-        self._start(lambda:ops.chief_brief(self.store,cancel=self.cancel))
+        self._start(lambda: ops.chief_brief(self.store, cancel=self.cancel))
+
+    def _selected_artifact(self):
+        picked = self.artifact_list.selection()
+        if not picked:
+            raise ValueError('결과 목록에서 검수할 결과물 한 건을 선택하세요.')
+        return int(picked[0])
+
+    def open_result(self):
+        try:
+            artifact_id = self._selected_artifact()
+            artifact = self.store.read_task_artifact(artifact_id)
+            text = f"결과물 #{artifact_id}  /  {artifact['title']}\n" + '-'*52 + '\n' + artifact['body']
+        except ValueError:
+            text = self.latest_output
+        dialog = tk.Toplevel(self.root)
+        dialog.title('AIWACK | 실제 AI 결과 및 검수')
+        dialog.geometry('790x510')
+        area = tk.Text(dialog, wrap='word', font=(FONT, 10), bg=CARD, fg=INK,
+                       relief='flat', padx=14, pady=14)
+        area.pack(fill='both', expand=True, padx=10, pady=10)
+        area.insert('1.0', text)
+        area.configure(state='disabled')
+
+    def _review(self, decision):
+        try:
+            artifact_id = self._selected_artifact()
+            if not messagebox.askyesno('결과물 검수', f'결과물 #{artifact_id}을(를) {decision} 처리합니까?\n업무 완료는 자동 처리하지 않습니다.', parent=self.root):
+                return
+            comment = ''
+            if decision != 'approved':
+                comment = simpledialog.askstring('검수 의견', '수정하거나 반려할 이유를 적으세요.', parent=self.root)
+                if comment is None:
+                    return
+            self.store.review_task_artifact(artifact_id, decision, comment)
+            self.refresh()
+            self._say(f'결과물 #{artifact_id} 검수 기록: {decision}')
+        except (ValueError, PermissionError) as exc:
+            self._say('검수 실패: '+str(exc))
+
+    def approve_selected(self):
+        self._review('approved')
+
+    def request_changes(self):
+        self._review('changes_requested')
+
+    def reject_selected(self):
+        self._review('rejected')
 
     def stop(self):
+        if not messagebox.askyesno('회사 비상 정지',
+                '회사 AI 작업의 신규 실행을 차단하고 현재 운영센터 작업에 취소를 요청합니다. 계속하시겠습니까?',parent=self.root):
+            return
         self.cancel.set()
         try:
-            state=self.store.emergency_stop_local(True,'관리자가 회사 운영센터에서 비상 중지')
-            self._say('비상 중지 저장됨 · 로컬 실행 중단 요청 · 외부 도구까지 강제 차단하는 것은 아닙니다.')
+            self.store.emergency_stop_local(True, '운영센터에서 관리자가 비상 중지')
             self.refresh()
-            self._say('비상 정지 활성화. 해제는 기존 안전·관리 화면에서 명시적으로 진행하십시오.')
-        except (PermissionError,ValueError) as exc:self._say('비상 중지 실패: '+str(exc))
+            self._say('비상 정지 활성 · 해제는 관리자 안전 화면에서 명시적으로 수행하세요.')
+        except (ValueError, PermissionError) as exc:
+            self._say('비상 정지 실패: '+str(exc))
 
 
-def mount(app,parent):
-    app.company_office=CompanyOffice(app,parent)
+def mount(app, parent):
+    app.company_office = CompanyOffice(app, parent)
     return app.company_office

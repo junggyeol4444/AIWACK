@@ -46,12 +46,16 @@ def company_snapshot(store) -> dict:
                 completed=sum(t['status']=='done' for t in tasks),
                 running=sum(t['status']=='in_progress' for t in tasks),
                 emergency=emergency,
+                model_ready_count=sum(bool(model_bindings.get(int(e['id']),{}).get('model_name'))
+                                      for e in employees),
+                pending_reviews=sum(a['review_status']=='pending' for a in artifacts),
+                recent_artifacts=artifacts[:75],
                 live_model_ready=bool(chief and chief.get('model_id')),
                 actual_sales_verified=False)
 
 
 
-# Original spec chapter 2.3: the fifteen supported divisions, no synthetic LLM activity.
+# Original specification chapter 2.3: fifteen functional departments.
 BLUEPRINT_DEPARTMENTS = (
     ('경영기획부','사업 전략, 회사 목표와 운영 계획'),
     ('시장조사부','시장 조사, 경쟁사 및 수요 분석'),
@@ -72,10 +76,11 @@ BLUEPRINT_DEPARTMENTS = (
 
 
 def initialize_company_blueprint(store) -> dict:
-    """One explicit owner action creates 15 departments and 31 NON-RUNNING employee drafts.
+    """User-clicked 15 departments + 31 non-executing draft AI profiles.
 
-    Do not touch an existing organization; a model must be assigned separately
-    before any employee can execute a real local LLM call.
+    A blueprint is NOT 31 running LLMs; each model requires separate assignment.
+    Fail rather than overwriting existing organization records. The program
+    creates data only after the owner clicks the confirmation button.
     """
     store.require_permission('agents:manage')
     if store.list_departments() or store.list_employee_records():
@@ -93,7 +98,6 @@ def initialize_company_blueprint(store) -> dict:
         store.assign_reporting_line(staff,'staff',manager)
     return {'departments':len(dept_ids),'draft_ai_profiles':31,
             'chief_employee_id':chief,'real_model_calls':0}
-
 
 
 def create_task(store, title: str, description: str = '') -> int:
