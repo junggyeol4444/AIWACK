@@ -27,6 +27,18 @@ def apply(root: Path) -> None:
     new='f"검증 완료 {CURRENT_STAGE} / {TOTAL_STAGES}개 · 개발 순번 100/100 · 실제 인수 미완료"'
     if source.count(old)!=1:raise RuntimeError("Cannot find outdated roadmap label")
     source=source.replace(old,new,1)
+    # Fix an actual EXE shutdown crash: after WM_DELETE_WINDOW destroys Tk,
+    # calling winfo_exists() in the run() finally raises TclError and shows a
+    # modal PyInstaller "Unhandled exception in script" dialog.
+    old_shutdown='    finally:\n        if root.winfo_exists():\n            root.destroy()\n'
+    safe_shutdown=('    finally:\n'
+                   '        try:\n'
+                   '            root.destroy()\n'
+                   '        except tk.TclError:\n'
+                   '            pass\n')
+    if source.count(old_shutdown)!=1:
+        raise RuntimeError("Cannot find exact EXE shutdown crash site")
+    source=source.replace(old_shutdown,safe_shutdown,1)
     ast.parse(source,filename=str(f))
     f.write_text(source,encoding="utf-8")
     print("Applied real navigation button and removed outdated stage label:",f)
