@@ -11,7 +11,9 @@ permissions:
 
 concurrency:
   group: aiwack-windows-validation-${{ github.ref }}-${{ github.workflow }}
-  cancel-in-progress: true
+  # Preserve already-running full regression jobs when a new validation
+  # commit arrives; incomplete shards must not be mistaken for passed tests.
+  cancel-in-progress: false
 
 jobs:
   windows-pytest:

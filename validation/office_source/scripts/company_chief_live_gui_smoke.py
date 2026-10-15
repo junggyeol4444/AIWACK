@@ -184,6 +184,11 @@ def main():
             assert len(store.list_employee_model_calls(worker))==1
             assert store.read_task_artifact(artifact['id'])['review_status']=='pending'
             print('REAL_GUI_CHIEF_ASK_OWNER_APPROVE_WORKER_EXECUTE_AUDIT_PASS',flush=True)
+            # Wait for the previous worker thread AND its Tk queue callback.
+            # Database write alone can happen before _start allows a new run.
+            wait_for(root, lambda: office.worker is not None
+                     and not office.worker.is_alive() and office.pending.empty(),
+                     timeout=35)
             # Physically use the result review queue after real subprocess calls.
             office.set_view('results')
             office.refresh()
@@ -201,7 +206,27 @@ def main():
                 root.update()
 
             click_and_confirm(find_button(office.views['results'], '총괄 AI 회수 검토'))
-            report=wait_for(root,lambda:store.find_chief_task_report(artifact['id']),timeout=50)
+            # Assert that an actual new review job started. Never blindly retry
+            # the click: doing so could invoke the model twice.
+            try:
+                wait_for(root,lambda:office.after_action=='chief_report'
+                         or store.find_chief_task_report(artifact['id']) is not None,
+                         timeout=12)
+                report=wait_for(root,lambda:store.find_chief_task_report(artifact['id']),
+                                timeout=85)
+            except AssertionError:
+                evidence={'status':office.status.get(),
+                          'after_action':office.after_action,
+                          'worker_alive':bool(office.worker and office.worker.is_alive()),
+                          'pending_items':not office.pending.empty(),
+                          'chief_calls':len(store.list_employee_model_calls(chief)),
+                          'task_state':store.read_task(task)['status'],
+                          'review_state':store.read_task_artifact(artifact['id'])['review_status'],
+                          'dialogs':[(w.title(),w.winfo_geometry()) for w in toplevels(root)]}
+                print('REAL_GUI_CHIEF_REVIEW_FAILURE',
+                      json.dumps(evidence,ensure_ascii=True),flush=True)
+                screenshot_if_requested('chief-review-failure-diagnostic')
+                raise
             assert report['owner_decision']=='pending'
             assert store.read_task_artifact(artifact['id'])['review_status']=='pending'
             assert store.read_task(task)['status']=='in_progress'
