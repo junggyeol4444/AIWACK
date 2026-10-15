@@ -1,5 +1,5 @@
 """Black-box GUI test: packaged AIWACK.exe, real Windows mouse and keyboard."""
-import os, sys, time, json, sqlite3, subprocess, tempfile, traceback
+import os, sys, time, json, sqlite3, subprocess, tempfile, traceback, shutil
 from pathlib import Path
 import pyautogui, pygetwindow, pyperclip
 
@@ -64,11 +64,46 @@ def shutdown(w,p):
         p.terminate();p.wait(timeout=8)
         raise AssertionError("EXE did not exit on Alt+F4")
 
+def note_input_y(w):
+    """Observe the REAL EXE screenshot. A wide white input band exists only on notes page."""
+    screen=pyautogui.screenshot().convert("RGB")
+    width,height=screen.size
+    for y in range(305,515):
+        points=[(w.left+x,w.top+y) for x in (180,330,560,790)]
+        if any(px<0 or px>=width or py<0 or py>=height for px,py in points):
+            continue
+        pixels=[screen.getpixel(p) for p in points]
+        if all(min(rgb)>210 for rgb in pixels):
+            return y
+    return None
+
 def open_notes(w):
-    # New user-facing "다음 화면" button in the tested EXE candidate.
-    # Drive it only through a real Windows mouse click.
+    # Human operation: physically click a plainly visible button in the packaged EXE.
+    # Never mark success merely because the click command returned.
     click(w,370,163)
-    time.sleep(1)
+    until=time.monotonic()+12
+    while time.monotonic()<until:
+        field_y=note_input_y(w)
+        if field_y is not None:
+            print("VISIBLE_NOTES_FIELD at relative y=",field_y,flush=True)
+            return field_y + 10  # safe text-entry center within the white band
+        time.sleep(.35)
+    snapshot("navigation-did-not-show-note")
+    raise AssertionError("Clicked EXE notes navigation; actual screen still has no visible notes entry")
+
+def save_button_y(w,field_y):
+    screen=pyautogui.screenshot().convert("RGB")
+    positions=[]
+    for y in range(field_y+37,min(field_y+145,650)):
+        x,yabsolute=w.left+125,w.top+y
+        if 0 <= x < screen.width and 0 <= yabsolute < screen.height:
+            r,g,b=screen.getpixel((x,yabsolute))
+            if 45<=r<=130 and 90<=g<=190 and b>=175 and b>g+35:
+                positions.append(y)
+    if not positions:
+        snapshot("save-button-not-visible")
+        raise AssertionError("Cannot locate visible blue Save button in real EXE")
+    return (positions[0]+positions[-1])//2
 
 def kill_tree(p):
     if p.poll() is None:
@@ -78,37 +113,71 @@ def kill_tree(p):
         except subprocess.TimeoutExpired:p.kill();p.wait(timeout=5)
 
 def test(exe):
-    with tempfile.TemporaryDirectory(prefix="aiwack-packaged-e2e-") as t:
-        d=Path(t)/"data";db=d/"aiwack.sqlite3"
-        p=start(exe,d)
-        try:
-            w=find_window();snapshot("first-launch")
-            type_text(w,175,320,USER);type_text(w,175,401,PASS);type_text(w,175,483,PASS)
-            click(w,175,545)
-            expect_db(db,"select username from owner_accounts where id=1",USER)
-            snapshot("account-created")
-            open_notes(w);snapshot("notes-selected")
-            type_text(w,200,417,NOTE);click(w,130,482)
-            expect_db(db,"select value from system_metadata where key='local_manual_test'",NOTE)
-            snapshot("note-saved")
-            shutdown(w,p);snapshot("exit-success")
-        finally:
-            kill_tree(p)
-        p=start(exe,d)
-        try:
-            w=find_window();snapshot("reopen-login")
-            type_text(w,175,395,USER);type_text(w,175,437,PASS);click(w,175,480)
-            time.sleep(2)
-            open_notes(w)
-            pyperclip.copy("empty")
-            click(w,200,417);pyautogui.hotkey("ctrl","a");pyautogui.hotkey("ctrl","c")
-            time.sleep(1)
-            assert pyperclip.paste()==NOTE, "GUI did not show persisted note: "+repr(pyperclip.paste())
-            snapshot("reopen-note-visible")
-            click(w,960,162);time.sleep(.8);snapshot("logout")
-            shutdown(w,p)
-        finally:
-            kill_tree(p)
+    # Keep a separate user data directory. Neither the test nor the EXE is allowed
+    # to seed the application DB directly; sqlite3 below is READ-ONLY verification.
+    base=Path(tempfile.mkdtemp(prefix="aiwack-packaged-e2e-"))
+    d=base/"data"
+    db=d/"aiwack.sqlite3"
+    process=None
+    try:
+        process=start(exe,d)
+        w=find_window()
+        snapshot("first-launch")
+        type_text(w,175,320,USER)
+        type_text(w,175,401,PASS)
+        type_text(w,175,483,PASS)
+        snapshot("credentials-typed")
+        click(w,175,545)
+        expect_db(db,"select username from owner_accounts where id=1",USER)
+        snapshot("account-created")
+        field_y=open_notes(w)
+        snapshot("notes-visible")
+        type_text(w,200,field_y,NOTE)
+        snapshot("note-typed")
+        click(w,130,save_button_y(w,field_y))
+        expect_db(db,"select value from system_metadata where key='local_manual_test'",NOTE)
+        snapshot("note-saved-in-sqlite")
+        shutdown(w,process)
+        process=None
+        snapshot("exe-closed")
+
+        process=start(exe,d)
+        w=find_window()
+        snapshot("reopen-login")
+        type_text(w,175,395,USER)
+        type_text(w,175,437,PASS)
+        click(w,175,480)
+        time.sleep(2)
+        field_y=open_notes(w)
+        snapshot("reopen-notes-visible")
+        pyperclip.copy("verification-sentinel")
+        click(w,200,field_y)
+        pyautogui.hotkey("ctrl","a")
+        pyautogui.hotkey("ctrl","c")
+        time.sleep(.6)
+        clipboard=pyperclip.paste()
+        assert clipboard==NOTE, "Real EXE display did not show persisted note: "+repr(clipboard)
+        snapshot("reopen-note-visible-and-matches")
+        click(w,960,163)
+        time.sleep(1.1)
+        snapshot("user-logged-out")
+        shutdown(w,process)
+        process=None
+        print("PACKAGED_WINDOWS_EXE_REAL_MOUSE_KEYBOARD_PASS",STEPS,flush=True)
+    finally:
+        if process is not None:
+            kill_tree(process)
+        # On Windows an EXE may take a moment to release SQLite after exiting.
+        # Report cleanup problems without masking the original GUI failure.
+        for i in range(12):
+            try:
+                shutil.rmtree(base)
+                break
+            except (PermissionError,OSError):
+                if i==11:
+                    print("WARNING: temporary test data directory remains locked:",base,flush=True)
+                else:
+                    time.sleep(.5)
 
 if __name__=="__main__":
     try:
