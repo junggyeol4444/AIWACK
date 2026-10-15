@@ -53,9 +53,9 @@ def apply(root: Path) -> None:
         '        assert len(progress["completed_steps"]) + len(blocked) == 100\\n'
         '        assert all(row["status"] != "TODO" for row in rows)'
     )
-    # Convert the marker's escaped line separators to literal line endings.
-    expectation = expectation.replace("\\\\n", "\\n")
-    replacement = replacement.replace("\\\\n", "\\n")
+    # Use explicit characters instead of ambiguous source-escape spelling.
+    expectation = expectation.replace(chr(92) + "n", chr(10))
+    replacement = replacement.replace(chr(92) + "n", chr(10))
     if old_test.count(expectation) != 1:
         raise RuntimeError("Cannot locate obsolete roadmap test step-101 sentinel")
     corrected = old_test.replace(expectation, replacement, 1)
