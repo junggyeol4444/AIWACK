@@ -128,3 +128,26 @@ def test_after_restart_real_task_assignment_persists(owner):
     snapshot=ops.company_snapshot(store)
     assert snapshot['tasks'][0]['assignee']=='AI Researcher'
     assert snapshot['team'][0]['id']==staff
+
+
+def test_create_original_fifteen_department_chief_head_staff_blueprint(owner):
+    result=ops.initialize_company_blueprint(owner)
+    assert result['departments']==15 and result['draft_ai_profiles']==31
+    assert result['real_model_calls']==0
+    data=ops.company_snapshot(owner)
+    assert len(data['departments'])==15 and len(data['team'])==31
+    assert data['chief']['model_id'] is None
+    assert not data['live_model_ready']
+    lines=owner.list_reporting_lines()
+    assert [row['tier'] for row in lines].count('ceo')==1
+    assert [row['tier'] for row in lines].count('department_head')==15
+    assert [row['tier'] for row in lines].count('staff')==15
+    with pytest.raises(ValueError,match='기존'):
+        ops.initialize_company_blueprint(owner)
+    assert len(owner.list_employee_records())==31
+
+
+def test_blueprint_refuses_to_overwrite_any_existing_org(owner):
+    owner.add_department('내 조직')
+    with pytest.raises(ValueError):ops.initialize_company_blueprint(owner)
+    assert [x['name'] for x in owner.list_departments()]==['내 조직']

@@ -50,6 +50,52 @@ def company_snapshot(store) -> dict:
                 actual_sales_verified=False)
 
 
+
+# Original spec chapter 2.3: the fifteen supported divisions, no synthetic LLM activity.
+BLUEPRINT_DEPARTMENTS = (
+    ('경영기획부','사업 전략, 회사 목표와 운영 계획'),
+    ('시장조사부','시장 조사, 경쟁사 및 수요 분석'),
+    ('연구개발부','기술 조사, 개발과 테스트'),
+    ('상품기획부','상품 기획과 가격 설계'),
+    ('콘텐츠제작부','글, 영상 및 문서 제작'),
+    ('디자인부','UI, UX와 그래픽'),
+    ('마케팅부','홍보 및 유입 분석'),
+    ('영업부','제안과 고객 발굴'),
+    ('고객지원부','문의와 사후 지원'),
+    ('재무회계부','매출, 예산 및 비용 검토'),
+    ('법무관리부','계약 및 약관 검토 지원'),
+    ('인사관리부','직원 및 조직 관리'),
+    ('품질관리부','결과물 오류 및 품질 검수'),
+    ('운영관리부','일정, 서비스 및 장애 대응'),
+    ('데이터분석부','데이터 분석과 성과 예측'),
+)
+
+
+def initialize_company_blueprint(store) -> dict:
+    """One explicit owner action creates 15 departments and 31 NON-RUNNING employee drafts.
+
+    Do not touch an existing organization; a model must be assigned separately
+    before any employee can execute a real local LLM call.
+    """
+    store.require_permission('agents:manage')
+    if store.list_departments() or store.list_employee_records():
+        raise ValueError('이미 조직이 존재합니다. 기존 부서와 직원을 보존하기 위해 초기 구성을 거부합니다.')
+    dept_ids=[store.add_department(name,description) for name,description in BLUEPRINT_DEPARTMENTS]
+    chief=store.add_employee_draft('office_chief','총괄 AI (모델 미배정)',
+                                   '전체 회사 운영과 의사결정')
+    store.assign_reporting_line(chief,'ceo')
+    for index, ((name,description),did) in enumerate(zip(BLUEPRINT_DEPARTMENTS,dept_ids),1):
+        manager=store.add_employee_draft(f'office_d{index:02d}_head',f'{name} 부서장 AI',
+            description,department_id=did)
+        store.assign_reporting_line(manager,'department_head',chief)
+        staff=store.add_employee_draft(f'office_d{index:02d}_staff',f'{name} 직원 AI',
+            description,department_id=did)
+        store.assign_reporting_line(staff,'staff',manager)
+    return {'departments':len(dept_ids),'draft_ai_profiles':31,
+            'chief_employee_id':chief,'real_model_calls':0}
+
+
+
 def create_task(store, title: str, description: str = '') -> int:
     """Add a genuine owner-approved task, not a fabricated AI-generated one."""
     store.require_permission('company:manage')

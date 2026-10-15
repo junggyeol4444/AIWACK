@@ -86,6 +86,7 @@ class CompanyOffice:
         controls=tk.Frame(self.parent,bg=BG)
         controls.pack(fill='x',padx=10,pady=4)
         self.button(controls,'새로고침',self.refresh)
+        self.button(controls,'15부서 구성',self.seed_blueprint)
         self.button(controls,'담당 AI 배정',self.assign)
         self.button(controls,'선택 업무 실행',self.run_selected,strong=True)
         self.button(controls,'최대 3개 실행',self.run_batch)
@@ -154,6 +155,18 @@ class CompanyOffice:
             self.jobs.selection_set(str(task_id))
             self.jobs.see(str(task_id))
             self._say(f'실제 SQLite 업무 #{task_id} 등록 완료 · 아직 AI가 수행한 것은 아닙니다.')
+        except (ValueError,PermissionError) as exc:self._say(str(exc))
+
+    def seed_blueprint(self):
+        if not messagebox.askyesno('AIWACK 조직 초기 구성',
+                '원본 기획의 15개 부서, 총괄 AI 1명과 부서장·직원 초안 30명을 만듭니다.\\n'
+                '이 직원들은 실제 모델을 배정하기 전에는 실행되지 않습니다.\\n'
+                '빈 조직에서만 실행합니다. 계속하시겠습니까?',parent=self.root):
+            return
+        try:
+            result=ops.initialize_company_blueprint(self.store)
+            self.refresh()
+            self._say(f"초기 구성 완료: 부서 {result['departments']}개, 모델 미배정 AI 직원 초안 {result['draft_ai_profiles']}명")
         except (ValueError,PermissionError) as exc:self._say(str(exc))
 
     def assign(self):
