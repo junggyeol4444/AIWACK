@@ -63,6 +63,33 @@ def apply(root: Path) -> None:
                 "        runner = __import__('pathlib').Path(__import__('sys').executable)\n",
             ),
         )
+        # Continue exercising Windows SQLite and authorization paths in
+        # legacy tests with genuine python.exe, instead of POSIX-only shebang
+        # fixtures. Tests that launch or mutate the POSIX scripts were already
+        # individually marked platform-specific by the project authors.
+        fixes += (
+            (
+                "test_employee_models.py",
+                "    script.chmod(0o700)\n",
+                "    script.chmod(0o700)\n"
+                "    if os.name == 'nt':\n"
+                "        script = Path(__import__('sys').executable)\n",
+            ),
+            (
+                "test_task_parallel.py",
+                "    runner.chmod(0o700)\n",
+                "    runner.chmod(0o700)\n"
+                "    if os.name == 'nt':\n"
+                "        runner = __import__('pathlib').Path(__import__('sys').executable)\n",
+            ),
+            (
+                "test_local_models.py",
+                "    exe.chmod(0o700)\n",
+                "    exe.chmod(0o700)\n"
+                "    if os.name == 'nt':\n"
+                "        exe = Path(sys.executable)\n",
+            ),
+        )
         for filename, needle, substitution in fixes:
             test_path = root / "tests" / filename
             source = test_path.read_text(encoding="utf-8")
