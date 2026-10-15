@@ -65,9 +65,18 @@ def shutdown(w,p):
         raise AssertionError("EXE did not exit on Alt+F4")
 
 def open_notes(w):
-    click(w,220,163)
-    pyautogui.press("home");pyautogui.press("down");pyautogui.press("enter")
+    # Actually open the dropdown with mouse and click its second visible item.
+    click(w,309,163)
+    snapshot("navigation-dropdown-open")
+    click(w,185,203)
     time.sleep(1)
+
+def kill_tree(p):
+    if p.poll() is None:
+        subprocess.run(["taskkill","/T","/F","/PID",str(p.pid)],
+          stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL,check=False)
+        try:p.wait(timeout=10)
+        except subprocess.TimeoutExpired:p.kill();p.wait(timeout=5)
 
 def test(exe):
     with tempfile.TemporaryDirectory(prefix="aiwack-packaged-e2e-") as t:
@@ -85,7 +94,7 @@ def test(exe):
             snapshot("note-saved")
             shutdown(w,p);snapshot("exit-success")
         finally:
-            if p.poll() is None:p.terminate();p.wait(timeout=8)
+            kill_tree(p)
         p=start(exe,d)
         try:
             w=find_window();snapshot("reopen-login")
@@ -100,7 +109,7 @@ def test(exe):
             click(w,960,162);time.sleep(.8);snapshot("logout")
             shutdown(w,p)
         finally:
-            if p.poll() is None:p.terminate();p.wait(timeout=8)
+            kill_tree(p)
 
 if __name__=="__main__":
     try:
