@@ -64,6 +64,37 @@ def apply(root: Path) -> None:
     print("Applied validation-branch true-blocked-roadmap consistency assertion")
 
     if sys.platform == "win32":
+        # pytest puts each parametrized node ID into PYTEST_CURRENT_TEST.
+        # The legacy >32 KiB text fixtures overflow a Windows env var even
+        # before the test body runs. Give them stable short IDs without
+        # reducing test input size or skipping validation.
+        windows_test_fixes = (
+            (
+                "test_offline_research.py",
+                "@pytest.mark.parametrize('bad', ['',None,123,'x\\x00y', 'A'*(MAX_CONTENT+1)])",
+                "@pytest.mark.parametrize('bad', ['',None,123,'x\\x00y', 'A'*(MAX_CONTENT+1)], ids=['empty','none','integer','nul','over_max'])",
+            ),
+            (
+                "test_stage56_code_authoring.py",
+                "'x'*32769])",
+                "'x'*32769], ids=['empty','syntax','nul','surrogate','over_max'])",
+            ),
+            (
+                "test_task_artifacts.py",
+                "    executable = tmp_path / 'fake-local-exe'\n",
+                "    executable = tmp_path / ('fake-local-exe.exe' if __import__('os').name == 'nt' else 'fake-local-exe')\n",
+            ),
+        )
+        for filename, needle, replacement in windows_test_fixes:
+            test_path = root / "tests" / filename
+            source = test_path.read_text(encoding="utf-8")
+            if source.count(needle) != 1:
+                raise RuntimeError("Unexpected Windows parameter/fixture target: " + filename)
+            updated = source.replace(needle, replacement, 1)
+            ast.parse(updated, filename=str(test_path))
+            test_path.write_text(updated, encoding="utf-8")
+            print("Applied Windows regression fixture fix:", filename)
+
         # Three legacy POSIX fixture helpers never launch their fake scripts
         # in Windows-compatible tests. Use the actual trusted Windows
         # python.exe path for config validation, without weakening the real

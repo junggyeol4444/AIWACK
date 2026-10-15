@@ -45,7 +45,7 @@ jobs:
         run: |
           Set-Location (Join-Path $env:RUNNER_TEMP 'aiwack-src/AIWACK-Stage54')
           python -m pip install --upgrade pip
-          python -m pip install -e '.[dev]'
+          python -m pip install -e '.[dev]' playwright
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
       - name: Execute assigned portion of every test_*.py file
         shell: pwsh
