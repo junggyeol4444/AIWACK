@@ -19,8 +19,9 @@ EDIT_BG = '#f7f9fc'
 class ConnectLocalModelDialog:
     def __init__(self, office):
         self.office = office
-        self.window = tk.Toplevel(office.root)
+        self.window = tk.Toplevel(office.parent)
         self.window.title('AIWACK | 로컬 AI 모델 연결')
+        office.model_dialog = self
         self.window.geometry('760x594')
         self.window.minsize(680, 570)
         self.window.configure(bg=BG)

@@ -51,9 +51,8 @@ def main():
             assert button is not None
             screen_click(button)
             root.update()
-            dialogs=[c for c in root.winfo_children()
-                     if isinstance(c,tk.Toplevel) and c.winfo_exists()
-                     and c.title()=='AIWACK | 로컬 AI 모델 연결']
+            dialogs=[office.model_dialog.window]
+            assert dialogs[0].title()=='AIWACK | 로컬 AI 모델 연결'
             assert len(dialogs)==1, 'GUI click must open actual local model wizard'
             dialog=dialogs[0]
             assert dialog.winfo_viewable()
@@ -64,7 +63,11 @@ def main():
                 pyautogui.screenshot().save(out)
             print('REAL_MOUSE_OPENED_LOCAL_MODEL_WIZARD', json.dumps({
                 'employee': employee,'actual_model_calls':len(store.list_employee_model_calls())}))
-            dialog.destroy()
+            app.sign_out()
+            root.update()
+            assert not dialog.winfo_exists(), 'Model path dialog must close on logout'
+            assert app.main_frame is None
+            print('LOGOUT_CLOSED_SENSITIVE_MODEL_WIZARD')
         finally:
             root.destroy()
 

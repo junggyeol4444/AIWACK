@@ -437,9 +437,16 @@ class CompanyOffice:
         self._show_output(result)
         self.refresh()
         if kind == 'error':
+            if self.after_action == 'model_probe':
+                dialog = getattr(self, 'model_dialog', None)
+                if dialog is not None and dialog.window.winfo_exists():
+                    dialog.feedback.set('실제 모델 호출 실패: '+str(result)[:250])
             self._say('실제 AI 실행 실패: '+str(result))
         else:
             if self.after_action == 'model_probe':
+                dialog = getattr(self, 'model_dialog', None)
+                if dialog is not None and dialog.window.winfo_exists():
+                    dialog.feedback.set('실제 모델 응답 수신 및 호출 감사 기록 저장 완료 · 결과는 관리자 검수 전입니다.')
                 self._say('로컬 직원 모델이 실제 응답했습니다. 진단 감사 기록만 저장했습니다.')
                 self._text_dialog('로컬 AI 직원 모델 호출 진단', str(result))
             elif self.after_action == 'planning':
