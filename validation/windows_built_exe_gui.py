@@ -65,9 +65,9 @@ def shutdown(w,p):
         raise AssertionError("EXE did not exit on Alt+F4")
 
 def open_notes(w):
-    # The real app compresses many tabs into ~13px each on a 1024px runner.
-    # Physically click its SECOND notebook tab, not a Python Tk select() call.
-    click(w,45,203)
+    # New user-facing "다음 화면" button in the tested EXE candidate.
+    # Drive it only through a real Windows mouse click.
+    click(w,370,163)
     time.sleep(1)
 
 def kill_tree(p):

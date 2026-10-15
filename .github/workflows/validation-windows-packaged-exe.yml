@@ -27,6 +27,8 @@ jobs:
           Expand-Archive -LiteralPath $archive -DestinationPath (Join-Path $env:RUNNER_TEMP 'aiwack-built-exe')
           python validation/patch_source.py (Join-Path $env:RUNNER_TEMP 'aiwack-built-exe/AIWACK-Stage54')
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          python validation/app_navigation_patch.py (Join-Path $env:RUNNER_TEMP 'aiwack-built-exe/AIWACK-Stage54')
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
       - name: Install native Windows EXE and screen automation tools
         shell: pwsh
         run: |
