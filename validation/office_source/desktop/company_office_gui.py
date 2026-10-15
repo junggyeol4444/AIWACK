@@ -282,15 +282,15 @@ class CompanyOffice:
             data = ops.company_snapshot(self.store)
             self.cards['departments'].set(str(len(data['departments'])))
             self.cards['employees'].set(str(len(data['team'])))
-            self.cards['tasks'].set(str(data['total_tasks'] - data['completed']))
+            self.cards['tasks'].set(str(data['open_tasks']))
             self.cards['completed'].set(str(data['completed']))
             self.cards['pending'].set(str(data['pending_reviews']))
             chief = data['chief']
             self.chief_label.set(str(chief['display_name']) if chief else '총괄 AI 미지정')
             ready = bool(data['live_model_ready'])
-            self.chief_state.set('실행 가능한 모델 배정됨' if ready else '실제 모델 미배정 · 총괄 AI 준비 필요')
+            self.chief_state.set('총괄 모델 지정됨 · 실제 실행은 미검증' if ready else '실제 모델 미배정 · 총괄 AI 준비 필요')
             self.live_badge.set('●  비상 정지 활성' if data['emergency'] else
-                                '●  총괄 AI 실행 가능' if ready else '●  AI 모델 설정 필요')
+                                '●  총괄 모델 지정됨 (실행 미검증)' if ready else '●  AI 모델 설정 필요')
             self.team_summary.set(f"총 {len(data['team'])}명 중 모델 배정 {data['model_ready_count']}명\n"
                                   f"실행 중 업무 {data['running']}건 · 완료 {data['completed']}건\n"
                                   f"실제 매출·판매는 아직 검증되지 않았습니다.")
