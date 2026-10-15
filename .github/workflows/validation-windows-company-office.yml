@@ -72,6 +72,21 @@ jobs:
           python -m PyInstaller --noconfirm --clean --onefile --windowed --name AIWACK --paths . --hidden-import desktop.company_operations --hidden-import desktop.company_office_gui --add-data 'docs/roadmap_100.csv;docs' desktop/entry.py
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           if (-not (Test-Path 'dist/AIWACK.exe')) { throw 'AIWACK.exe missing' }
+      - name: Build Windows-native synthetic model subprocess for adapter integration
+        shell: pwsh
+        run: |
+          Set-Location (Join-Path $env:RUNNER_TEMP 'aiwack-office-src/AIWACK-Stage54')
+          python -m PyInstaller --noconfirm --clean --onefile --console --name AIWACK-ModelStub (Join-Path $env:GITHUB_WORKSPACE 'validation/windows_fake_llm.py')
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          if (-not (Test-Path 'dist/AIWACK-ModelStub.exe')) { throw 'Synthetic Windows-native test binary missing' }
+      - name: Validate native subprocess staff execution audit and owner review
+        shell: pwsh
+        run: |
+          Set-Location (Join-Path $env:RUNNER_TEMP 'aiwack-office-src/AIWACK-Stage54')
+          $env:PYTHONPATH = (Get-Location).Path
+          $stub = (Resolve-Path 'dist/AIWACK-ModelStub.exe').Path
+          python (Join-Path $env:GITHUB_WORKSPACE 'validation/windows_office_model_integration.py') $stub
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
       - name: Launch real EXE, click office buttons, save, exit and reopen
         shell: pwsh
         env:
