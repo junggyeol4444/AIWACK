@@ -36,6 +36,10 @@ jobs:
           python -c "import zipfile,sys; z=zipfile.ZipFile(sys.argv[1]); assert len(z.namelist())==1643; assert z.testzip() is None; print('Source ZIP CRC and entry count verified')" $archive
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           Expand-Archive -LiteralPath $archive -DestinationPath (Join-Path $env:RUNNER_TEMP 'aiwack-src')
+          python (Join-Path $env:GITHUB_WORKSPACE 'validation/patch_source.py') (Join-Path $env:RUNNER_TEMP 'aiwack-src/AIWACK-Stage54')
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          python -m compileall -q (Join-Path $env:RUNNER_TEMP 'aiwack-src/AIWACK-Stage54/desktop')
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
       - name: Install Windows application dependencies
         shell: pwsh
         run: |
@@ -79,6 +83,10 @@ jobs:
           $archive = Join-Path $env:GITHUB_WORKSPACE 'source-archives/AIWACK_Stage100_Robots_Compliant_Crawling_Plugin_Market_Integration_Source.zip'
           if ((Get-FileHash -Algorithm SHA256 $archive).Hash.ToLowerInvariant() -ne 'f855f9ed9afada6a75f80011bf86f95cda053045d54e4445fbf399531626b020') { throw 'Source snapshot modified' }
           Expand-Archive -LiteralPath $archive -DestinationPath (Join-Path $env:RUNNER_TEMP 'aiwack-src')
+          python (Join-Path $env:GITHUB_WORKSPACE 'validation/patch_source.py') (Join-Path $env:RUNNER_TEMP 'aiwack-src/AIWACK-Stage54')
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          python -m compileall -q (Join-Path $env:RUNNER_TEMP 'aiwack-src/AIWACK-Stage54/desktop')
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
       - name: Install runtime, GUI automation and Windows bundler
         shell: pwsh
         run: |
