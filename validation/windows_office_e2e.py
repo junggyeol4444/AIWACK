@@ -15,6 +15,7 @@ from pathlib import Path
 import pyautogui
 import windows_built_exe_gui as gui
 from company_tab_locator import selected_company_tab_y
+from task_row_locator import task_entry_row_y
 
 NAME = 'Windows real-user company operations task'
 
@@ -66,9 +67,24 @@ def run(exe):
         nav_y = wait_company_view(window)
         snapshot('company-dashboard-after-first-setup')
         open_work(window, nav_y)
-        gui.type_text(window, 320, 585, NAME)
+        image = pyautogui.screenshot().convert('RGB')
+        task_y = task_entry_row_y(image, window.left, window.top, window.height)
+        if task_y is None:
+            snapshot('task-entry-controls-not-visible')
+            raise AssertionError('Packaged EXE work-board task entry/button not visible')
+        print('PACKAGED_EXE_TASK_ROW_VISIBLE', 'relative_y=', task_y, flush=True)
+        gui.type_text(window, 320, task_y, NAME)
         snapshot('task-entry-filled')
-        gui.click(window, 936, 584)
+        # Verify the keyboard input reached the actual Tk entry.
+        gui.pyperclip.copy('AIWACK_CLIPBOARD_SENTINEL')
+        gui.click(window, 320, task_y)
+        pyautogui.hotkey('ctrl', 'a')
+        pyautogui.hotkey('ctrl', 'c')
+        time.sleep(.4)
+        if gui.pyperclip.paste() != NAME:
+            snapshot('task-entry-text-mismatch')
+            raise AssertionError('Typed task name not present in packaged EXE entry')
+        gui.click(window, 930, task_y)
         gui.expect_db(db, 'SELECT title FROM company_tasks ORDER BY id DESC LIMIT 1', NAME)
         snapshot('task-created-from-real-gui')
         # Real user opens org screen, then results/approval list.

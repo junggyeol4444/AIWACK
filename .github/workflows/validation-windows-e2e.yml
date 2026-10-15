@@ -21,7 +21,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        shard: [0, 1]
+        shard: [0, 1, 2, 3]
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -54,14 +54,15 @@ jobs:
         run: |
           Set-Location (Join-Path $env:RUNNER_TEMP 'aiwack-src/AIWACK-Stage54')
           $all = @(Get-ChildItem -Path tests -Filter 'test_*.py' -File | Sort-Object Name | ForEach-Object FullName)
-          $split = [int][Math]::Ceiling($all.Count / 2.0)
-          if ($env:TEST_SHARD -eq '0') {
-            $selected = @($all[0..($split-1)])
-          } else {
-            $selected = @($all[$split..($all.Count-1)])
-          }
-          Write-Host "Running $($selected.Count) of $($all.Count) test modules in Windows shard $env:TEST_SHARD"
-          python -m pytest -q -ra --tb=short --maxfail=6 @selected
+          # Four disjoint partitions of the sorted test modules.
+          $shard = [int]$env:TEST_SHARD
+          $count = 4
+          $start = [int][Math]::Floor($all.Count * $shard / $count)
+          $end = [int][Math]::Floor($all.Count * ($shard + 1) / $count)
+          if ($end -le $start) { throw "Empty test shard $shard" }
+          $selected = @($all[$start..($end-1)])
+          Write-Host "Running $($selected.Count) of $($all.Count) test modules in Windows shard $shard (indices $start..$($end-1))"
+          python -m pytest -v -ra --tb=short --maxfail=6 @selected
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
   windows-native-ui:
