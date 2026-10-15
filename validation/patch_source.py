@@ -49,6 +49,30 @@ def patch_browser_launch_timeout(root: Path) -> None:
     path.write_text(updated, encoding="utf-8")
     print("Increased Windows Chromium startup timeout from 10s to 45s:", path)
 
+
+def patch_model_cancel_before_spawn(root: Path) -> None:
+    """Refuse pre-cancelled owner model requests before starting any process.
+
+    This patches only the extracted runner copy, not the immutable ZIP.
+    """
+    path = root / "desktop" / "model_runtime.py"
+    source = path.read_text(encoding="utf-8")
+    anchor = (
+        "    try:\n"
+        "        process = subprocess.Popen(args, shell=False, stdout=subprocess.PIPE, stderr=subprocess.PIPE,"
+    )
+    if source.count(anchor) != 1:
+        raise RuntimeError("Unexpected local model Popen anchor; refuse patch")
+    guard = (
+        "    if cancel is not None and cancel.is_set():\n"
+        "        raise InterruptedError('모델 실행을 취소했습니다.')\n"
+    )
+    updated = source.replace(anchor, guard + anchor, 1)
+    ast.parse(updated, filename=str(path))
+    path.write_text(updated, encoding="utf-8")
+    print("Pre-cancelled local model request no longer starts a subprocess:", path)
+
+
 def apply(root: Path) -> None:
     path = root / "desktop" / "market_evidence.py"
     original = path.read_text(encoding="utf-8")
@@ -78,6 +102,7 @@ def apply(root: Path) -> None:
     ast.parse(text, filename=str(path))
     path.write_text(text, encoding="utf-8")
     print("Applied validation-branch Python 3.11-compatible immutable trigger patch:", path)
+    patch_model_cancel_before_spawn(root)
     # The original source snapshot genuinely has 54 DONE and 46 BLOCKED stages.
     # No fabricated step 101 exists. Keep the test strict about blocked status
     # and the absence of a runnable next stage; never claim 100 completed.

@@ -113,6 +113,15 @@ jobs:
         run: |
           python -m pytest -q validation/test_windows_fake_llm_encoding.py
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Verify native Windows model subprocess cancel timeout and relaunch
+        shell: pwsh
+        env:
+          AIWACK_NATIVE_SYNTHETIC_RUNNER: ${{ runner.temp }}/aiwack-office-src/AIWACK-Stage54/dist/AIWACK-ModelStub.exe
+        run: |
+          Set-Location (Join-Path $env:RUNNER_TEMP 'aiwack-office-src/AIWACK-Stage54')
+          $env:PYTHONPATH = (Get-Location).Path
+          python -m pytest -q (Join-Path $env:GITHUB_WORKSPACE 'validation/test_windows_fake_llm_lifecycle.py') --maxfail=1
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
       - name: Regression test for selected company tab detection
         shell: pwsh
         run: |
