@@ -97,6 +97,17 @@ def fill_prompt(root):
     root.after(550,confirm_user_dialog)
 
 
+
+def screenshot_if_requested(stage):
+    original=os.environ.get('AIWACK_CHIEF_LIVE_SCREENSHOT')
+    if not original:
+        return
+    output=Path(original)
+    output.parent.mkdir(parents=True,exist_ok=True)
+    destination=output.with_name(output.stem+'-'+stage+output.suffix)
+    pyautogui.screenshot().save(destination)
+
+
 def main():
     pyautogui.PAUSE=.1
     with tempfile.TemporaryDirectory(prefix='aiwack-real-chief-flow-') as directory:
@@ -173,6 +184,65 @@ def main():
             assert len(store.list_employee_model_calls(worker))==1
             assert store.read_task_artifact(artifact['id'])['review_status']=='pending'
             print('REAL_GUI_CHIEF_ASK_OWNER_APPROVE_WORKER_EXECUTE_AUDIT_PASS',flush=True)
+            # Physically use the result review queue after real subprocess calls.
+            office.set_view('results')
+            office.refresh()
+            root.update()
+            office.artifact_list.selection_set(str(artifact['id']))
+            office.artifact_list.see(str(artifact['id']))
+            root.update()
+            assert int(office.artifact_list.selection()[0]) == artifact['id']
+
+            def click_and_confirm(widget):
+                # Schedule Return while Tk's native confirmation dialog owns
+                # its nested event loop, instead of bypassing owner approval.
+                root.after(500, lambda: pyautogui.press('enter'))
+                click(widget)
+                root.update()
+
+            click_and_confirm(find_button(office.views['results'], '총괄 AI 회수 검토'))
+            report=wait_for(root,lambda:store.find_chief_task_report(artifact['id']),timeout=50)
+            assert report['owner_decision']=='pending'
+            assert store.read_task_artifact(artifact['id'])['review_status']=='pending'
+            assert store.read_task(task)['status']=='in_progress'
+            assert len(store.list_employee_model_calls(chief))==2
+            report_dialog=wait_for(root,lambda:next((w for w in toplevels(root)
+                    if w.winfo_exists() and '총괄 AI 회수 보고서' in w.title()),None),timeout=20)
+            screenshot_if_requested('report-owner-decision-visible')
+            click_and_confirm(find_button(report_dialog,'총괄 보고서 수락'))
+            def accepted_report():
+                found=store.find_chief_task_report(artifact['id'])
+                return found if found and found['owner_decision']=='accepted' else None
+            report=wait_for(root,accepted_report,timeout=30)
+            assert report['owner_decision']=='accepted'
+            assert store.read_task_artifact(artifact['id'])['review_status']=='pending'
+            assert store.read_task(task)['status']=='in_progress'
+            screenshot_if_requested('chief-report-accepted-task-not-done')
+
+            office.set_view('results')
+            office.refresh()
+            root.update()
+            office.artifact_list.selection_set(str(artifact['id']))
+            click_and_confirm(find_button(office.views['results'],'승인'))
+            assert store.read_task_artifact(artifact['id'])['review_status']=='approved'
+            assert store.read_task(task)['status']=='in_progress'
+            office.artifact_list.selection_set(str(artifact['id']))
+            click_and_confirm(find_button(office.views['results'],'승인 결과로 업무 완료'))
+            assert store.read_task(task)['status']=='done'
+            screenshot_if_requested('owner-approved-task-done')
+
+            store.logout()
+            reopened=LocalStore(store.path)
+            reopened.login('real_flow_owner','owner-flow-password-2026')
+            assert reopened.read_task(task)['status']=='done'
+            assert reopened.read_chief_task_order(task) is not None
+            assert reopened.find_chief_task_report(artifact['id'])['owner_decision']=='accepted'
+            assert reopened.read_task_artifact(artifact['id'])['review_status']=='approved'
+            assert len(reopened.list_employee_model_calls(chief))==2
+            assert len(reopened.list_employee_model_calls(worker))==1
+            assert office_ops.company_snapshot(reopened)['actual_sales_verified'] is False
+            print('PHYSICAL_TK_CHIEF_STAFF_REVIEW_FINALIZE_SQLITE_REOPEN_PASS '
+                  '(synthetic subprocess; not a packaged EXE or GGUF model)',flush=True)
         finally:
             root.destroy()
 
