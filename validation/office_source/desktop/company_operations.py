@@ -282,6 +282,33 @@ def create_active_company_goal(store, title: str) -> int:
     return goal
 
 
+def finalize_approved_artifact(store, artifact_id: int) -> int:
+    """Only the owner may explicitly complete a task backed by an approved result.
+
+    The immutable artifact must come from a successful audited staff run.
+    This action never creates revenue or automatically reviews the result.
+    Existing task state-machine/dependency checks remain authoritative.
+    """
+    store.require_permission('company:manage')
+    if type(artifact_id) is not int or artifact_id <= 0:
+        raise ValueError('완료할 결과물 번호가 올바르지 않습니다.')
+    with store._connect() as con:
+        row = con.execute("""SELECT a.task_id,a.review_status,r.status,t.status
+            FROM company_task_artifacts a
+            JOIN company_task_runs r ON r.id=a.run_id AND r.task_id=a.task_id
+            JOIN company_tasks t ON t.id=a.task_id
+            WHERE a.id=?""",(artifact_id,)).fetchone()
+    if row is None:
+        raise ValueError('업무에 연결된 실제 AI 실행 결과물을 찾지 못했습니다.')
+    task_id,review_state,run_state,task_state = row
+    if review_state != 'approved' or run_state != 'success':
+        raise ValueError('실제 실행 성공 기록과 관리자 승인 결과물이 모두 필요합니다.')
+    if task_state != 'in_progress':
+        raise ValueError('진행 중인 업무만 승인된 결과물로 완료할 수 있습니다.')
+    store.set_task_status(int(task_id),'done')
+    return int(task_id)
+
+
 def eligible_model_employees(store) -> list[dict]:
     """Return only owners' existing draft profiles; never invent running workers."""
     store.require_permission('agents:manage')

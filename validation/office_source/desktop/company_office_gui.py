@@ -278,6 +278,9 @@ class CompanyOffice:
                                                ('task', '업무 #', 72),
                                                ('review', '검수 상태', 112)], height=5)
         self.artifact_list.bind('<Double-1>', lambda _event: self.open_result())
+        actionbar=tk.Frame(card,bg=CARD)
+        actionbar.pack(fill='x',pady=(5,0))
+        self._action(actionbar,'승인 결과로 업무 완료',self.finish_reviewed,strong=True,compact=True)
         self._label(card, '', size=9, color=AMBER, textvariable=self.review_summary).pack(anchor='w', pady=(5, 0))
         self._label(card, '실제 생성 결과가 없으면 표시하지 않습니다. 승인해도 업무가 자동 완료되지 않습니다.',
                     size=8, color=MUTED).pack(anchor='w', pady=(3, 0))
@@ -597,6 +600,22 @@ class CompanyOffice:
             self._say(f'결과물 #{artifact_id} 검수 기록: {decision}')
         except (ValueError, PermissionError) as exc:
             self._say('검수 실패: '+str(exc))
+
+    def finish_reviewed(self):
+        try:
+            artifact_id=self._selected_artifact()
+            artifact=self.store.read_task_artifact(artifact_id)
+            if artifact['review_status'] != 'approved':
+                raise ValueError('먼저 결과물을 검토하고 승인해야 완료할 수 있습니다.')
+            if not messagebox.askyesno('업무 완료 확인',
+                    f'승인된 결과물 #{artifact_id}을 근거로 업무를 완료 처리할까요?\n'
+                    '완료 기록은 감사 이력에 저장됩니다.',parent=self.root):
+                return
+            tid=ops.finalize_approved_artifact(self.store,artifact_id)
+            self.refresh()
+            self._say(f'소유자 최종 승인 · 업무 #{tid} 완료 · 매출·판매는 발생하지 않았습니다.')
+        except (ValueError,PermissionError) as exc:
+            self._say('업무 완료 처리 실패: '+str(exc))
 
     def approve_selected(self):
         self._review('approved')

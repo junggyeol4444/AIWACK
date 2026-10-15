@@ -116,3 +116,33 @@ def test_model_binding_rolls_back_on_failure(store,tmp_path,monkeypatch):
     monkeypatch.setattr(store,'set_employee_model',original)
     assert store.list_local_models()==[]
     assert store.read_employee_model(employee) is None
+
+
+def test_approved_real_staff_output_can_be_explicitly_finalized_once(store,tmp_path):
+    employee=store.add_employee_draft('finish_worker','검수하는 직원')
+    office.connect_employee_model(store,employee,runnable_config(tmp_path))
+    task=office.create_task(store,'Complete after owner review')
+    office.assign_task(store,task)
+    output=office.execute_task(store,task)
+    artifact=output['artifact_id']
+    assert store.read_task(task)['status']=='in_progress'
+    with pytest.raises(ValueError,match='승인'):
+        office.finalize_approved_artifact(store,artifact)
+    assert store.read_task(task)['status']=='in_progress'
+    store.review_task_artifact(artifact,'approved')
+    assert office.finalize_approved_artifact(store,artifact)==task
+    assert store.read_task(task)['status']=='done'
+    assert len(store.list_task_status_events(task))>=3
+    with pytest.raises(ValueError,match='진행 중'):
+        office.finalize_approved_artifact(store,artifact)
+
+
+def test_cannot_complete_unrelated_or_invalid_artifact(store):
+    for invalid in (True,0,-1,'1',None):
+        with pytest.raises(ValueError):
+            office.finalize_approved_artifact(store,invalid)
+    with pytest.raises(ValueError,match='찾지'):
+        office.finalize_approved_artifact(store,999999)
+    store.logout()
+    with pytest.raises(AuthenticationError):
+        office.finalize_approved_artifact(store,1)
