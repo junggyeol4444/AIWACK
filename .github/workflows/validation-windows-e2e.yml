@@ -1,0 +1,126 @@
+name: AIWACK Windows real-user validation (test branch only)
+
+on:
+  push:
+    branches:
+      - validation/windows-user-e2e-20261015
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: aiwack-windows-validation-${{ github.ref }}-${{ github.workflow }}
+  cancel-in-progress: false
+
+jobs:
+  windows-pytest:
+    name: Windows complete pytest shard ${{ matrix.shard }}
+    runs-on: windows-2025
+    timeout-minutes: 90
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [0, 1]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Validate uploaded source archive and extract
+        shell: pwsh
+        run: |
+          $archive = Join-Path $env:GITHUB_WORKSPACE 'source-archives/AIWACK_Stage100_Robots_Compliant_Crawling_Plugin_Market_Integration_Source.zip'
+          $digest = (Get-FileHash -Algorithm SHA256 $archive).Hash.ToLowerInvariant()
+          if ($digest -ne 'f855f9ed9afada6a75f80011bf86f95cda053045d54e4445fbf399531626b020') { throw "Source ZIP hash mismatch: $digest" }
+          python -c "import zipfile,sys; z=zipfile.ZipFile(sys.argv[1]); assert len(z.namelist())==1643; assert z.testzip() is None; print('Source ZIP CRC and entry count verified')" $archive
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          Expand-Archive -LiteralPath $archive -DestinationPath (Join-Path $env:RUNNER_TEMP 'aiwack-src')
+      - name: Install Windows application dependencies
+        shell: pwsh
+        run: |
+          Set-Location (Join-Path $env:RUNNER_TEMP 'aiwack-src/AIWACK-Stage54')
+          python -m pip install --upgrade pip
+          python -m pip install -e '.[dev]'
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Execute assigned portion of every test_*.py file
+        shell: pwsh
+        env:
+          TEST_SHARD: ${{ matrix.shard }}
+        run: |
+          Set-Location (Join-Path $env:RUNNER_TEMP 'aiwack-src/AIWACK-Stage54')
+          $all = @(Get-ChildItem -Path tests -Filter 'test_*.py' -File | Sort-Object Name | ForEach-Object FullName)
+          $split = [int][Math]::Ceiling($all.Count / 2.0)
+          if ($env:TEST_SHARD -eq '0') {
+            $selected = @($all[0..($split-1)])
+          } else {
+            $selected = @($all[$split..($all.Count-1)])
+          }
+          Write-Host "Running $($selected.Count) of $($all.Count) test modules in Windows shard $env:TEST_SHARD"
+          python -m pytest -q -ra --tb=short --maxfail=6 @selected
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+  windows-native-ui:
+    name: Windows native EXE and physical GUI (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 90
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-2022, windows-2025]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Verify source, expand Windows test workspace
+        shell: pwsh
+        run: |
+          $archive = Join-Path $env:GITHUB_WORKSPACE 'source-archives/AIWACK_Stage100_Robots_Compliant_Crawling_Plugin_Market_Integration_Source.zip'
+          if ((Get-FileHash -Algorithm SHA256 $archive).Hash.ToLowerInvariant() -ne 'f855f9ed9afada6a75f80011bf86f95cda053045d54e4445fbf399531626b020') { throw 'Source snapshot modified' }
+          Expand-Archive -LiteralPath $archive -DestinationPath (Join-Path $env:RUNNER_TEMP 'aiwack-src')
+      - name: Install runtime, GUI automation and Windows bundler
+        shell: pwsh
+        run: |
+          Set-Location (Join-Path $env:RUNNER_TEMP 'aiwack-src/AIWACK-Stage54')
+          python -m pip install --upgrade pip
+          python -m pip install -e '.[dev]' pyinstaller pyautogui pillow
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Physically click and type in native Tkinter UI
+        shell: pwsh
+        env:
+          AIWACK_TEST_ARTIFACTS: ${{ runner.temp }}/aiwack-gui-artifacts
+        run: |
+          Set-Location (Join-Path $env:RUNNER_TEMP 'aiwack-src/AIWACK-Stage54')
+          $env:PYTHONPATH = (Get-Location).Path
+          python (Join-Path $env:GITHUB_WORKSPACE 'validation/windows_real_user_gui.py')
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Compile standalone Windows AIWACK.exe
+        shell: pwsh
+        run: |
+          Set-Location (Join-Path $env:RUNNER_TEMP 'aiwack-src/AIWACK-Stage54')
+          python -m PyInstaller --noconfirm --clean --onefile --windowed --name AIWACK --paths . --add-data 'docs/roadmap_100.csv;docs' desktop/entry.py
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          if (-not (Test-Path 'dist/AIWACK.exe')) { throw 'Windows EXE missing after PyInstaller' }
+      - name: Run built Windows EXE offline persistence self-test
+        shell: pwsh
+        run: |
+          Set-Location (Join-Path $env:RUNNER_TEMP 'aiwack-src/AIWACK-Stage54')
+          $exe = (Resolve-Path 'dist/AIWACK.exe').Path
+          $p = Start-Process -FilePath $exe -ArgumentList '--self-test' -Wait -PassThru
+          Write-Host "Compiled Windows EXE self-test exit code: $($p.ExitCode)"
+          if ($p.ExitCode -ne 0) { throw "Compiled EXE self-test failed with $($p.ExitCode)" }
+      - name: Save native UI screenshots and failure reports
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: aiwack-windows-native-ui-${{ matrix.os }}
+          if-no-files-found: warn
+          path: ${{ runner.temp }}/aiwack-gui-artifacts/
+      - name: Save compiled Windows executable if built
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: aiwack-built-exe-${{ matrix.os }}
+          if-no-files-found: ignore
+          path: ${{ runner.temp }}/aiwack-src/AIWACK-Stage54/dist/AIWACK.exe
