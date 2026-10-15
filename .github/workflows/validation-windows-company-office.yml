@@ -1,0 +1,69 @@
+name: AIWACK Windows AI Company Real UI (test branch only)
+on:
+  push:
+    branches: [validation/windows-user-e2e-20261015]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  company-office-windows:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-2022, windows-2025]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Extract immutable source, apply only test branch fixes and live office
+        shell: pwsh
+        run: |
+          $archive = Join-Path $env:GITHUB_WORKSPACE 'source-archives/AIWACK_Stage100_Robots_Compliant_Crawling_Plugin_Market_Integration_Source.zip'
+          if ((Get-FileHash -Algorithm SHA256 $archive).Hash.ToLowerInvariant() -ne 'f855f9ed9afada6a75f80011bf86f95cda053045d54e4445fbf399531626b020') { throw 'Immutable main snapshot mismatched' }
+          Expand-Archive -LiteralPath $archive -DestinationPath (Join-Path $env:RUNNER_TEMP 'aiwack-office-src')
+          $src = Join-Path $env:RUNNER_TEMP 'aiwack-office-src/AIWACK-Stage54'
+          python validation/patch_source.py $src
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          python validation/app_navigation_patch.py $src
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          python validation/install_company_office.py $src
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          python -m compileall -q (Join-Path $src 'desktop')
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Install actual Windows executable and UI test tools
+        shell: pwsh
+        run: |
+          python -m pip install pyinstaller pyautogui pygetwindow pyperclip pillow pytest
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Run 9 office workflow tests inside Windows
+        shell: pwsh
+        run: |
+          Set-Location (Join-Path $env:RUNNER_TEMP 'aiwack-office-src/AIWACK-Stage54')
+          $env:PYTHONPATH = (Get-Location).Path
+          python -m pytest -q tests/test_company_operations_center.py --maxfail=1
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Build packaged Windows AIWACK.exe (actual company application)
+        shell: pwsh
+        run: |
+          Set-Location (Join-Path $env:RUNNER_TEMP 'aiwack-office-src/AIWACK-Stage54')
+          python -m PyInstaller --noconfirm --clean --onefile --windowed --name AIWACK --paths . --hidden-import desktop.company_operations --hidden-import desktop.company_office_gui --add-data 'docs/roadmap_100.csv;docs' desktop/entry.py
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          if (-not (Test-Path 'dist/AIWACK.exe')) { throw 'AIWACK.exe missing' }
+      - name: Launch real EXE, click office buttons, save, exit and reopen
+        shell: pwsh
+        env:
+          AIWACK_PACKAGED_GUI_ARTIFACTS: ${{ runner.temp }}/aiwack-office-screenshots
+        run: |
+          $exe = Join-Path $env:RUNNER_TEMP 'aiwack-office-src/AIWACK-Stage54/dist/AIWACK.exe'
+          python validation/windows_office_e2e.py $exe
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Preserve real Windows office screenshots and errors
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: aiwack-live-company-office-${{ matrix.os }}
+          path: ${{ runner.temp }}/aiwack-office-screenshots/
+          if-no-files-found: warn
