@@ -34,7 +34,11 @@ def pixels_white(w, y, xs):
 def white_bands(w, start, end, xs=(185,350,650,800), required=3):
     deadline=time.monotonic()+15
     while time.monotonic()<deadline:
-        hits=[y for y in range(start,end) if pixels_white(w,y,xs)]
+        screenshot=pyautogui.screenshot().convert("RGB")
+        points=[w.left+x for x in xs]
+        hits=[y for y in range(start,end)
+              if all(0<=px<screenshot.width and 0<=w.top+y<screenshot.height
+                     and min(screenshot.getpixel((px,w.top+y)))>215 for px in points)]
         spans=[]
         if hits:
             begin=prev=hits[0]
