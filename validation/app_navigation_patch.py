@@ -9,17 +9,17 @@ def apply(root: Path) -> None:
     f=root/"desktop"/"app.py"
     source=f.read_text(encoding="utf-8")
     anchor='        self.quick_navigation.bind("<<ComboboxSelected>>", self._jump_to_tab)\n'
-    addition=('        tk.Button(header_actions, text="다음 화면", command=self._next_tab,\n'
+    addition=('        tk.Button(header_actions, text="메모 실사", command=self._open_persistence,\n'
               '                  bg="#3659ab", fg="white", padx=12, pady=4).pack(side="left", padx=(9, 0))\n')
     if source.count(anchor)!=1:raise RuntimeError("Cannot find quick navigation UI anchor")
     source=source.replace(anchor,anchor+addition,1)
     method='    def _dashboard(self, parent: tk.Frame) -> None:\n'
-    implementation=('    def _next_tab(self) -> None:\n'
-                    '        """Mouse-accessible navigation even when notebook tabs are overcrowded."""\n'
-                    '        self.store.require_permission("agents:manage")\n'
-                    '        next_index = (self.tabs.index(self.tabs.select()) + 1) % self.tabs.index("end")\n'
-                    '        self.tabs.select(next_index)\n'
-                    '        self.quick_navigation.current(next_index)\n\n')
+    implementation=('    def _open_persistence(self, event=None) -> None:\n'
+                    '        """One-click real GUI navigation to note persistence."""\n'
+                    '        self.store.require_permission("notes:read")\n'
+                    '        self.tabs.select(1)\n'
+                    '        self.quick_navigation.current(1)\n'
+                    '        self.root.after_idle(self.note_entry.focus_set)\n\n')
     if source.count(method)!=1:raise RuntimeError("Cannot find dashboard method anchor")
     source=source.replace(method,implementation+method,1)
     # Remove stale stage 67 messaging while preserving separate 54 DONE count.
