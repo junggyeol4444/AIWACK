@@ -171,3 +171,23 @@ def test_strict_output_limits_and_parameter_guards(owner):
         with pytest.raises(ValueError):ops._parse_chief_proposal(json.dumps(field))
     for invalid in (True,0,101,-1,'1'):
         with pytest.raises(ValueError):ops.planning_proposals(owner,limit=invalid)
+
+
+def test_owner_can_create_active_goal_then_approve_proposal_in_one_flow(owner):
+    goal=ops.create_active_company_goal(owner,'Ship a useful accessible Windows product')
+    assert owner.list_goals()[0]['status']=='active'
+    proposal=ops.scan_planning_proposals(owner)['created_ids'][0]
+    rows=ops.planning_proposals(owner)
+    assert rows[0]['source_id']==goal and rows[0]['origin']=='rule'
+    assert owner.list_tasks()==[]
+    task=ops.approve_planning_proposal(owner,proposal)
+    assert owner.read_task(task)['status']=='todo'
+    assert owner.list_task_runs(task)==[]
+
+
+def test_create_goal_rejects_invalid_titles_and_requires_login(owner):
+    for title in ('','  ','a'*121,None,True):
+        with pytest.raises(ValueError):ops.create_active_company_goal(owner,title)
+    assert owner.list_goals()==[]
+    owner.logout()
+    with pytest.raises(AuthenticationError):ops.create_active_company_goal(owner,'cannot')

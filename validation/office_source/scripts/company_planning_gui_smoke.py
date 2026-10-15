@@ -44,9 +44,13 @@ with tempfile.TemporaryDirectory(prefix='aiwack-planning-gui-') as location:
         root.update()
         office=app.company_office
         assert 'planning' in office.views
-        goal=store.add_goal('Synthetic research planning only')
-        store.update_goal(goal,'Synthetic research planning only','','active')
         real_click(root,office.nav_buttons['planning'])
+        real_click(root,office.goal_entry)
+        pyautogui.write('Synthetic research planning only',interval=.01)
+        root.update()
+        assert office.goal_title.get()=='Synthetic research planning only'
+        real_click(root,find_button(office.views['planning'],'목표 등록·활성화'))
+        assert store.list_goals()[0]['status']=='active'
         assert office.view_name=='planning'
         assert office.views['planning'].winfo_viewable()
         assert len(office.proposal_list.get_children())==0

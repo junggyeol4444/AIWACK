@@ -266,3 +266,17 @@ def approve_planning_proposal(store, proposal_id: int) -> int|None:
 def reject_planning_proposal(store, proposal_id: int) -> None:
     store.require_permission('company:manage')
     store.reject_autonomous_task_proposal(proposal_id)
+
+
+def create_active_company_goal(store, title: str) -> int:
+    """Explicit owner-created active goal, not an AI-decided business action.
+
+    Enables the next planning-screen scan without navigating legacy forms.
+    Each write uses the existing company-goal SQLite validation and audit paths.
+    """
+    store.require_permission('company:manage')
+    if type(title) is not str or not 1<=len(title.strip())<=120:
+        raise ValueError('회사 목표 제목은 1~120자여야 합니다.')
+    goal=store.add_goal(title.strip())
+    store.update_goal(goal,title.strip(),'','active')
+    return goal

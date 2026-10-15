@@ -35,6 +35,7 @@ class CompanyOffice:
         self.generation = app._session_generation
         self.status = tk.StringVar(value='회사 운영 데이터 연결 중')
         self.title = tk.StringVar()
+        self.goal_title = tk.StringVar()
         self.latest_output = '아직 실제 AI 모델 실행 기록이 없습니다.'
         self.cards = {}
         self.nav_buttons = {}
@@ -211,6 +212,14 @@ class CompanyOffice:
     def _draw_planning(self, frame):
         card = self._card(frame)
         card.pack(fill='both', expand=True)
+        goalbar=tk.Frame(card,bg=CARD)
+        goalbar.pack(fill='x',pady=(0,7))
+        self._label(goalbar,'새 회사 목표',size=9,color=MUTED).pack(side='left',padx=(0,7))
+        self.goal_entry=tk.Entry(goalbar,textvariable=self.goal_title,font=(FONT,10),
+                                 bg='#f6f8fc',fg='#152134',relief='flat')
+        self.goal_entry.pack(side='left',fill='x',expand=True,ipady=7,padx=(0,8))
+        self.goal_entry.bind('<Return>',lambda _event:self.create_goal())
+        self._action(goalbar,'목표 등록·활성화',self.create_goal,strong=True,compact=True)
         head = tk.Frame(card, bg=CARD)
         head.pack(fill='x', pady=(0, 6))
         self._label(head, '회사 업무 제안  /  PLANNING PIPELINE', size=12, bold=True).pack(side='left')
@@ -474,6 +483,16 @@ class CompanyOffice:
             self._text_dialog('업무 기획 초안 · 실행 아님',detail)
         except (ValueError,PermissionError) as exc:
             self._say(str(exc))
+
+    def create_goal(self):
+        try:
+            goal_id=ops.create_active_company_goal(self.store,self.goal_title.get())
+            self.goal_title.set('')
+            self.refresh()
+            self.set_view('planning')
+            self._say(f'회사 목표 #{goal_id} 활성화됨 · 제안 검색으로 실제 업무 초안을 생성할 수 있습니다.')
+        except (ValueError,PermissionError) as exc:
+            self._say('회사 목표 등록 실패: '+str(exc))
 
     def scan_proposals(self):
         try:
