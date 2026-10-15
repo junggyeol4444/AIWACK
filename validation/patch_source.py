@@ -6,6 +6,49 @@ from pathlib import Path
 import ast
 import sys
 
+
+def extend_browser_launch_timeout(source: str) -> str:
+    """Increase only the known Chromium launch timeout; reject unexpected code."""
+    tree = ast.parse(source)
+    calls = [
+        n for n in ast.walk(tree)
+        if isinstance(n, ast.Call)
+        and isinstance(n.func, ast.Attribute)
+        and n.func.attr == "launch"
+        and isinstance(n.func.value, ast.Attribute)
+        and n.func.value.attr == "chromium"
+        and isinstance(n.func.value.value, ast.Name)
+        and n.func.value.value.id == "playwright"
+    ]
+    if len(calls) != 1:
+        raise RuntimeError(f"Expected one Playwright Chromium launch, found {len(calls)}")
+    timeouts = [k.value for k in calls[0].keywords if k.arg == "timeout"]
+    if len(timeouts) != 1 or not isinstance(timeouts[0], ast.Constant) or timeouts[0].value != 10000:
+        raise RuntimeError("Expected explicit 10000ms Chromium launch timeout")
+    target = timeouts[0]
+    lines = source.splitlines(keepends=True)
+    if target.lineno != target.end_lineno:
+        raise RuntimeError("Unexpected multiline timeout literal")
+    row = lines[target.lineno - 1].encode("utf-8")
+    old = row[target.col_offset:target.end_col_offset]
+    if old.strip().replace(b"_", b"") != b"10000":
+        raise RuntimeError("Unexpected launch timeout source token")
+    lines[target.lineno - 1] = (row[:target.col_offset] + b"45000" + row[target.end_col_offset:]).decode("utf-8")
+    changed = "".join(lines)
+    ast.parse(changed)
+    if changed == source:
+        raise RuntimeError("No timeout change made")
+    return changed
+
+
+def patch_browser_launch_timeout(root: Path) -> None:
+    """Patch only the extracted Windows runner copy; never the Stage100 ZIP."""
+    path = root / "desktop" / "offline_browser.py"
+    source = path.read_text(encoding="utf-8")
+    updated = extend_browser_launch_timeout(source)
+    path.write_text(updated, encoding="utf-8")
+    print("Increased Windows Chromium startup timeout from 10s to 45s:", path)
+
 def apply(root: Path) -> None:
     path = root / "desktop" / "market_evidence.py"
     original = path.read_text(encoding="utf-8")
@@ -64,6 +107,7 @@ def apply(root: Path) -> None:
     print("Applied validation-branch true-blocked-roadmap consistency assertion")
 
     if sys.platform == "win32":
+        patch_browser_launch_timeout(root)
         # pytest puts each parametrized node ID into PYTEST_CURRENT_TEST.
         # The legacy >32 KiB text fixtures overflow a Windows env var even
         # before the test body runs. Give them stable short IDs without
