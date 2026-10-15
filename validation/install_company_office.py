@@ -23,7 +23,7 @@ def apply(project: Path) -> None:
                          ('tests','test_company_operations_center.py'),
                          ('tests','test_company_planning_cockpit.py'),('tests','test_company_model_onboarding.py'),
                          ('scripts','company_office_gui_smoke.py'),
-                         ('scripts','company_planning_gui_smoke.py'),('scripts','company_model_setup_gui_smoke.py')]:
+                         ('scripts','company_planning_gui_smoke.py'),('scripts','company_model_setup_gui_smoke.py'),('scripts','company_owner_completion_gui_smoke.py')]:
         origin = source_dir/section/name
         destination=project/section/name
         if not origin.is_file() or destination.exists():

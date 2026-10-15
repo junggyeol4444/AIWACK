@@ -65,6 +65,15 @@ jobs:
           $env:PYTHONPATH = (Get-Location).Path
           python scripts/company_model_setup_gui_smoke.py
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Actually click owner-approved result into completed task on Windows
+        shell: pwsh
+        env:
+          AIWACK_OWNER_COMPLETE_SCREENSHOT: ${{ runner.temp }}/aiwack-office-screenshots/owner-approved-completion-click.png
+        run: |
+          Set-Location (Join-Path $env:RUNNER_TEMP 'aiwack-office-src/AIWACK-Stage54')
+          $env:PYTHONPATH = (Get-Location).Path
+          python scripts/company_owner_completion_gui_smoke.py
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
       - name: Build packaged Windows AIWACK.exe (actual company application)
         shell: pwsh
         run: |
