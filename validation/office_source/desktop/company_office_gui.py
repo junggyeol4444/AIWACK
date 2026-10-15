@@ -258,6 +258,7 @@ class CompanyOffice:
         self._action(editor, '+  업무 등록', self.create, strong=True, compact=True)
         controls = tk.Frame(main, bg=CARD)
         controls.pack(fill='x', pady=(6, 0))
+        self._action(controls, '총괄 AI 지시 초안', self.ask_chief_order, compact=True)
         self._action(controls, '최대 3개 실행', self.run_batch, compact=True)
         self._action(controls, '실행 결과', lambda: self.set_view('results'), compact=True)
         self._action(controls, '비상 정지', self.stop, danger=True, compact=True)
@@ -452,6 +453,9 @@ class CompanyOffice:
                     dialog.feedback.set('실제 모델 응답 수신 및 호출 감사 기록 저장 완료 · 결과는 관리자 검수 전입니다.')
                 self._say('로컬 직원 모델이 실제 응답했습니다. 진단 감사 기록만 저장했습니다.')
                 self._text_dialog('로컬 AI 직원 모델 호출 진단', str(result))
+            elif self.after_action == 'chief_order':
+                self.review_chief_order(result)
+                self._say('총괄 AI 초안 수신 · 소유자가 지시를 승인해야만 직원이 수행할 수 있습니다.')
             elif self.after_action == 'planning':
                 self.set_view('planning')
                 self._say('실제 총괄 모델 제안 초안 저장 · 관리자 승인 전에는 실행되지 않습니다.')
@@ -472,6 +476,55 @@ class CompanyOffice:
 
     def run_batch(self):
         self._start(lambda: ops.execute_batch(self.store, max_tasks=3, cancel=self.cancel))
+
+    def ask_chief_order(self):
+        """Request a real chief-model draft, NEVER dispatch or approve it automatically."""
+        try:
+            task_id=self.selected_task()
+            if self.store.read_chief_task_order(task_id) is not None:
+                raise ValueError('이미 승인된 총괄 AI 지시가 저장되어 있습니다.')
+            objective=simpledialog.askstring(
+                '총괄 AI → 직원 업무 지휘',
+                '총괄 AI에게 지시할 업무 목표를 입력하세요.\n'
+                '실제 AI 모델의 초안은 관리자가 확인 후 승인해야 전송됩니다.',
+                parent=self.root)
+            if objective is None:
+                return
+            if not objective.strip():
+                raise ValueError('총괄 AI 목표를 입력하세요.')
+            self._start(lambda:ops.draft_chief_order(
+                self.store,task_id,objective,cancel=self.cancel),after='chief_order')
+        except (ValueError, PermissionError) as exc:
+            self._say('총괄 AI 지시 요청 실패: '+str(exc))
+
+    def review_chief_order(self, result):
+        """Human review dialog; no worker execution until explicit later click."""
+        task_id=int(result['task_id'])
+        instruction=str(result['instruction'])
+        dialog=tk.Toplevel(self.parent)
+        dialog.title('AIWACK | 총괄 AI 지시 초안 · 소유자 승인')
+        dialog.geometry('780x470')
+        dialog.configure(bg=BG)
+        self._label(dialog,f'업무 #{task_id} · 실제 총괄 AI 답변 · 아직 업무 실행 아님',
+                    bg=BG,size=12,bold=True).pack(fill='x',padx=15,pady=(13,8))
+        actions=tk.Frame(dialog,bg=BG)
+        actions.pack(side='bottom',fill='x',padx=15,pady=12)
+        text=tk.Text(dialog,wrap='word',font=(FONT,11),bg='#f6f8fc',fg='#152134',
+                     relief='flat',padx=12,pady=12)
+        text.pack(fill='both',expand=True,padx=15,pady=4)
+        text.insert('1.0',instruction)
+        text.configure(state='disabled')
+        def approve():
+            try:
+                order_id=ops.approve_chief_order(self.store,task_id,instruction)
+                dialog.destroy()
+                self.refresh()
+                self._say(f'총괄 AI 지시 #{order_id} 승인됨 · 직원 실행은 별도 클릭이 필요합니다.')
+            except (ValueError,PermissionError) as exc:
+                self._say('총괄 AI 지시 승인 실패: '+str(exc))
+        self._action(actions,'확인 후 지시 승인',approve,strong=True,compact=True)
+        self._action(actions,'기각하고 닫기',dialog.destroy,danger=True,compact=True)
+        return dialog
 
     def ask_chief(self):
         self._start(lambda: ops.chief_brief(self.store, cancel=self.cancel),after='chief')

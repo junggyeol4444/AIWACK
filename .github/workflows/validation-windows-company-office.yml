@@ -43,7 +43,7 @@ jobs:
         run: |
           Set-Location (Join-Path $env:RUNNER_TEMP 'aiwack-office-src/AIWACK-Stage54')
           $env:PYTHONPATH = (Get-Location).Path
-          python -m pytest -q tests/test_company_operations_center.py tests/test_company_planning_cockpit.py tests/test_company_model_onboarding.py --maxfail=1
+          python -m pytest -q tests/test_company_operations_center.py tests/test_company_planning_cockpit.py tests/test_company_model_onboarding.py tests/test_company_chief_handoff.py --maxfail=1
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
       - name: Drive owner planning screen with real Windows mouse input
         shell: pwsh
@@ -73,6 +73,15 @@ jobs:
           Set-Location (Join-Path $env:RUNNER_TEMP 'aiwack-office-src/AIWACK-Stage54')
           $env:PYTHONPATH = (Get-Location).Path
           python scripts/company_owner_completion_gui_smoke.py
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Physically reject and approve chief-to-staff task order without execution
+        shell: pwsh
+        env:
+          AIWACK_CHIEF_HANDOFF_SCREENSHOT: ${{ runner.temp }}/aiwack-office-screenshots/chief-staff-owner-approved.png
+        run: |
+          Set-Location (Join-Path $env:RUNNER_TEMP 'aiwack-office-src/AIWACK-Stage54')
+          $env:PYTHONPATH = (Get-Location).Path
+          python scripts/company_chief_order_gui_smoke.py
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
       - name: Build packaged Windows AIWACK.exe (actual company application)
         shell: pwsh

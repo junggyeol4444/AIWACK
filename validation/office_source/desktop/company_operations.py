@@ -282,6 +282,37 @@ def create_active_company_goal(store, title: str) -> int:
     return goal
 
 
+def draft_chief_order(store, task_id: int, objective: str,
+                      *, cancel: threading.Event | None = None) -> dict:
+    """Real chief-model suggestion, still inert until owner explicitly approves.
+
+    The existing owner-authenticated chief runtime enforces a configured CEO,
+    while the storage API prevents a stale/duplicate instruction dispatch.
+    """
+    from desktop.chief_task_runtime import propose_chief_task_order
+    assert_running_allowed(store)
+    if type(task_id) is not int or task_id <= 0:
+        raise ValueError('업무 번호가 올바르지 않습니다.')
+    if type(objective) is not str or not 1 <= len(objective.strip()) <= 500 or '\x00' in objective:
+        raise ValueError('총괄 AI 업무 목표를 1~500자로 입력하세요.')
+    if cancel is not None and cancel.is_set():
+        raise InterruptedError('총괄 AI 호출 전에 취소되었습니다.')
+    reply=propose_chief_task_order(store,task_id,objective.strip(),timeout=60,cancel=cancel)
+    if cancel is not None and cancel.is_set():
+        raise InterruptedError('취소된 지시 초안은 폐기합니다.')
+    if type(reply) is not str or not 1 <= len(reply.strip()) <= 600 or '\x00' in reply:
+        raise ValueError('총괄 AI 지시는 1~600자의 검토 가능한 텍스트여야 합니다.')
+    return {'task_id':task_id,'instruction':reply.strip(),
+            'chief_model_called':True,'owner_approved':False,
+            'worker_executed':False}
+
+
+def approve_chief_order(store, task_id: int, instruction: str) -> int:
+    """Human-only approval before any worker can execute the chief's instruction."""
+    assert_running_allowed(store)
+    return store.approve_chief_task_order(task_id,instruction)
+
+
 def finalize_approved_artifact(store, artifact_id: int) -> int:
     """Only the owner may explicitly complete a task backed by an approved result.
 
