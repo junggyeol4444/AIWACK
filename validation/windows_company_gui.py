@@ -75,7 +75,7 @@ def go_company(w):
     pyautogui.press("down",presses=4,interval=.09)
     pyautogui.press("enter")
     time.sleep(.9)
-    fields=white_bands(w,295,480,required=3)
+    fields=white_bands(w,295,480,xs=(700,780,860,930),required=3)
     snapshot("company-screen-visible")
     return fields[:3]
 
