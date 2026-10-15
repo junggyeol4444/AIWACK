@@ -78,11 +78,21 @@ def run(stub: Path) -> None:
         assert 'AIWACK_WINDOWS_NATIVE_CLI' in staff_result['response']
         assert staff_result['status']=='awaiting_owner_review'
         assert locked.read_task_artifact(staff_result['artifact_id'])['review_status']=='pending'
+        # Second real chief subprocess: review actual staff artifact after
+        # approved chief instruction, but NEVER auto-approve or complete it.
+        chief_review=office.collect_chief_review(locked,staff_result['artifact_id'])
+        assert chief_review['chief_model_called'] is True
+        assert chief_review['task_completed'] is False
+        assert locked.read_chief_task_report(chief_review['report_id'])['owner_decision']=='pending'
+        assert locked.read_task(chief_task)['status']=='in_progress'
+        office.review_chief_feedback(locked,chief_review['report_id'],'accepted')
+        assert locked.read_chief_task_report(chief_review['report_id'])['owner_decision']=='accepted'
+        assert locked.read_task_artifact(staff_result['artifact_id'])['review_status']=='pending'
         locked.review_task_artifact(staff_result['artifact_id'],'approved')
         office.finalize_approved_artifact(locked,staff_result['artifact_id'])
         assert locked.read_task(chief_task)['status']=='done'
-        assert len(locked.list_employee_model_calls(chief))==1
-        print('WINDOWS_SYNTHETIC_NATIVE_CHIEF_TO_WORKER_OWNER_APPROVAL_PASS',
+        assert len(locked.list_employee_model_calls(chief))==2
+        print('WINDOWS_SYNTHETIC_NATIVE_CHIEF_TO_STAFF_TO_CHIEF_REPORT_PASS',
               {'chief_task':chief_task,'order_id':approved_order,
                'synthetic_subprocess':True,'actual_gguf_inference':False},flush=True)
         print('WINDOWS_SYNTHETIC_NATIVE_WORKER_SUBPROCESS_TO_REVIEW_PASS',

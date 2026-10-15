@@ -43,7 +43,7 @@ jobs:
         run: |
           Set-Location (Join-Path $env:RUNNER_TEMP 'aiwack-office-src/AIWACK-Stage54')
           $env:PYTHONPATH = (Get-Location).Path
-          python -m pytest -q tests/test_company_operations_center.py tests/test_company_planning_cockpit.py tests/test_company_model_onboarding.py tests/test_company_chief_handoff.py --maxfail=1
+          python -m pytest -q tests/test_company_operations_center.py tests/test_company_planning_cockpit.py tests/test_company_model_onboarding.py tests/test_company_chief_handoff.py tests/test_company_chief_review.py --maxfail=1
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
       - name: Drive owner planning screen with real Windows mouse input
         shell: pwsh
@@ -83,6 +83,15 @@ jobs:
           $env:PYTHONPATH = (Get-Location).Path
           python scripts/company_chief_order_gui_smoke.py
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Physically open saved chief report and accept on owner desktop UI
+        shell: pwsh
+        env:
+          AIWACK_CHIEF_REVIEW_SCREENSHOT: ${{ runner.temp }}/aiwack-office-screenshots/chief-review-owner-accept-physical.png
+        run: |
+          Set-Location (Join-Path $env:RUNNER_TEMP 'aiwack-office-src/AIWACK-Stage54')
+          $env:PYTHONPATH = (Get-Location).Path
+          python scripts/company_chief_review_gui_smoke.py
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
       - name: Build packaged Windows AIWACK.exe (actual company application)
         shell: pwsh
         run: |
@@ -97,6 +106,16 @@ jobs:
           python -m PyInstaller --noconfirm --clean --onefile --console --name AIWACK-ModelStub (Join-Path $env:GITHUB_WORKSPACE 'validation/windows_fake_llm.py')
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           if (-not (Test-Path 'dist/AIWACK-ModelStub.exe')) { throw 'Synthetic Windows-native test binary missing' }
+      - name: Physically run chief-to-worker model subprocess via owner GUI
+        shell: pwsh
+        env:
+          AIWACK_NATIVE_SYNTHETIC_RUNNER: ${{ runner.temp }}/aiwack-office-src/AIWACK-Stage54/dist/AIWACK-ModelStub.exe
+          AIWACK_CHIEF_LIVE_SCREENSHOT: ${{ runner.temp }}/aiwack-office-screenshots/chief-staff-native-subprocess-live.png
+        run: |
+          Set-Location (Join-Path $env:RUNNER_TEMP 'aiwack-office-src/AIWACK-Stage54')
+          $env:PYTHONPATH = (Get-Location).Path
+          python scripts/company_chief_live_gui_smoke.py
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
       - name: Validate native subprocess staff execution audit and owner review
         shell: pwsh
         run: |

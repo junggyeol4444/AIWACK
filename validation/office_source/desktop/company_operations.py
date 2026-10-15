@@ -313,6 +313,48 @@ def approve_chief_order(store, task_id: int, instruction: str) -> int:
     return store.approve_chief_task_order(task_id,instruction)
 
 
+def collect_chief_review(store, artifact_id: int, *,
+                         cancel: threading.Event | None = None) -> dict:
+    """Call the real configured chief model for an already saved employee result.
+
+    Only results executed from owner-approved chief orders qualify. The result
+    is an auditable *pending* chief report. Never accept the report, approve the
+    staff artifact, mark the task done, or perform external side effects.
+    """
+    from desktop.chief_task_runtime import collect_chief_task_result
+    assert_running_allowed(store)
+    if type(artifact_id) is not int or artifact_id <= 0:
+        raise ValueError('검토할 결과물 번호가 올바르지 않습니다.')
+    if cancel is not None and cancel.is_set():
+        raise InterruptedError('총괄 AI 회수 검토 시작 전에 취소됐습니다.')
+    if store.find_chief_task_report(artifact_id) is not None:
+        raise ValueError('이미 회수 보고서가 저장된 결과물입니다.')
+    # The core runtime verifies provenance, chief assignment, full text size
+    # and owner permission BEFORE constructing the model prompt.
+    response = collect_chief_task_result(store, artifact_id, timeout=60, cancel=cancel)
+    if cancel is not None and cancel.is_set():
+        raise InterruptedError('회수 검토 도중 취소되어 AI 응답을 저장하지 않았습니다.')
+    # An emergency stop requested during the subprocess must also prevent
+    # acceptance of its late result into the owner's review queue.
+    assert_running_allowed(store)
+    if type(response) is not str or not response.strip() or len(response) > 10000 or '\x00' in response:
+        raise ValueError('총괄 AI 회수 의견이 비었거나 저장 제한을 초과했습니다.')
+    report_id = store.save_chief_task_report(artifact_id, response.strip())
+    return {'artifact_id': artifact_id, 'report_id': report_id,
+            'status': 'awaiting_owner_review', 'chief_model_called': True,
+            'worker_result_auto_approved': False, 'task_completed': False}
+
+
+def review_chief_feedback(store, report_id: int, decision: str, note: str = '') -> None:
+    """Owner records acceptance/rejection of chief advice, NEVER task completion."""
+    store.require_permission('company:manage')
+    if type(report_id) is not int or report_id <= 0:
+        raise ValueError('총괄 보고서 번호가 올바르지 않습니다.')
+    if decision not in ('accepted', 'rejected'):
+        raise ValueError('총괄 보고서 검수는 수락 또는 반려만 가능합니다.')
+    store.review_chief_task_report(report_id, decision, note)
+
+
 def finalize_approved_artifact(store, artifact_id: int) -> int:
     """Only the owner may explicitly complete a task backed by an approved result.
 

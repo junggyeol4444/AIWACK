@@ -282,6 +282,8 @@ class CompanyOffice:
         actionbar=tk.Frame(card,bg=CARD)
         actionbar.pack(fill='x',pady=(5,0))
         self._action(actionbar,'승인 결과로 업무 완료',self.finish_reviewed,strong=True,compact=True)
+        self._action(actionbar,'총괄 AI 회수 검토',self.request_chief_report,compact=True)
+        self._action(actionbar,'총괄 보고서 보기',self.open_chief_report,compact=True)
         self._label(card, '', size=9, color=AMBER, textvariable=self.review_summary).pack(anchor='w', pady=(5, 0))
         self._label(card, '실제 생성 결과가 없으면 표시하지 않습니다. 승인해도 업무가 자동 완료되지 않습니다.',
                     size=8, color=MUTED).pack(anchor='w', pady=(3, 0))
@@ -453,6 +455,10 @@ class CompanyOffice:
                     dialog.feedback.set('실제 모델 응답 수신 및 호출 감사 기록 저장 완료 · 결과는 관리자 검수 전입니다.')
                 self._say('로컬 직원 모델이 실제 응답했습니다. 진단 감사 기록만 저장했습니다.')
                 self._text_dialog('로컬 AI 직원 모델 호출 진단', str(result))
+            elif self.after_action == 'chief_report':
+                self.set_view('results')
+                self._say('총괄 AI 회수 보고서 저장됨 · 관리자 수락/반려 전에는 업무 상태 변경 없음')
+                self.open_chief_report(int(result['artifact_id']))
             elif self.after_action == 'chief_order':
                 self.review_chief_order(result)
                 self._say('총괄 AI 초안 수신 · 소유자가 지시를 승인해야만 직원이 수행할 수 있습니다.')
@@ -612,6 +618,71 @@ class CompanyOffice:
             self._say('제안이 기각됐습니다. 실제 업무는 생성되지 않았습니다.')
         except (ValueError,PermissionError) as exc:
             self._say('제안 기각 실패: '+str(exc))
+
+    def request_chief_report(self):
+        """Real chief subprocess is launched only on explicit owner click."""
+        try:
+            artifact_id=self._selected_artifact()
+            existing=self.store.find_chief_task_report(artifact_id)
+            if existing is not None:
+                self.open_chief_report(artifact_id)
+                return
+            if not messagebox.askyesno('총괄 AI 회수 검토',
+                    '선택 결과물을 총괄 AI 로컬 모델에 보내 검토 보고서를 생성합니까?\n'
+                    '모델 실행 후에도 관리자 승인 없이 완료되거나 판매되지 않습니다.', parent=self.root):
+                return
+            self._start(lambda:ops.collect_chief_review(self.store,artifact_id,cancel=self.cancel),
+                        after='chief_report')
+        except (ValueError,PermissionError) as exc:
+            self._say('총괄 회수 검토 시작 실패: '+str(exc))
+
+    def open_chief_report(self, artifact_id=None):
+        """Display a persisted chief report and require a physical owner decision."""
+        try:
+            if artifact_id is None:
+                artifact_id=self._selected_artifact()
+            report=self.store.find_chief_task_report(int(artifact_id))
+            if report is None:
+                raise ValueError('실제 총괄 AI 회수 보고서가 없습니다. 먼저 회수 검토를 실행하세요.')
+            dialog=tk.Toplevel(self.root)
+            dialog.title('AIWACK | 총괄 AI 회수 보고서 · 소유자 검토')
+            dialog.geometry('790x490')
+            dialog.configure(bg=BG)
+            self._label(dialog,
+                f"결과물 #{artifact_id} · 총괄 보고서 #{report['id']} · 상태: {report['owner_decision']}",
+                bg=BG,size=11,bold=True).pack(fill='x',padx=15,pady=(10,6))
+            # Reserve room for actual visible user approval buttons BEFORE
+            # the expandable text area claims all Tk packer height.
+            controls=tk.Frame(dialog,bg=BG)
+            controls.pack(side='bottom',fill='x',padx=15,pady=(2,12))
+            area=tk.Text(dialog,wrap='word',font=(FONT,10),bg='#f6f8fc',fg='#152134',
+                         relief='flat',padx=12,pady=12)
+            area.pack(fill='both',expand=True,padx=15,pady=5)
+            area.insert('1.0',report['body'])
+            area.configure(state='disabled')
+            if report['owner_decision']=='pending':
+                def decide(decision):
+                    title='수락' if decision=='accepted' else '반려'
+                    if not messagebox.askyesno('총괄 보고서 관리자 검토',
+                         f'실제 총괄 AI 검토 보고서를 {title}하겠습니까?\n업무 완료는 자동으로 되지 않습니다.',
+                         parent=dialog):
+                        return
+                    try:
+                        ops.review_chief_feedback(self.store,int(report['id']),decision)
+                        dialog.destroy()
+                        self.refresh()
+                        self._say(f"총괄 AI 보고서 #{report['id']} {title}됨 · 결과물 승인/완료는 별도 단계")
+                    except (ValueError,PermissionError) as exc:
+                        self._say('총괄 보고서 검토 실패: '+str(exc))
+                self._action(controls,'총괄 보고서 수락',lambda:decide('accepted'),
+                             strong=True,compact=True)
+                self._action(controls,'총괄 보고서 반려',lambda:decide('rejected'),
+                             danger=True,compact=True)
+            self._action(controls,'닫기',dialog.destroy,compact=True)
+            return dialog
+        except (ValueError,PermissionError) as exc:
+            self._say('총괄 보고서 조회 실패: '+str(exc))
+            return None
 
     def _selected_artifact(self):
         picked = self.artifact_list.selection()
