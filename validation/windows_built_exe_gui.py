@@ -64,6 +64,24 @@ def shutdown(w,p):
         p.terminate();p.wait(timeout=8)
         raise AssertionError("EXE did not exit on Alt+F4")
 
+def wait_dashboard(w,seconds=85):
+    """After DB owner write, wait for actual Tk page transition and all widgets."""
+    until=time.monotonic()+seconds
+    while time.monotonic()<until:
+        img=pyautogui.screenshot().convert("RGB")
+        px,py=w.left+200,w.top+163
+        if 0<=px<img.width and 0<=py<img.height:
+            r,g,b=img.getpixel((px,py))
+            # The dashboard navigation combobox is visibly pale; setup/login
+            # screen at this point is the dark panel background.
+            if min(r,g,b)>170 and max(r,g,b)-min(r,g,b)<95:
+                time.sleep(.7)
+                print("VISIBLE_DASHBOARD_READY",px,py,(r,g,b),flush=True)
+                return
+        time.sleep(.5)
+    snapshot("dashboard-never-ready")
+    raise AssertionError("Owner database was written but actual EXE dashboard never became visible")
+
 def note_input_y(w):
     """Observe the REAL EXE screenshot. A wide white input band exists only on notes page."""
     screen=pyautogui.screenshot().convert("RGB")
@@ -131,7 +149,8 @@ def test(exe):
         snapshot("credentials-typed")
         click(w,175,545)
         expect_db(db,"select username from owner_accounts where id=1",USER)
-        snapshot("account-created")
+        wait_dashboard(w)
+        snapshot("dashboard-ready-after-setup")
         field_y=open_notes(w)
         snapshot("notes-visible")
         type_text(w,200,field_y,NOTE)
@@ -149,7 +168,8 @@ def test(exe):
         type_text(w,175,395,USER)
         type_text(w,175,437,PASS)
         click(w,175,480)
-        time.sleep(2)
+        wait_dashboard(w)
+        snapshot("dashboard-ready-after-relogin")
         field_y=open_notes(w)
         snapshot("reopen-notes-visible")
         pyperclip.copy("verification-sentinel")
