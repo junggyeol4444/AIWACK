@@ -20,7 +20,7 @@ with tempfile.TemporaryDirectory() as directory:
         assert office.view_name == 'overview'
         assert '미지정' in office.chief_label.get()
         assert office.cards['tasks'].get() == '0'
-        for page in ('organization', 'work', 'results', 'overview', 'work'):
+        for page in ('organization', 'planning', 'work', 'results', 'overview', 'work'):
             office.nav_buttons[page].invoke()
             root.update()
             assert office.view_name == page

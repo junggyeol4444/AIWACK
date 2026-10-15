@@ -21,7 +21,9 @@ def apply(project: Path) -> None:
     source_dir = Path(__file__).resolve().parent / 'office_source'
     for section,name in [('desktop','company_operations.py'),('desktop','company_office_gui.py'),
                          ('tests','test_company_operations_center.py'),
-                         ('scripts','company_office_gui_smoke.py')]:
+                         ('tests','test_company_planning_cockpit.py'),
+                         ('scripts','company_office_gui_smoke.py'),
+                         ('scripts','company_planning_gui_smoke.py')]:
         origin = source_dir/section/name
         destination=project/section/name
         if not origin.is_file() or destination.exists():

@@ -6,6 +6,8 @@ No fake agent messages, auto-sales, claimed earnings, unattended execution, or p
 from __future__ import annotations
 
 import threading
+import json
+import re
 from desktop.chief_runtime import invoke_chief_model
 from desktop.task_runtime import invoke_task_execution
 from desktop.stage87_90_management import stopped
@@ -26,6 +28,7 @@ def company_snapshot(store) -> dict:
     model_bindings = {int(row['employee_id']):row for row in store.list_employee_models()}
     tasks = store.list_tasks()
     artifacts = store.list_task_artifacts()
+    proposal_rows = store.list_autonomous_task_proposals(limit=100)
     chief = store.read_chief_profile()
     with store._connect() as con:
         emergency = stopped(con)
@@ -51,6 +54,7 @@ def company_snapshot(store) -> dict:
                                       for e in employees),
                 pending_reviews=sum(a['review_status']=='pending' for a in artifacts),
                 recent_artifacts=artifacts[:75],
+                pending_proposals=sum(row['status']=='pending' for row in proposal_rows),
                 live_model_ready=bool(chief and chief.get('model_id')),
                 actual_sales_verified=False)
 
@@ -180,3 +184,85 @@ def chief_brief(store, *, cancel: threading.Event | None=None) -> str:
             '미완료 업무: '+', '.join(t['title'][:55] for t in snapshot['tasks']
                                     if t['status'] not in ('done','cancelled'))[:1200])
     return invoke_chief_model(store,prompt,timeout=60,cancel=cancel)
+
+
+# Owner-visible planning workflow. The existing SQL draft store is authoritative.
+# The scan is rule-based; only refine_planning_proposal calls the actual chief model.
+def planning_proposals(store, *, limit: int=60) -> list[dict]:
+    store.require_permission('company:manage')
+    if type(limit) is not int or not 1 <= limit <= 100:
+        raise ValueError('제안 조회는 1~100개입니다.')
+    proposals = store.list_autonomous_task_proposals(limit=limit)
+    assessments = {int(item['proposal_id']):item
+                   for item in store.list_task_proposal_assessments(limit=200)}
+    return [{**row, 'analysis':assessments.get(int(row['id']))}
+            for row in proposals]
+
+
+def scan_planning_proposals(store) -> dict:
+    """Deterministic local drafting only, not autonomous model execution."""
+    store.require_permission('company:manage')
+    return store.scan_autonomous_task_proposals(limit=30)
+
+
+def _parse_chief_proposal(text: str) -> tuple[str,str]:
+    """Strictly parse inert JSON text returned by the configured LLM."""
+    if not isinstance(text,str) or len(text)>12000:
+        raise ValueError('총괄 AI 응답이 없거나 허용 크기를 넘었습니다.')
+    payload=text.strip()
+    match=re.fullmatch(r'```(?:json)?\s*(.*?)\s*```', payload, flags=re.S|re.I)
+    if match:
+        payload=match.group(1)
+    try:
+        result=json.loads(payload)
+    except (TypeError,ValueError) as exc:
+        raise ValueError('총괄 AI 응답이 JSON 형식이 아닙니다. 제안은 저장하지 않았습니다.') from exc
+    if type(result) is not dict or set(result)!={'title','description'}:
+        raise ValueError('총괄 AI는 제목과 설명만 제안할 수 있습니다.')
+    title,detail=result['title'],result['description']
+    if type(title) is not str or not 1<=len(title.strip())<=120:
+        raise ValueError('제안 제목 길이가 잘못됐습니다.')
+    if type(detail) is not str or not 1<=len(detail.strip())<=1500:
+        raise ValueError('제안 설명 길이가 잘못됐습니다.')
+    return title.strip(),detail.strip()
+
+
+def refine_planning_proposal(store, proposal_id: int, *, cancel: threading.Event|None=None) -> dict:
+    """Actually call configured chief LLM once, but save ONLY an inert draft.
+
+    The owner still needs to approve the proposal to create a real task.
+    No tool execution, payments, completion or fake model output.
+    """
+    assert_running_allowed(store)
+    if type(proposal_id) is not int or proposal_id<=0:
+        raise ValueError('제안 ID가 올바르지 않습니다.')
+    candidates=planning_proposals(store,limit=100)
+    row=next((x for x in candidates if x['id']==proposal_id),None)
+    if row is None or row['status']!='pending' or row['origin']!='rule':
+        raise ValueError('대기 중인 규칙 기반 제안만 한 번 구체화할 수 있습니다.')
+    prompt=('당신은 실제 로컬 모델로 실행되는 총괄 AI입니다. 다음 회사 업무의 위험과 구체적 다음 행동을 '
+            '정리하십시오. 실행·외부 전송·결제는 절대 하지 말고 JSON 객체 하나만 출력하십시오. '
+            'JSON 키는 title, description 두 개이고 값은 한국어 문자열입니다. '
+            'title은 120자 이하, description은 1500자 이하로 작성하십시오. '
+            '허위 시장 수요·매출·완료·모델 실행 결과를 주장하지 마십시오.\n'
+            f"원본 제안 #{proposal_id}: {row['title'][:120]}\n"
+            f"원본 설명: {row['description'][:600]}")
+    response=invoke_chief_model(store,prompt,timeout=60,cancel=cancel)
+    if cancel is not None and cancel.is_set():
+        raise InterruptedError('총괄 AI 제안 수신 뒤 관리자가 취소했습니다.')
+    title,detail=_parse_chief_proposal(response)
+    # Storage performs final atomic source-eligibility and owner-session checks.
+    if not store.save_local_ai_task_proposal(proposal_id,title,detail):
+        raise ValueError('원본 목표/업무가 변경되어 제안을 폐기했습니다.')
+    return {'proposal_id':proposal_id,'title':title,'description':detail,
+            'state':'awaiting_owner_approval','chief_model_called':True,'task_created':False}
+
+
+def approve_planning_proposal(store, proposal_id: int) -> int|None:
+    store.require_permission('company:manage')
+    return store.approve_autonomous_task_proposal(proposal_id)
+
+
+def reject_planning_proposal(store, proposal_id: int) -> None:
+    store.require_permission('company:manage')
+    store.reject_autonomous_task_proposal(proposal_id)

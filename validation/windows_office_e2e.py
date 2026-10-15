@@ -41,7 +41,7 @@ def wait_company_view(window, seconds=100):
 
 def open_work(window):
     # Real user click on the visible '업무 실행' top navigation.
-    gui.click(window, 309, 233)
+    gui.click(window, 425, 233)
     time.sleep(.8)
     snapshot('work-board-visible')
 
@@ -71,7 +71,7 @@ def run(exe):
         # Real user opens org screen, then results/approval list.
         gui.click(window, 196, 233)
         snapshot('real-organization-screen')
-        gui.click(window, 442, 233)
+        gui.click(window, 560, 233)
         snapshot('results-approval-screen')
         gui.shutdown(window, process)
         process = None

@@ -44,6 +44,8 @@ class CompanyOffice:
         self.live_badge = tk.StringVar(value='운영 상태 조회 중')
         self.team_summary = tk.StringVar(value='직원 모델을 확인하고 있습니다.')
         self.review_summary = tk.StringVar(value='저장된 결과물 없음')
+        self.proposal_summary = tk.StringVar(value='총괄 AI 제안 없음')
+        self.after_action = 'results'
         self.view_name = 'overview'
         self._draw()
         self.refresh()
@@ -119,7 +121,7 @@ class CompanyOffice:
         navigation = tk.Frame(self.parent, bg=BG)
         navigation.pack(fill='x', padx=12, pady=(0, 8))
         for key, label in [('overview', '◈  회사 현황'), ('organization', '♧  AI 조직'),
-                           ('work', '☷  업무 실행'), ('results', '▤  결과 · 승인')]:
+                           ('planning', '◇  AI 기획'), ('work', '☷  업무 실행'), ('results', '▤  결과 · 승인')]:
             button = tk.Button(navigation, text=label, command=lambda v=key: self.set_view(v),
                                relief='flat', borderwidth=0, padx=15, pady=7,
                                font=(FONT, 10, 'bold'), cursor='hand2')
@@ -144,10 +146,11 @@ class CompanyOffice:
 
         self.content = tk.Frame(self.parent, bg=BG)
         self.content.pack(fill='both', expand=True, padx=12, pady=(0, 7))
-        for key in ('overview', 'organization', 'work', 'results'):
+        for key in ('overview', 'organization', 'planning', 'work', 'results'):
             self.views[key] = tk.Frame(self.content, bg=BG)
         self._draw_overview(self.views['overview'])
         self._draw_organization(self.views['organization'])
+        self._draw_planning(self.views['planning'])
         self._draw_work(self.views['work'])
         self._draw_results(self.views['results'])
 
@@ -204,6 +207,26 @@ class CompanyOffice:
                                         ('state', '상태', 90)], height=8)
         self._label(card, '총괄 AI → 부서장 AI → 직원 AI.  초안 직원은 모델 실행 인스턴스가 아닙니다.',
                     color=MUTED, size=9).pack(anchor='w', pady=(6, 0))
+
+    def _draw_planning(self, frame):
+        card = self._card(frame)
+        card.pack(fill='both', expand=True)
+        head = tk.Frame(card, bg=CARD)
+        head.pack(fill='x', pady=(0, 6))
+        self._label(head, '회사 업무 제안  /  PLANNING PIPELINE', size=12, bold=True).pack(side='left')
+        self._action(head, '목표·차단 업무 검색', self.scan_proposals, compact=True)
+        self._action(head, '총괄 AI 구체화', self.refine_proposal, compact=True)
+        self.proposal_list = self._table(card, [('id','번호',54),('title','제안 제목',300),
+                                                 ('origin','작성 출처',100),('state','승인 상태',105)],height=5)
+        self.proposal_list.bind('<Double-1>',lambda _event:self.open_proposal())
+        controls=tk.Frame(card,bg=CARD)
+        controls.pack(fill='x',pady=(7,0))
+        self._action(controls,'제안 상세',self.open_proposal,compact=True)
+        self._action(controls,'업무로 승인',self.approve_proposal,strong=True,compact=True)
+        self._action(controls,'제안 기각',self.reject_proposal,danger=True,compact=True)
+        self._label(card,'',size=9,color=AMBER,textvariable=self.proposal_summary).pack(anchor='w',pady=(6,0))
+        self._label(card,'규칙 검색은 AI 모델을 호출하지 않습니다. 총괄 AI 모델이 없으면 구체화 불가 · 승인 전엔 업무 미생성',
+                    size=8,color=MUTED,wraplength=870).pack(anchor='w',pady=(4,0))
 
     def _draw_work(self, frame):
         main = self._card(frame)
@@ -294,7 +317,8 @@ class CompanyOffice:
             self.team_summary.set(f"총 {len(data['team'])}명 중 모델 배정 {data['model_ready_count']}명\n"
                                   f"실행 중 업무 {data['running']}건 · 완료 {data['completed']}건\n"
                                   f"실제 매출·판매는 아직 검증되지 않았습니다.")
-            for tree in (self.staff, self.jobs, self.work_jobs, self.artifact_list):
+            proposals = ops.planning_proposals(self.store)
+            for tree in (self.staff, self.jobs, self.work_jobs, self.artifact_list, self.proposal_list):
                 selected = tree.selection()
                 tree.delete(*tree.get_children())
                 if tree is self.staff:
@@ -307,6 +331,11 @@ class CompanyOffice:
                         tree.insert('', 'end', iid=str(item['id']),
                             values=(item['title'], item['assignee'], item['status']),
                             tags=('warn',) if item['assignee']=='담당자 미배정' else ())
+                elif tree is self.proposal_list:
+                    for proposal in proposals:
+                        tree.insert('', 'end', iid=str(proposal['id']),
+                                    values=(proposal['id'],proposal['title'],proposal['origin'],proposal['status']),
+                                    tags=('warn',) if proposal['status']=='pending' else ())
                 else:
                     for art in data['recent_artifacts']:
                         tree.insert('', 'end', iid=str(art['id']),
@@ -315,6 +344,7 @@ class CompanyOffice:
                 if selected and tree.exists(selected[0]):
                     tree.selection_set(selected[0])
             self.review_summary.set(f"총 결과물 {data['artifacts']}건 · 검수 대기 {data['pending_reviews']}건")
+            self.proposal_summary.set(f"업무 제안 {len(proposals)}건 중 승인 대기 {data['pending_proposals']}건 · 소유자 승인 필수")
             self._say('실제 회사 데이터 연결됨 · 허위 AI 활동이나 매출을 표시하지 않습니다.')
         except (ValueError, PermissionError, RuntimeError) as exc:
             self._say('회사 조회 실패: '+str(exc))
@@ -364,11 +394,12 @@ class CompanyOffice:
         except (ValueError, PermissionError) as exc:
             self._say(str(exc))
 
-    def _start(self, task):
+    def _start(self, task, *, after='results'):
         if self.worker and self.worker.is_alive():
             self._say('이미 AI가 실행 중입니다. 새 실행을 시작하지 않습니다.')
             return
         self.cancel.clear()
+        self.after_action = after
         self._say('실제 로컬 AI 실행 중 · 감사 기록과 결과물을 저장합니다.')
         def work():
             try:
@@ -394,8 +425,15 @@ class CompanyOffice:
         if kind == 'error':
             self._say('실제 AI 실행 실패: '+str(result))
         else:
-            self._say('로컬 AI 실행 결과 수신 · 결과물은 승인 대기이며 매출이 아닙니다.')
-            self.set_view('results')
+            if self.after_action == 'planning':
+                self.set_view('planning')
+                self._say('실제 총괄 모델 제안 초안 저장 · 관리자 승인 전에는 실행되지 않습니다.')
+            elif self.after_action == 'chief':
+                self._say('실제 총괄 AI 모델 응답 수신 · 답변 창에서 확인하세요.')
+                self._text_dialog('총괄 AI 회사 진단',str(result))
+            else:
+                self._say('로컬 AI 실행 결과 수신 · 결과물은 승인 대기이며 매출이 아닙니다.')
+                self.set_view('results')
 
     def run_selected(self):
         try:
@@ -409,13 +447,97 @@ class CompanyOffice:
         self._start(lambda: ops.execute_batch(self.store, max_tasks=3, cancel=self.cancel))
 
     def ask_chief(self):
-        self._start(lambda: ops.chief_brief(self.store, cancel=self.cancel))
+        self._start(lambda: ops.chief_brief(self.store, cancel=self.cancel),after='chief')
+
+    def _proposal_id(self):
+        pick=self.proposal_list.selection()
+        if not pick:
+            raise ValueError('제안 한 건을 먼저 선택하세요.')
+        return int(pick[0])
+
+    def _proposal_row(self):
+        proposal_id=self._proposal_id()
+        row=next((p for p in ops.planning_proposals(self.store) if p['id']==proposal_id),None)
+        if row is None:
+            raise ValueError('제안이 변경됐습니다. 새로고침하세요.')
+        return row
+
+    def open_proposal(self):
+        try:
+            row=self._proposal_row()
+            a=row['analysis'] or {}
+            detail=(f"업무 제안 #{row['id']}\n원본: {row['source_kind']} #{row['source_id']}\n"
+                    f"작성 출처: {row['origin']} · 검수 상태: {row['status']}\n"
+                    f"적합도: {a.get('feasibility','평가 없음')} · 점수: {a.get('score','—')}\n"
+                    f"\n{row['title']}\n\n{row['description']}\n\n"
+                    '실제 AI 직원의 작업은 제안 승인 후에도 별도로 시작해야 합니다.')
+            self._text_dialog('업무 기획 초안 · 실행 아님',detail)
+        except (ValueError,PermissionError) as exc:
+            self._say(str(exc))
+
+    def scan_proposals(self):
+        try:
+            result=ops.scan_planning_proposals(self.store)
+            self.refresh()
+            self.set_view('planning')
+            self._say(f"로컬 자료 기반 제안 {len(result['created_ids'])}개 생성 · AI 호출 없음 · 승인 대기 {result['pending_count']}개")
+        except (ValueError,PermissionError) as exc:
+            self._say('제안 스캔 실패: '+str(exc))
+
+    def refine_proposal(self):
+        try:
+            proposal_id=self._proposal_id()
+        except ValueError as exc:
+            self._say(str(exc))
+            return
+        self._start(lambda:ops.refine_planning_proposal(self.store,proposal_id,cancel=self.cancel),
+                    after='planning')
+
+    def approve_proposal(self):
+        try:
+            row=self._proposal_row()
+            if row['status']!='pending':
+                raise ValueError('승인 대기 제안만 선택할 수 있습니다.')
+            if not messagebox.askyesno('업무 생성 승인',
+                    '제안을 실제 업무로 등록합니까?\n모델 자동 실행은 하지 않습니다.\n\n'+row['title'],parent=self.root):
+                return
+            task_id=ops.approve_planning_proposal(self.store,int(row['id']))
+            self.refresh()
+            if task_id is None:
+                self._say('원본 자료가 변경되어 제안 승인되지 않았습니다.')
+            else:
+                self.set_view('work')
+                self.work_jobs.selection_set(str(task_id))
+                self._say(f'소유자 승인 · 실제 업무 #{task_id} 생성 · 모델 실행은 아직 아닙니다.')
+        except (ValueError,PermissionError) as exc:
+            self._say('제안 승인 실패: '+str(exc))
+
+    def reject_proposal(self):
+        try:
+            row=self._proposal_row()
+            if not messagebox.askyesno('제안 기각','선택한 업무 제안을 기각합니까?',parent=self.root):
+                return
+            ops.reject_planning_proposal(self.store,int(row['id']))
+            self.refresh()
+            self._say('제안이 기각됐습니다. 실제 업무는 생성되지 않았습니다.')
+        except (ValueError,PermissionError) as exc:
+            self._say('제안 기각 실패: '+str(exc))
 
     def _selected_artifact(self):
         picked = self.artifact_list.selection()
         if not picked:
             raise ValueError('결과 목록에서 검수할 결과물 한 건을 선택하세요.')
         return int(picked[0])
+
+    def _text_dialog(self, title, body):
+        dialog = tk.Toplevel(self.root)
+        dialog.title('AIWACK | '+title)
+        dialog.geometry('790x510')
+        area = tk.Text(dialog, wrap='word', font=(FONT, 10), bg=CARD, fg=INK,
+                       relief='flat', padx=14, pady=14)
+        area.pack(fill='both', expand=True, padx=10, pady=10)
+        area.insert('1.0', body)
+        area.configure(state='disabled')
 
     def open_result(self):
         try:
@@ -424,14 +546,7 @@ class CompanyOffice:
             text = f"결과물 #{artifact_id}  /  {artifact['title']}\n" + '-'*52 + '\n' + artifact['body']
         except ValueError:
             text = self.latest_output
-        dialog = tk.Toplevel(self.root)
-        dialog.title('AIWACK | 실제 AI 결과 및 검수')
-        dialog.geometry('790x510')
-        area = tk.Text(dialog, wrap='word', font=(FONT, 10), bg=CARD, fg=INK,
-                       relief='flat', padx=14, pady=14)
-        area.pack(fill='both', expand=True, padx=10, pady=10)
-        area.insert('1.0', text)
-        area.configure(state='disabled')
+        self._text_dialog('실제 AI 결과 및 검수',text)
 
     def _review(self, decision):
         try:
