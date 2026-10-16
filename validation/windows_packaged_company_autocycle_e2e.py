@@ -109,7 +109,9 @@ def confirm():
 
 def bind_model(w, employee_index, exe):
     # The organization's public "로컬 모델 연결" dialog. No DB injection.
-    click(w, 467, 413)
+    # Windows UI screenshot: button spans x=464..571. Click at its center,
+    # not three pixels inside the left border (misses under Win2025 load).
+    click(w, 515, 413)
     dialog = find_dialog("AIWACK | 로컬 AI 모델 연결")
     evidence("local-model-dialog-employee-%s" % employee_index)
     click(dialog, 170, 155)
