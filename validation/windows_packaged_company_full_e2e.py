@@ -145,7 +145,8 @@ def wait_office_dashboard(window, timeout=80):
     deadline = time.monotonic() + timeout
     while time.monotonic() < deadline:
         img = pyautogui.screenshot().convert("RGB")
-        x, y = window.left + 93, window.top + 269
+        # This is the upper solid-blue bar, away from the white Korean text.
+        x, y = window.left + 93, window.top + 255
         if 0 <= x < img.width and 0 <= y < img.height:
             red, green, blue = img.getpixel((x, y))
             if 40 <= red <= 145 and 70 <= green <= 195 and blue >= 175 and blue > red + 55:
