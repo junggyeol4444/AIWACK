@@ -21,7 +21,7 @@ def apply(project: Path) -> None:
     source_dir = Path(__file__).resolve().parent / 'office_source'
     for section,name in [('desktop','company_operations.py'),('desktop','company_office_gui.py'),('desktop','company_model_connect_ui.py'),
                          ('tests','test_company_operations_center.py'),
-                         ('tests','test_company_planning_cockpit.py'),('tests','test_company_model_onboarding.py'),('tests','test_company_chief_handoff.py'),('tests','test_company_chief_review.py'),
+                         ('tests','test_company_planning_cockpit.py'),('tests','test_company_model_onboarding.py'),('tests','test_company_chief_handoff.py'),('tests','test_company_chief_review.py'),('tests','test_company_approved_autocycle.py'),
                          ('scripts','company_office_gui_smoke.py'),
                          ('scripts','company_planning_gui_smoke.py'),('scripts','company_model_setup_gui_smoke.py'),('scripts','company_owner_completion_gui_smoke.py'),('scripts','company_chief_order_gui_smoke.py'),('scripts','company_chief_live_gui_smoke.py'),('scripts','company_chief_review_gui_smoke.py')]:
         origin = source_dir/section/name

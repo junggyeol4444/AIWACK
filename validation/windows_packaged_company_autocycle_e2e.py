@@ -228,7 +228,8 @@ def perform(exe, stub):
         evidence("chief-draft-unapproved-no-execution")
         # One human approval starts BOTH subprocesses. No second mouse click
         # for staff execution or chief review is permitted in this E2E.
-        click(draft, 335, 470)
+        # Screenshot-confirmed center of second BLUE button, not the reject button.
+        click(draft, 245, 470)
         evidence("owner-approved-and-started-automatic-staff-chief-cycle")
         wait_sql("SELECT COUNT(*) FROM company_chief_task_orders WHERE task_id=?",
                  1, (task_id,))
