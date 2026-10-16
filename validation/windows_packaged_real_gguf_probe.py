@@ -9,6 +9,8 @@ import json
 import os
 from pathlib import Path
 import shutil
+import sqlite3
+from urllib.parse import quote
 import sys
 import tempfile
 import time
@@ -19,6 +21,55 @@ import windows_packaged_company_full_e2e as gui_test
 
 ART = Path(os.environ.get("AIWACK_REAL_GGUF_EVIDENCE", "real-gguf-windows"))
 ART.mkdir(parents=True, exist_ok=True)
+
+
+def read_model_audit(db: Path, employee_id: int):
+    """Read actual audit table schema from fresh SQLite, never mutate it.
+
+    The public LocalStore API has list_employee_model_calls(), but the E2E
+    driver is intentionally independent and does not import desktop.*.
+    Reject missing or ambiguous audit tables rather than guessing success.
+    """
+    uri = "file:" + quote(str(db.resolve()).replace("\\", "/"), safe="/:") + "?mode=ro"
+    with sqlite3.connect(uri,uri=True,timeout=3) as con:
+        all_tables=[r[0] for r in con.execute(
+            "SELECT name FROM sqlite_master WHERE type='table' ORDER BY name")]
+        candidates=[]
+        for table in all_tables:
+            if not any(word in table.lower() for word in ("model","inference","invocation")):
+                continue
+            sql_name='"'+table.replace('"','""')+'"'
+            fields={r[1].lower() for r in con.execute(
+                "PRAGMA table_info("+sql_name+")")}
+            if not {"employee_id","status","id"}.issubset(fields):
+                continue
+            total=con.execute(
+                "SELECT COUNT(*) FROM "+sql_name+" WHERE employee_id=?",
+                (employee_id,)).fetchone()[0]
+            record=con.execute(
+                "SELECT status FROM "+sql_name+
+                " WHERE employee_id=? ORDER BY id DESC LIMIT 1",
+                (employee_id,)).fetchone()
+            candidates.append((table,total,record[0] if record else None))
+        print("READONLY_GGUF_MODEL_AUDIT_SCHEMA",
+              {"tables":all_tables,"candidates":candidates},flush=True)
+        if len(candidates)!=1:
+            raise AssertionError("Require exactly one real employee-model call audit table")
+        return candidates[0]
+
+def wait_model_audit(db:Path,employee_id:int,timeout=140):
+    until=time.monotonic()+timeout
+    last=None
+    while time.monotonic()<until:
+        last=read_model_audit(db,employee_id)
+        if last[1]==1 and last[2]=="success":
+            return
+        # Fail fast on an actual explicit model call failure. A long-running
+        # model gives count 0 until it is audited.
+        if last[1] and last[2] in ("failure","error","timeout","cancelled"):
+            raise AssertionError("Actual GGUF inference was audited as: "+str(last))
+        time.sleep(1)
+    raise AssertionError("No successful real GGUF model call in audit: "+str(last))
 
 def stage(s):
     pyautogui.screenshot().save(ART / (s + ".png"))
@@ -76,12 +127,7 @@ def run(app_exe:Path, model_cli:Path, gguf:Path):
         # No synthetic output, monkeypatching or external probe CLI call.
         gui_test.click(dialog,343,460)
         stage("06-real-exe-model-probe-physically-clicked")
-        gui_test.wait_sql(
-            "SELECT status FROM ai_employee_model_calls WHERE employee_id=3 ORDER BY id DESC LIMIT 1",
-            "success",timeout=130)
-        gui_test.wait_sql(
-            "SELECT COUNT(*) FROM ai_employee_model_calls WHERE employee_id=3",
-            1,timeout=15)
+        wait_model_audit(db,3,timeout=140)
         gui_test.wait_sql("SELECT COUNT(*) FROM company_task_artifacts",0)
         stage("07-genuine-gguf-inference-audited-success")
         gui_test.gui.shutdown(window,process)
@@ -94,9 +140,7 @@ def run(app_exe:Path, model_cli:Path, gguf:Path):
         gui_test.write(window,175,437,"real-gguf-owner-password-2026")
         gui_test.click(window,175,480)
         gui_test.wait_office_dashboard(window)
-        gui_test.wait_sql(
-            "SELECT status FROM ai_employee_model_calls WHERE employee_id=3 ORDER BY id DESC LIMIT 1",
-            "success")
+        wait_model_audit(db,3,timeout=10)
         stage("08-reopened-exe-real-gguf-inference-audit-preserved")
         gui_test.gui.shutdown(window,process)
         process=None
