@@ -62,8 +62,10 @@ jobs:
           $engine = Get-ChildItem (Join-Path $dir 'cpu') -Recurse -File -Filter 'llama-cli.exe' | Select-Object -First 1
           if (-not $engine) { throw 'Verified official archive has no llama-cli.exe' }
           $gguf = Join-Path $dir 'SmolLM2-135M-Instruct-Q4_K_M.gguf'
-          Invoke-WebRequest -Uri 'https://huggingface.co/tensorblock/SmolLM2-135M-Instruct-GGUF/resolve/main/SmolLM2-135M-Instruct-Q4_K_M.gguf?download=true' -OutFile $gguf -MaximumRedirection 10
+          Invoke-WebRequest -Uri 'https://huggingface.co/lmstudio-community/SmolLM2-135M-Instruct-GGUF/resolve/main/SmolLM2-135M-Instruct-Q4_K_M.gguf?download=true' -OutFile $gguf -MaximumRedirection 10
           if ((Get-Item $gguf).Length -lt 80000000 -or (Get-Item $gguf).Length -gt 120000000) { throw 'GGUF size invalid; do not use an HTML error page' }
+          # SHA256 published on the verified model artifact's Hugging Face file page.
+          if ((Get-FileHash $gguf -Algorithm SHA256).Hash.ToLowerInvariant() -ne 'bda484992f9655d22504b14e57985257fa6a86937c61f957cf99c10a3bcae169') { throw 'Real GGUF source checksum mismatch' }
           $stream = [System.IO.File]::OpenRead($gguf)
           try {
             $magic = [byte[]]::new(4)
