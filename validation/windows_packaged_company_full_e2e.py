@@ -260,8 +260,12 @@ def perform(exe, stub):
                  "pending", (artifact_id,), timeout=90)
         report = find_dialog("총괄 AI 회수 보고서", timeout=30)
         evidence("chief-report-awaiting-owner")
-        click(report, 115, 466)
+        # Screenshot: report dialog top=155, blue owner-accept button
+        # screen y=630..663. Relative y=491 clicks its center, not above it.
+        click(report, 115, 491)
+        evidence("owner-accepted-chief-report-button-clicked")
         confirm()
+        evidence("owner-chief-report-confirmation-entered")
         wait_sql("SELECT owner_decision FROM company_chief_task_reports WHERE artifact_id=?",
                  "accepted", (artifact_id,))
         wait_sql("SELECT review_status FROM company_task_artifacts WHERE id=?",
