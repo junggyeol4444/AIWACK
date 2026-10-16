@@ -136,6 +136,26 @@ def bind_model(w, employee_index, exe):
     time.sleep(.7)
 
 
+def wait_office_dashboard(window, timeout=80):
+    """Observe the visible selected company-overview navigation button.
+
+    Earlier wait_dashboard probed (200,163), which was a dark border even
+    when AIWACK.exe showed the successful dashboard. Screenshot-backed check.
+    """
+    deadline = time.monotonic() + timeout
+    while time.monotonic() < deadline:
+        img = pyautogui.screenshot().convert("RGB")
+        x, y = window.left + 93, window.top + 269
+        if 0 <= x < img.width and 0 <= y < img.height:
+            red, green, blue = img.getpixel((x, y))
+            if 40 <= red <= 145 and 70 <= green <= 195 and blue >= 175 and blue > red + 55:
+                print("REAL_EXE_COMPANY_DASHBOARD_PIXEL_VISIBLE", (x, y), (red,green,blue), flush=True)
+                return
+        time.sleep(.35)
+    evidence("real-exe-dashboard-pixel-absent")
+    raise AssertionError("Actual EXE company overview button never visibly selected")
+
+
 def perform(exe, stub):
     global DATA, DB
     assert os.name == "nt", "Actual Windows executable and desktop required"
@@ -154,7 +174,7 @@ def perform(exe, stub):
         write(w, 175, 483, PASSWORD)
         click(w, 175, 545)
         wait_sql("SELECT username FROM owner_accounts WHERE id=1", OWNER)
-        gui.wait_dashboard(w)
+        wait_office_dashboard(w)
         evidence("owner-created-through-exe")
 
         # Click the actual organization tab, then actual blueprint button.
@@ -262,7 +282,7 @@ def perform(exe, stub):
         write(w, 175, 395, OWNER)
         write(w, 175, 437, PASSWORD)
         click(w, 175, 480)
-        gui.wait_dashboard(w)
+        wait_office_dashboard(w)
         click(w, 424, 270)
         wait_sql("SELECT status FROM company_tasks WHERE id=?", "done", (task_id,))
         wait_sql("SELECT owner_decision FROM company_chief_task_reports WHERE artifact_id=?",
