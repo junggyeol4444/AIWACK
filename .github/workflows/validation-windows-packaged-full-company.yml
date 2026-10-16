@@ -1,0 +1,77 @@
+name: AIWACK actual EXE full owner-company E2E (test branch only)
+on:
+  push:
+    branches: [validation/windows-user-e2e-20261015]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  actual-exe:
+    name: Packaged full GUI E2E (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 35
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-2022, windows-2025]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Validate immutable ZIP and install test-branch company source
+        shell: pwsh
+        run: |
+          $zip = Join-Path $env:GITHUB_WORKSPACE 'source-archives/AIWACK_Stage100_Robots_Compliant_Crawling_Plugin_Market_Integration_Source.zip'
+          if ((Get-FileHash -Algorithm SHA256 $zip).Hash.ToLowerInvariant() -ne 'f855f9ed9afada6a75f80011bf86f95cda053045d54e4445fbf399531626b020') { throw 'Immutable ZIP digest mismatch' }
+          Expand-Archive -LiteralPath $zip -DestinationPath (Join-Path $env:RUNNER_TEMP 'aiwack-real-binary-e2e')
+          $src = Join-Path $env:RUNNER_TEMP 'aiwack-real-binary-e2e/AIWACK-Stage54'
+          python validation/patch_source.py $src
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          python validation/app_navigation_patch.py $src
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          python validation/install_company_office.py $src
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          python -m compileall -q (Join-Path $src 'desktop')
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Install GUI EXE build and mouse keyboard drivers
+        shell: pwsh
+        run: |
+          python -m pip install pyinstaller pyautogui pygetwindow pyperclip pillow
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Build actual packaged Windows executable and synthetic model
+        shell: pwsh
+        run: |
+          Set-Location (Join-Path $env:RUNNER_TEMP 'aiwack-real-binary-e2e/AIWACK-Stage54')
+          python -m PyInstaller --noconfirm --clean --onefile --windowed --name AIWACK --paths . --hidden-import desktop.company_operations --hidden-import desktop.company_office_gui --add-data 'docs/roadmap_100.csv;docs' desktop/entry.py
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          if (-not (Test-Path 'dist/AIWACK.exe')) { throw 'AIWACK.exe missing' }
+          python -m PyInstaller --noconfirm --clean --onefile --console --name AIWACK-ModelStub (Join-Path $env:GITHUB_WORKSPACE 'validation/windows_fake_llm.py')
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          if (-not (Test-Path 'dist/AIWACK-ModelStub.exe')) { throw 'Native synthetic runner missing' }
+      - name: Actually drive EXE chief staff owner approvals and restart
+        shell: pwsh
+        env:
+          AIWACK_PACKAGED_GUI_ARTIFACTS: ${{ runner.temp }}/aiwack-real-exe-screens
+        run: |
+          $src = Join-Path $env:RUNNER_TEMP 'aiwack-real-binary-e2e/AIWACK-Stage54'
+          $exe = Join-Path $src 'dist/AIWACK.exe'
+          $stub = Join-Path $src 'dist/AIWACK-ModelStub.exe'
+          python validation/windows_packaged_company_full_e2e.py $exe $stub
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Preserve screenshots and failures from physical EXE test
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: aiwack-real-exe-evidence-${{ matrix.os }}
+          path: ${{ runner.temp }}/aiwack-real-exe-screens/
+          retention-days: 14
+          if-no-files-found: warn
+      - name: Preserve exact packaged AIWACK.exe under test
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: aiwack-real-exe-build-${{ matrix.os }}
+          path: ${{ runner.temp }}/aiwack-real-binary-e2e/AIWACK-Stage54/dist/AIWACK.exe
+          retention-days: 14
+          if-no-files-found: warn
