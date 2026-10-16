@@ -286,8 +286,12 @@ def perform(exe, stub):
                  "in_progress", (task_id,))
         evidence("owner-approved-artifact-still-in-progress")
         click(w, 165, 483)
-        click(w, 130, 648)
+        # Actual Windows screenshot: final owner-finish blue button occupies
+        # screen y=625..657; win title top=9. Click inside, not on border.
+        click(w, 130, 636)
+        evidence("owner-finalize-task-button-physically-clicked")
         confirm()
+        evidence("owner-finalize-task-confirmed")
         wait_sql("SELECT status FROM company_tasks WHERE id=?", "done", (task_id,))
         evidence("separate-owner-finalize-to-done")
 
