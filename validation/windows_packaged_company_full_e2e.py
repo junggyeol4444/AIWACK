@@ -117,6 +117,9 @@ def bind_model(w, employee_index, exe):
     if employee_index:
         pyautogui.press("down", presses=employee_index, interval=.12)
     pyautogui.press("enter")
+    # The app correctly rejects duplicate registered model display names.
+    # Set distinct labels via the ACTUAL editable GUI field; no SQL mutation.
+    write(dialog, 190, 204, "AIWACK Native Synthetic Model " + str(employee_index))
     # Backends are llama_cpp, llamafile. Native synthetic CLI is a llamafile
     # adapter fixture; nothing here constitutes actual GGUF model inference.
     # Actual Windows screenshot showed llama_cpp still selected after merely
