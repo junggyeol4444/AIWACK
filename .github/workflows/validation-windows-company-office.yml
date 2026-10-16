@@ -127,6 +127,15 @@ jobs:
         run: |
           python -m pytest -q validation/test_company_tab_locator.py validation/test_task_row_locator.py
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Full black-box packaged AIWACK.exe chief to worker to owner approvals
+        shell: pwsh
+        env:
+          AIWACK_PACKAGED_GUI_ARTIFACTS: ${{ runner.temp }}/aiwack-office-screenshots/packaged-full-company
+        run: |
+          $exe = Join-Path $env:RUNNER_TEMP 'aiwack-office-src/AIWACK-Stage54/dist/AIWACK.exe'
+          $stub = Join-Path $env:RUNNER_TEMP 'aiwack-office-src/AIWACK-Stage54/dist/AIWACK-ModelStub.exe'
+          python validation/windows_packaged_company_full_e2e.py $exe $stub
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
       - name: Physically run chief-to-worker model subprocess via owner GUI
         shell: pwsh
         env:

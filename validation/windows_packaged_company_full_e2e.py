@@ -1,0 +1,296 @@
+"""Windows black-box packaged AIWACK.exe company lifecycle.
+
+The test process never imports desktop.* and never writes an application table.
+ALL setup/actions go through physical PyAutoGUI clicks/keys in AIWACK.exe.
+SQLite is opened read-only as an independent persisted-state oracle.
+The employee executable is a separately packaged SYNTHETIC fixture, not GGUF.
+"""
+from __future__ import annotations
+
+import json
+import os
+from pathlib import Path
+import shutil
+import sqlite3
+import sys
+import tempfile
+import time
+import traceback
+from urllib.parse import quote
+
+import pyautogui
+import pygetwindow
+
+import windows_built_exe_gui as gui
+
+OWNER = "packaged_company_owner"
+PASSWORD = "owner-packaged-e2e-password-2026"
+TASK_TITLE = "Physical EXE chief staff owner E2E task"
+OBJECTIVE = "Prepare a bounded offline market research report"
+ART = Path(os.environ.get("AIWACK_PACKAGED_GUI_ARTIFACTS", "packaged-company-full-e2e"))
+ART.mkdir(parents=True, exist_ok=True)
+STEPS = []
+DATA = None
+DB = None
+pyautogui.FAILSAFE = True
+pyautogui.PAUSE = .18
+
+
+def evidence(stage):
+    STEPS.append(stage)
+    pyautogui.screenshot().save(ART / ("%02d-%s.png" % (len(STEPS), stage)))
+    print("PACKAGED_COMPANY_REAL_EXE_STAGE", stage, flush=True)
+
+
+def read(sql, params=()):
+    if not DB.is_file():
+        return None
+    # No writable SQLite connection is ever opened by this test driver.
+    uri = "file:" + quote(str(DB.resolve()).replace("\\", "/"), safe="/:") + "?mode=ro"
+    with sqlite3.connect(uri, uri=True, timeout=2) as con:
+        row = con.execute(sql, params).fetchone()
+        return row[0] if row else None
+
+
+def wait_sql(sql, expected, params=(), timeout=70):
+    deadline = time.monotonic() + timeout
+    observed = None
+    while time.monotonic() < deadline:
+        try:
+            observed = read(sql, params)
+            if observed == expected:
+                return
+        except sqlite3.OperationalError:
+            pass
+        time.sleep(.4)
+    evidence("sql-verification-failed")
+    raise AssertionError("Read-only DB assertion failed: expected %r observed %r for %s" %
+                         (expected, observed, sql))
+
+
+def find_dialog(fragment, timeout=65):
+    deadline = time.monotonic() + timeout
+    while time.monotonic() < deadline:
+        windows = [w for w in pygetwindow.getAllWindows()
+                   if fragment in w.title and w.width >= 300]
+        if windows:
+            w = windows[0]
+            if w.isMinimized:
+                w.restore()
+            try:
+                w.activate()
+            except Exception:
+                pass
+            return w
+        time.sleep(.3)
+    evidence("dialog-not-found")
+    raise AssertionError("Expected visible Windows GUI dialog not found: " + fragment)
+
+
+def click(w, x, y):
+    # Real Windows mouse input, never tkinter Button.invoke or direct callbacks.
+    assert w.width > 500 and w.height > 350, (w.title, w.width, w.height)
+    pyautogui.click(w.left + x, w.top + y)
+    time.sleep(.6)
+
+
+def write(w, x, y, value):
+    click(w, x, y)
+    pyautogui.hotkey("ctrl", "a")
+    pyautogui.write(value, interval=.008)
+
+
+def confirm():
+    # A separate actual human-facing Tk/Windows confirmation has focus.
+    time.sleep(.5)
+    pyautogui.press("enter")
+    time.sleep(.6)
+
+
+def bind_model(w, employee_index, exe):
+    # The organization's public "로컬 모델 연결" dialog. No DB injection.
+    click(w, 467, 413)
+    dialog = find_dialog("AIWACK | 로컬 AI 모델 연결")
+    evidence("local-model-dialog-employee-%s" % employee_index)
+    click(dialog, 170, 155)
+    pyautogui.press("home")
+    if employee_index:
+        pyautogui.press("down", presses=employee_index, interval=.12)
+    pyautogui.press("enter")
+    # Backends are llama_cpp, llamafile. Native synthetic CLI is a llamafile
+    # adapter fixture; nothing here constitutes actual GGUF model inference.
+    click(dialog, 150, 276)
+    pyautogui.press("end")
+    pyautogui.press("enter")
+    write(dialog, 190, 344, str(exe))
+    click(dialog, 110, 515)
+    employee_id = 1 if employee_index == 0 else 3
+    wait_sql("SELECT COUNT(*) FROM ai_employee_model_assignments WHERE employee_id=?",
+             1, (employee_id,))
+    evidence("model-path-bound-employee-%s" % employee_id)
+    try:
+        dialog.activate()
+    except Exception:
+        pass
+    pyautogui.hotkey("alt", "f4")
+    time.sleep(.7)
+
+
+def perform(exe, stub):
+    global DATA, DB
+    assert os.name == "nt", "Actual Windows executable and desktop required"
+    assert exe.is_file() and exe.name.lower() == "aiwack.exe"
+    assert stub.is_file() and stub.suffix.lower() == ".exe"
+    base = Path(tempfile.mkdtemp(prefix="aiwack-real-exe-company-"))
+    DATA = base / "data"
+    DB = DATA / "aiwack.sqlite3"
+    p = None
+    try:
+        p = gui.start(exe, DATA)
+        w = gui.find_window()
+        evidence("actual-aiwack-exe-launched")
+        write(w, 175, 320, OWNER)
+        write(w, 175, 401, PASSWORD)
+        write(w, 175, 483, PASSWORD)
+        click(w, 175, 545)
+        wait_sql("SELECT username FROM owner_accounts WHERE id=1", OWNER)
+        gui.wait_dashboard(w)
+        evidence("owner-created-through-exe")
+
+        # Click the actual organization tab, then actual blueprint button.
+        click(w, 215, 270)
+        evidence("organization-before-setup")
+        click(w, 343, 414)
+        confirm()
+        wait_sql("SELECT COUNT(*) FROM company_departments", 15)
+        wait_sql("SELECT COUNT(*) FROM ai_employee_profiles", 31)
+        evidence("blueprint-created-through-exe")
+
+        # Chief #1 and first employee with 'staff' reporting tier #3.
+        bind_model(w, 0, stub)
+        bind_model(w, 2, stub)
+
+        # Register/assign task using the visible task board, not SQL INSERTs.
+        click(w, 424, 270)
+        write(w, 240, 614, TASK_TITLE)
+        pyautogui.press("enter")
+        wait_sql("SELECT title FROM company_tasks ORDER BY id DESC LIMIT 1", TASK_TITLE)
+        task_id = read("SELECT id FROM company_tasks ORDER BY id DESC LIMIT 1")
+        evidence("task-registered-through-exe")
+        click(w, 170, 483)
+        click(w, 334, 413)
+        wait_sql("SELECT employee_id FROM company_task_assignments WHERE task_id=?",
+                 3, (task_id,))
+        evidence("worker-assigned-through-exe")
+
+        # Physically ask chief. Before explicit owner approval no order/run exists.
+        click(w, 125, 653)
+        prompt = find_dialog("총괄 AI → 직원 업무 지휘", timeout=20)
+        evidence("chief-objective-dialog")
+        pyautogui.write(OBJECTIVE, .01)
+        pyautogui.press("enter")
+        draft = find_dialog("총괄 AI 지시 초안", timeout=90)
+        wait_sql("SELECT COUNT(*) FROM company_chief_task_orders WHERE task_id=?",
+                 0, (task_id,))
+        wait_sql("SELECT COUNT(*) FROM company_task_runs WHERE task_id=?",
+                 0, (task_id,))
+        evidence("chief-draft-unapproved-no-execution")
+        click(draft, 110, 450)
+        wait_sql("SELECT COUNT(*) FROM company_chief_task_orders WHERE task_id=?",
+                 1, (task_id,))
+        wait_sql("SELECT COUNT(*) FROM company_task_runs WHERE task_id=?",
+                 0, (task_id,))
+        evidence("chief-order-owner-approved-no-autostart")
+
+        # Worker execution by separate click; genuine subprocess audit required.
+        click(w, 424, 270)
+        click(w, 160, 483)
+        click(w, 463, 414)
+        wait_sql("SELECT status FROM company_task_runs WHERE task_id=? ORDER BY id DESC LIMIT 1",
+                 "success", (task_id,), timeout=90)
+        wait_sql("SELECT review_status FROM company_task_artifacts WHERE task_id=?",
+                 "pending", (task_id,))
+        wait_sql("SELECT status FROM company_tasks WHERE id=?",
+                 "in_progress", (task_id,))
+        artifact_id = read("SELECT id FROM company_task_artifacts WHERE task_id=?", (task_id,))
+        wait_sql("SELECT COUNT(*) FROM company_chief_task_dispatches", 1)
+        evidence("worker-executed-artifact-pending-not-done")
+
+        # Explicit chief review from the EXE result tab, and second owner dialog.
+        time.sleep(1.5)
+        click(w, 556, 270)
+        click(w, 155, 482)
+        click(w, 271, 646)
+        confirm()
+        wait_sql("SELECT owner_decision FROM company_chief_task_reports WHERE artifact_id=?",
+                 "pending", (artifact_id,), timeout=90)
+        report = find_dialog("총괄 AI 회수 보고서", timeout=30)
+        evidence("chief-report-awaiting-owner")
+        click(report, 115, 466)
+        confirm()
+        wait_sql("SELECT owner_decision FROM company_chief_task_reports WHERE artifact_id=?",
+                 "accepted", (artifact_id,))
+        wait_sql("SELECT review_status FROM company_task_artifacts WHERE id=?",
+                 "pending", (artifact_id,))
+        wait_sql("SELECT status FROM company_tasks WHERE id=?",
+                 "in_progress", (task_id,))
+        evidence("chief-report-accepted-not-autoapproved")
+
+        # Artifact approval is NOT task completion. Finalize requires another
+        # explicit owner confirmation/click, which is independently audited.
+        click(w, 555, 270)
+        click(w, 165, 483)
+        click(w, 381, 414)
+        confirm()
+        wait_sql("SELECT review_status FROM company_task_artifacts WHERE id=?",
+                 "approved", (artifact_id,))
+        wait_sql("SELECT status FROM company_tasks WHERE id=?",
+                 "in_progress", (task_id,))
+        evidence("owner-approved-artifact-still-in-progress")
+        click(w, 165, 483)
+        click(w, 130, 648)
+        confirm()
+        wait_sql("SELECT status FROM company_tasks WHERE id=?", "done", (task_id,))
+        evidence("separate-owner-finalize-to-done")
+
+        # Real process shutdown/restart, same SQLite data dir and GUI re-login.
+        gui.shutdown(w, p)
+        p = None
+        evidence("exe-closed-cleanly")
+        p = gui.start(exe, DATA)
+        w = gui.find_window()
+        write(w, 175, 395, OWNER)
+        write(w, 175, 437, PASSWORD)
+        click(w, 175, 480)
+        gui.wait_dashboard(w)
+        click(w, 424, 270)
+        wait_sql("SELECT status FROM company_tasks WHERE id=?", "done", (task_id,))
+        wait_sql("SELECT owner_decision FROM company_chief_task_reports WHERE artifact_id=?",
+                 "accepted", (artifact_id,))
+        wait_sql("SELECT review_status FROM company_task_artifacts WHERE id=?",
+                 "approved", (artifact_id,))
+        evidence("reopened-exe-shows-same-approved-task")
+        gui.shutdown(w, p)
+        p = None
+        print("PACKAGED_WINDOWS_EXE_CHIEF_STAFF_OWNER_APPROVAL_RESTART_PASS", flush=True)
+        print("SYNTHETIC_MODEL_ONLY_NOT_GGUF_NOT_WINDOWS11", flush=True)
+    except Exception:
+        evidence("failure")
+        (ART / "failure.txt").write_text(traceback.format_exc(), encoding="utf-8")
+        raise
+    finally:
+        (ART / "steps.json").write_text(json.dumps(STEPS, indent=2), encoding="utf-8")
+        if p is not None:
+            gui.kill_tree(p)
+        for i in range(12):
+            try:
+                shutil.rmtree(base)
+                break
+            except (PermissionError, OSError):
+                time.sleep(.5)
+
+
+if __name__ == "__main__":
+    if len(sys.argv) != 3:
+        raise SystemExit("usage: python windows_packaged_company_full_e2e.py AIWACK.exe ModelStub.exe")
+    perform(Path(sys.argv[1]).resolve(), Path(sys.argv[2]).resolve())
