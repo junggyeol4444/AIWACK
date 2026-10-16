@@ -83,8 +83,9 @@ def verify_two_tasks_real_model_calls():
     """Require four genuine CEO calls and two real staff calls, not a stub pass."""
     records = snapshot_real_model_audit()
     chiefs = [x for x in records if x["employee_id"] == 1]
-    workers = [x for x in records if x["employee_id"] in (3, 4)]
+    workers = [x for x in records if x["employee_id"] in (3, 5)]
     if (len(records) != 6 or len(chiefs) != 4 or len(workers) != 2
+            or {x["employee_id"] for x in workers} != {3, 5}
             or any(x["status"] != "success" or x["output_chars"] <= 0
                    for x in records)):
         raise AssertionError(
@@ -131,6 +132,25 @@ def find_dialog(fragment, timeout=65):
 def click(w, x, y):
     # Real Windows mouse input, never tkinter Button.invoke or direct callbacks.
     assert w.width > 500 and w.height > 350, (w.title, w.width, w.height)
+    for _ in range(3):
+        foreground = pygetwindow.getActiveWindow()
+        if foreground is not None and foreground._hWnd == w._hWnd:
+            break
+        if w.isMinimized:
+            w.restore()
+        try:
+            w.activate()
+        except Exception:
+            pass
+        time.sleep(.4)
+        foreground = pygetwindow.getActiveWindow()
+        if foreground is not None and foreground._hWnd == w._hWnd:
+            break
+        pyautogui.click(w.left + 125, w.top + 18)
+        time.sleep(.6)
+    else:
+        evidence("gui-foreground-not-restored")
+        raise AssertionError("Packaged AIWACK.exe dialog is not foreground; refuse blind clicks")
     pyautogui.click(w.left + x, w.top + y)
     time.sleep(.6)
 
@@ -244,10 +264,10 @@ def perform(exe, model_cli, gguf):
         wait_sql("SELECT COUNT(*) FROM ai_employee_profiles", 31)
         evidence("blueprint-created-through-exe")
 
-        # Chief #1 and first employee with 'staff' reporting tier #3.
+        # Chief #1 and two distinct staff profiles #3 and #5 (not head #4).
         bind_model(w, 0, model_cli, gguf)
         bind_model(w, 2, model_cli, gguf)
-        bind_model(w, 3, model_cli, gguf)
+        bind_model(w, 4, model_cli, gguf)
 
         # Register/assign task using the visible task board, not SQL INSERTs.
         click(w, 424, 270)
@@ -273,8 +293,9 @@ def perform(exe, model_cli, gguf):
         # SECOND row is y=513, not the existing selected row y=483.
         click(w, 170, 513)
         click(w, 334, 413)
-        # E2E must assert a real bound model rather than a hard-coded staff
-        # ID: several valid ready employees may be chosen by office routing.
+        # Assert the actual second staff member before model execution.
+        wait_sql("SELECT employee_id FROM company_task_assignments WHERE task_id=?",
+                 5, (second_id,))
         wait_sql("SELECT COUNT(*) FROM company_task_assignments a "
                  "JOIN ai_employee_model_assignments m ON m.employee_id=a.employee_id "
                  "WHERE a.task_id=?", 1, (second_id,))
