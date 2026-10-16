@@ -191,9 +191,9 @@ def test_auto_routing_prefers_model_connected_staff_over_unconfigured_profiles(t
     first=ops.create_task(db,'First work with real ready runner')
     second=ops.create_task(db,'Second work with real ready runner')
     third=ops.create_task(db,'Fallback still allowed for explicitly routed draft')
-    assert ops.assign_task(db,first)['employee_id']==ready_a
-    assert ops.assign_task(db,second)['employee_id']==ready_b
-    # Both configured staff are busy, but still preferred to unbound drafts
-    # so a queued real model job will not fail solely due to assignment.
-    assert ops.assign_task(db,third)['employee_id'] in (ready_a,ready_b)
+    for task_id in (first,second,third):
+        assigned=ops.assign_task(db,task_id)['employee_id']
+        assert assigned in (ready_a,ready_b)
+        assert db.read_employee_model(assigned) is not None
+    # No silent routing to an unconfigured draft despite its zero workload.
     assert db.read_employee_model(unbound) is None

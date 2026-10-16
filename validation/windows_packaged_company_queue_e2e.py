@@ -243,8 +243,11 @@ def perform(exe, stub):
         # SECOND row is y=513, not the existing selected row y=483.
         click(w, 170, 513)
         click(w, 334, 413)
-        wait_sql("SELECT employee_id FROM company_task_assignments WHERE task_id=?",
-                 4, (second_id,))
+        # E2E must assert a real bound model rather than a hard-coded staff
+        # ID: several valid ready employees may be chosen by office routing.
+        wait_sql("SELECT COUNT(*) FROM company_task_assignments a "
+                 "JOIN ai_employee_model_assignments m ON m.employee_id=a.employee_id "
+                 "WHERE a.task_id=?", 1, (second_id,))
         evidence("second-worker-and-task-assigned-via-exe")
 
 
