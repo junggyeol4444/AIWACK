@@ -226,7 +226,10 @@ def perform(exe, stub):
         wait_sql("SELECT COUNT(*) FROM company_task_runs WHERE task_id=?",
                  0, (task_id,))
         evidence("chief-draft-unapproved-no-execution")
-        click(draft, 110, 450)
+        # Windows screenshot: owner-approval blue button sits at y=481..513
+        # on screen; the draft window top is 26, so y=470 is its true center.
+        click(draft, 110, 470)
+        evidence("chief-order-approval-button-physically-clicked")
         wait_sql("SELECT COUNT(*) FROM company_chief_task_orders WHERE task_id=?",
                  1, (task_id,))
         wait_sql("SELECT COUNT(*) FROM company_task_runs WHERE task_id=?",
