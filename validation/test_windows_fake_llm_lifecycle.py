@@ -21,7 +21,12 @@ def native_runner(tmp_path):
     path.write_text(
         "#!/usr/bin/env python3\n"
         "import os,sys,time\n"
-        "if os.environ.get('AIWACK_SYNTHETIC_STALL_SECONDS') == '15': time.sleep(15)\n"
+        "if os.environ.get('AIWACK_SYNTHETIC_STALL_SECONDS') == '15':\n"
+        " import subprocess\n"
+        " if os.environ.get('AIWACK_SYNTHETIC_DESCENDANT_PIPE') == '1':\n"
+        "  subprocess.Popen([sys.executable,'-c','import time; time.sleep(15)'],\n"
+        "      stdin=subprocess.DEVNULL,stdout=sys.stdout,stderr=sys.stderr)\n"
+        " time.sleep(15)\n"
         "print('AIWACK_WINDOWS_NATIVE_CLI', ' '.join(sys.argv[1:])[:180])\n",
         encoding="utf-8")
     path.chmod(0o700)
@@ -77,6 +82,21 @@ def test_inflight_owner_cancel_kills_child(native_runner, monkeypatch):
     # The synthetic runner stalls for 15 seconds; a real cancellation must
     # terminate PyInstaller's process tree and release inherited pipes sooner.
     assert time.monotonic() - start < (10 if os.name == "nt" else 5.5)
+    assert len(children) == 1 and children[0].poll() is not None
+
+
+def test_descendant_pipe_handles_are_closed_on_timeout(native_runner, monkeypatch):
+    """A child must not keep the model's stdout pipe open after owner timeout."""
+    monkeypatch.setenv("AIWACK_SYNTHETIC_STALL_SECONDS", "15")
+    monkeypatch.setenv("AIWACK_SYNTHETIC_DESCENDANT_PIPE", "1")
+    children = audit_spawn(monkeypatch)
+    start = time.monotonic()
+    with pytest.raises(TimeoutError):
+        run_local_model(config(native_runner), "synthetic child pipe hang", timeout=1)
+    elapsed = time.monotonic() - start
+    # The child sleeps for 15 seconds, so this assertion detects a leaked
+    # pipe handle or an unbounded communicate() on Windows and Linux.
+    assert elapsed < (10 if os.name == "nt" else 5.5), elapsed
     assert len(children) == 1 and children[0].poll() is not None
 
 def test_successful_relaunch_after_abort(native_runner, monkeypatch):
