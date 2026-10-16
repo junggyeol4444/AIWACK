@@ -119,11 +119,12 @@ def bind_model(w, employee_index, exe):
     pyautogui.press("enter")
     # Backends are llama_cpp, llamafile. Native synthetic CLI is a llamafile
     # adapter fixture; nothing here constitutes actual GGUF model inference.
-    click(dialog, 150, 276)
+    click(dialog, 150, 259)
     pyautogui.press("end")
     pyautogui.press("enter")
-    write(dialog, 190, 344, str(exe))
-    click(dialog, 110, 515)
+    write(dialog, 190, 311, str(exe))
+    evidence("model-backend-and-executable-typed-employee-%s" % employee_index)
+    click(dialog, 110, 460)
     employee_id = 1 if employee_index == 0 else 3
     wait_sql("SELECT COUNT(*) FROM ai_employee_model_assignments WHERE employee_id=?",
              1, (employee_id,))
