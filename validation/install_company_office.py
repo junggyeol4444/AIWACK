@@ -81,6 +81,17 @@ def apply(project: Path) -> None:
                f'                raise PermissionError("비상 정지 상태에서는 {marker}을 시작할 수 없습니다.")\n')
         scope=replace_once(scope,anchor,anchor+guard,marker+' stop guard')
         src=src[:begin]+scope+src[end:]
+    # Preserve deterministic legacy routing if no staff models are configured.
+    # As soon as real executable models are bound, prefer those staff first;
+    # otherwise auto-routing can assign owner-approved work to a dummy profile
+    # with NO runner even while a ready staff member is idle.
+    # Strict dept/job filtering and open-count/ID tiebreak still apply.
+    src=replace_once(
+        src, '                ORDER BY open_count,e.id LIMIT 1"""',
+        '                ORDER BY CASE WHEN EXISTS ('
+        'SELECT 1 FROM ai_employee_model_assignments m WHERE m.employee_id=e.id'
+        ') THEN 0 ELSE 1 END, open_count,e.id LIMIT 1"""',
+        'prefer model-ready staff in automatic assignment')
     ast.parse(src,filename=str(store_path))
     store_path.write_text(src,encoding='utf-8')
     print('AIWACK live office installed in extracted source ONLY:',project)

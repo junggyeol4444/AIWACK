@@ -174,3 +174,26 @@ def test_queue_stops_on_model_failure_without_running_following_task(tmp_path,mo
         ops.execute_approved_chief_queue(store)
     assert seen==['worker']
     assert store.list_task_runs(ids[1])==[] and store.read_task(ids[1])['status']=='todo'
+
+def test_auto_routing_prefers_model_connected_staff_over_unconfigured_profiles(tmp_path):
+    """The ready worker must win before equal-load, unconfigured drafts."""
+    db=LocalStore(tmp_path/'ready-routing.sqlite3')
+    db.setup_owner('ready_route_owner','ready-route-password-2026')
+    chief=db.add_employee_draft('ready_chief','Chief')
+    ready_a=db.add_employee_draft('ready_staff_a','Ready A')
+    ready_b=db.add_employee_draft('ready_staff_b','Ready B')
+    unbound=db.add_employee_draft('unbound_staff','Unconfigured')
+    db.assign_reporting_line(chief,'ceo')
+    m=db.add_local_model(ModelConfig('SyntheticReadyRoute','llamafile',sys.executable,'',32))
+    db.set_employee_model(chief,m)
+    db.set_employee_model(ready_a,m)
+    db.set_employee_model(ready_b,m)
+    first=ops.create_task(db,'First work with real ready runner')
+    second=ops.create_task(db,'Second work with real ready runner')
+    third=ops.create_task(db,'Fallback still allowed for explicitly routed draft')
+    assert ops.assign_task(db,first)['employee_id']==ready_a
+    assert ops.assign_task(db,second)['employee_id']==ready_b
+    # Both configured staff are busy, but still preferred to unbound drafts
+    # so a queued real model job will not fail solely due to assignment.
+    assert ops.assign_task(db,third)['employee_id'] in (ready_a,ready_b)
+    assert db.read_employee_model(unbound) is None
