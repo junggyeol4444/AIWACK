@@ -68,6 +68,17 @@ def patch_model_cancel_before_spawn(root: Path) -> None:
         "        raise InterruptedError('모델 실행을 취소했습니다.')\n"
     )
     updated = source.replace(anchor, guard + anchor, 1)
+    # llama.cpp 2026 llama-cli starts in interactive chat mode even with a
+    # supplied --prompt and redirected stdin. Without --single-turn it waits
+    # for another console question forever; the app reports no model result.
+    # Patch only the real CLI name. Leave llamafile and test stubs untouched.
+    single_turn_guard = (
+        "    if os.path.basename(os.fspath(args[0])).lower() == 'llama-cli.exe':\\n"
+        "        args.append('--single-turn')\\n"
+    ).replace(chr(92) + 'n', chr(10))
+    if updated.count(anchor) != 1:
+        raise RuntimeError('Unexpected model invocation code for one-shot CLI patch')
+    updated = updated.replace(anchor, single_turn_guard + anchor, 1)
     # Strict validation of the immutable Stage100 runner shape; no blind edits.
     runtime_tree_edits = (
         ("import os\nimport subprocess\n", "import os\nimport signal\nimport subprocess\n"),
