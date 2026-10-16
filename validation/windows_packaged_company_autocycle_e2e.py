@@ -109,10 +109,25 @@ def confirm():
 
 def bind_model(w, employee_index, exe):
     # The organization's public "로컬 모델 연결" dialog. No DB injection.
-    # Windows UI screenshot: button spans x=464..571. Click at its center,
-    # not three pixels inside the left border (misses under Win2025 load).
-    click(w, 515, 413)
-    dialog = find_dialog("AIWACK | 로컬 AI 모델 연결")
+    # GUI-only recovery: clicking a model settings button has no database or
+    # model-execution side effect. Windows 2025 occasionally misses the first
+    # click after organization redraw. Wait for a REAL dialog; retry at most 3
+    # times without injecting state or attempting any model registration twice.
+    dialog = None
+    for attempt in range(3):
+        try:
+            w.activate()
+        except Exception:
+            pass
+        click(w, 515, 413)
+        try:
+            dialog = find_dialog("AIWACK | 로컬 AI 모델 연결", timeout=9)
+            break
+        except AssertionError:
+            evidence("model-dialog-open-click-retry-%d" % (attempt + 1))
+            time.sleep(1)
+    if dialog is None:
+        raise AssertionError("The real packaged EXE did not open its model connection dialog")
     evidence("local-model-dialog-employee-%s" % employee_index)
     click(dialog, 170, 155)
     pyautogui.press("home")
