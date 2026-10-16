@@ -52,6 +52,47 @@ def read(sql, params=()):
         return row[0] if row else None
 
 
+def snapshot_real_model_audit():
+    """Read only genuine persisted model-call metadata, even after GUI failure.
+
+    Prompt, model text, stderr, and owner credentials must not enter evidence.
+    This is an independent SQLite read-only oracle, NEVER a test DB mutation.
+    """
+    if DB is None or not DB.is_file():
+        return []
+    uri = "file:" + quote(str(DB.resolve()).replace("\\", "/"), safe="/:") + "?mode=ro"
+    with sqlite3.connect(uri, uri=True, timeout=3) as con:
+        has_table = con.execute(
+            "SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='ai_model_call_history'"
+        ).fetchone()[0]
+        if not has_table:
+            return []
+        fields = ("employee_id", "status", "model_name", "prompt_chars",
+                  "output_chars", "duration_ms", "error_kind")
+        rows = con.execute("SELECT " + ",".join(fields) +
+                           " FROM ai_model_call_history ORDER BY id").fetchall()
+    records = [dict(zip(fields, row)) for row in rows]
+    (ART / "real-model-calls-readonly.json").write_text(
+        json.dumps(records, ensure_ascii=False, indent=2), encoding="utf-8")
+    print("READONLY_REAL_GGUF_CALL_AUDIT", json.dumps(records, ensure_ascii=False),
+          flush=True)
+    return records
+
+
+def verify_two_tasks_real_model_calls():
+    """Require four genuine CEO calls and two real staff calls, not a stub pass."""
+    records = snapshot_real_model_audit()
+    chiefs = [x for x in records if x["employee_id"] == 1]
+    workers = [x for x in records if x["employee_id"] in (3, 4)]
+    if (len(records) != 6 or len(chiefs) != 4 or len(workers) != 2
+            or any(x["status"] != "success" or x["output_chars"] <= 0
+                   for x in records)):
+        raise AssertionError(
+            "Six genuine successful CEO/staff model invocations required; "
+            "see real-model-calls-readonly.json for metadata-only audit")
+    evidence("six-real-gguf-model-calls-audited-without-db-writes")
+
+
 def wait_sql(sql, expected, params=(), timeout=70):
     deadline = time.monotonic() + timeout
     observed = None
@@ -277,6 +318,7 @@ def perform(exe, model_cli, gguf):
             wait_sql("SELECT status FROM company_tasks WHERE id=?","in_progress",(current_id,))
         artifact_id=read("SELECT id FROM company_task_artifacts WHERE task_id=?",(task_id,))
         evidence("two-staff-two-chief-reviews-automatic-after-one-queue-click")
+        verify_two_tasks_real_model_calls()
         # Queue UI opens the LAST pending report, so use its matching artifact.
         last_artifact_id=read("SELECT id FROM company_task_artifacts WHERE task_id=?",(second_id,))
         report=find_dialog("총괄 AI 회수 보고서",timeout=30)
@@ -340,6 +382,14 @@ def perform(exe, model_cli, gguf):
         print("REAL_GGUF_WINDOWS_SERVER_E2E_NOT_WINDOWS11_OR_AUTONOMOUS_COMPANY", flush=True)
     except Exception:
         evidence("failure")
+        # Snapshot the real GUI model-call status before the disposable test
+        # profile is cleaned up. Diagnostics must never approve a result.
+        try:
+            snapshot_real_model_audit()
+        except Exception as diagnostic_error:
+            (ART / "audit-diagnostic-error.txt").write_text(
+                type(diagnostic_error).__name__ + ": " + str(diagnostic_error),
+                encoding="utf-8")
         (ART / "failure.txt").write_text(traceback.format_exc(), encoding="utf-8")
         raise
     finally:
