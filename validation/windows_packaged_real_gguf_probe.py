@@ -26,7 +26,7 @@ def stage(s):
 
 def run(app_exe:Path, model_cli:Path, gguf:Path):
     assert os.name == "nt" and app_exe.name.lower() == "aiwack.exe"
-    assert app_exe.is_file() and model_cli.name.lower() == "llama-cli.exe"
+    assert app_exe.is_file() and model_cli.name.lower() == "llama-completion.exe"
     assert model_cli.is_file() and gguf.is_file() and gguf.stat().st_size > 80000000
     assert gguf.open("rb").read(4) == b"GGUF", "Real GGUF header required"
     root=Path(tempfile.mkdtemp(prefix="aiwack-real-gguf-exe-"))
@@ -108,7 +108,7 @@ def run(app_exe:Path, model_cli:Path, gguf:Path):
     finally:
         (ART/"stages.json").write_text(json.dumps({
             "model_kind":"SmolLM2-135M-Instruct-Q4_K_M real GGUF",
-            "inference_engine":"llama-cli Windows CPU, not synthetic",
+            "inference_engine":"llama-completion.exe Windows CPU, not synthetic",
             "does_not_prove":"model intelligence, multi-department autonomy or real sales"
         },indent=2),encoding="utf-8")
         if process is not None:
@@ -122,5 +122,5 @@ def run(app_exe:Path, model_cli:Path, gguf:Path):
 
 if __name__=="__main__":
     if len(sys.argv)!=4:
-        raise SystemExit("Usage: real_GGUF_probe.py AIWACK.exe llama-cli.exe real.gguf")
+        raise SystemExit("Usage: real_GGUF_probe.py AIWACK.exe llama-completion.exe real.gguf")
     run(*(Path(x).resolve() for x in sys.argv[1:]))

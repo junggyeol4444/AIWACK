@@ -59,8 +59,8 @@ jobs:
           Invoke-WebRequest -Uri 'https://github.com/ggml-org/llama.cpp/releases/download/b11433/llama-b11433-bin-win-cpu-x64.zip' -OutFile $zip -MaximumRedirection 10
           if ((Get-FileHash $zip -Algorithm SHA256).Hash.ToLowerInvariant() -ne '301943380e45deae3991d42dddd03fae65c6a4963a5d882328a60208b43aa9e0') { throw 'llama.cpp official release SHA256 differs' }
           Expand-Archive -LiteralPath $zip -DestinationPath (Join-Path $dir 'cpu')
-          $engine = Get-ChildItem (Join-Path $dir 'cpu') -Recurse -File -Filter 'llama-cli.exe' | Select-Object -First 1
-          if (-not $engine) { throw 'Verified official archive has no llama-cli.exe' }
+          $engine = Get-ChildItem (Join-Path $dir 'cpu') -Recurse -File -Filter 'llama-completion.exe' | Select-Object -First 1
+          if (-not $engine) { throw 'Verified official archive has no llama-completion.exe' }
           $gguf = Join-Path $dir 'SmolLM2-135M-Instruct-Q4_K_M.gguf'
           Invoke-WebRequest -Uri 'https://huggingface.co/lmstudio-community/SmolLM2-135M-Instruct-GGUF/resolve/main/SmolLM2-135M-Instruct-Q4_K_M.gguf?download=true' -OutFile $gguf -MaximumRedirection 10
           if ((Get-Item $gguf).Length -lt 80000000 -or (Get-Item $gguf).Length -gt 120000000) { throw 'GGUF size invalid; do not use an HTML error page' }
