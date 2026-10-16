@@ -260,6 +260,7 @@ class CompanyOffice:
         controls.pack(fill='x', pady=(6, 0))
         self._action(controls, '총괄 AI 지시 초안', self.ask_chief_order, compact=True)
         self._action(controls, '최대 3개 실행', self.run_batch, compact=True)
+        self._action(controls, '승인 업무 자동 회수 ≤3', self.run_approved_queue, compact=True)
         self._action(controls, '실행 결과', lambda: self.set_view('results'), compact=True)
         self._action(controls, '비상 정지', self.stop, danger=True, compact=True)
         self._label(main, '업무를 선택 → 담당 AI 배정 → 모델 실행.  모델이 없으면 실패 사유를 표시합니다.',
@@ -455,6 +456,12 @@ class CompanyOffice:
                     dialog.feedback.set('실제 모델 응답 수신 및 호출 감사 기록 저장 완료 · 결과는 관리자 검수 전입니다.')
                 self._say('로컬 직원 모델이 실제 응답했습니다. 진단 감사 기록만 저장했습니다.')
                 self._text_dialog('로컬 AI 직원 모델 호출 진단', str(result))
+            elif self.after_action == 'chief_queue':
+                self.set_view('results')
+                n=int(result['completed_cycles'])
+                self._say(f'승인 업무 {n}건 직원 실행·총괄 회수 완료 · 모두 소유자 검수 대기')
+                if result['reports']:
+                    self.open_chief_report(int(result['reports'][-1]['artifact_id']))
             elif self.after_action == 'chief_report':
                 self.set_view('results')
                 self._say('총괄 AI 회수 보고서 저장됨 · 관리자 수락/반려 전에는 업무 상태 변경 없음')
@@ -482,6 +489,21 @@ class CompanyOffice:
 
     def run_batch(self):
         self._start(lambda: ops.execute_batch(self.store, max_tasks=3, cancel=self.cancel))
+
+    def run_approved_queue(self):
+        """One owner confirmation runs at most 3 approved tasks and chief reviews."""
+        if self.worker and self.worker.is_alive():
+            self._say('진행 중인 AI 실행이 있어 자동 대기열을 시작하지 않습니다.')
+            return
+        if not messagebox.askyesno(
+            '승인 업무 자동 회수',
+            '이미 소유자 지시 승인이 끝나고 직원 모델이 연결된 업무만 최대 3건 진행합니다.\\n'
+            '직원 실행과 총괄 AI 회수는 자동이며, 보고서 수락·결과 승인·업무 완료는 자동으로 하지 않습니다.\\n'
+            '도중 실패나 비상 정지 시 다음 업무로 진행하지 않습니다. 시작할까요?',
+            parent=self.root):
+            return
+        self._start(lambda:ops.execute_approved_chief_queue(
+            self.store,limit=3,cancel=self.cancel),after='chief_queue')
 
     def ask_chief_order(self):
         """Request a real chief-model draft, NEVER dispatch or approve it automatically."""

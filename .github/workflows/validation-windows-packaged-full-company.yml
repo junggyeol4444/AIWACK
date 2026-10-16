@@ -69,6 +69,16 @@ jobs:
           $stub = Join-Path $src 'dist/AIWACK-ModelStub.exe'
           python validation/windows_packaged_company_autocycle_e2e.py $exe $stub
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: REAL packaged EXE owner-approved TWO task automated queue
+        shell: pwsh
+        env:
+          AIWACK_PACKAGED_GUI_ARTIFACTS: ${{ runner.temp }}/aiwack-real-exe-screens/approved-queue
+        run: |
+          $src = Join-Path $env:RUNNER_TEMP 'aiwack-real-binary-e2e/AIWACK-Stage54'
+          $exe = Join-Path $src 'dist/AIWACK.exe'
+          $stub = Join-Path $src 'dist/AIWACK-ModelStub.exe'
+          python validation/windows_packaged_company_queue_e2e.py $exe $stub
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
       - name: Preserve screenshots and failures from physical EXE test
         uses: actions/upload-artifact@v4
         if: always()

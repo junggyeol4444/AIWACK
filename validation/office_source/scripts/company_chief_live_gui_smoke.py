@@ -64,7 +64,17 @@ def click_task_row(root,office,task_id):
     pyautogui.click(office.work_jobs.winfo_rootx()+rect[0]+max(12,rect[2]//3),
                     office.work_jobs.winfo_rooty()+rect[1]+rect[3]//2)
     root.update()
-    assert int(office.work_jobs.selection()[0])==task_id
+    # Windows 2025 sometimes drops the first Treeview mouse event under load.
+    # Retry real physical clicks; do NOT set Tk selection programmatically.
+    for retry in range(3):
+        selection=office.work_jobs.selection()
+        if selection and int(selection[0])==task_id:
+            return
+        pyautogui.click(office.work_jobs.winfo_rootx()+rect[0]+max(12,rect[2]//3),
+                        office.work_jobs.winfo_rooty()+rect[1]+rect[3]//2)
+        root.update()
+        time.sleep(.16)
+    assert office.work_jobs.selection() and int(office.work_jobs.selection()[0])==task_id
 
 
 def fill_prompt(root):

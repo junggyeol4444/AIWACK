@@ -184,6 +184,50 @@ def execute_approved_chief_cycle(store, task_id: int, *,
             'owner_approval_required': True}
 
 
+
+def execute_approved_chief_queue(store, *, limit: int = 3,
+                                 cancel: threading.Event | None = None) -> dict:
+    """Run up to three EXISTING owner-approved tasks sequentially.
+
+    No implicit chief order approval, no model discovery, no payments,
+    no retries on failure, no automatic result acceptance or task completion.
+    The task snapshot is bounded; new tasks require a future owner action.
+    """
+    assert_running_allowed(store)
+    if type(limit) is not int or not 1 <= limit <= 3:
+        raise ValueError('한 번에 자동 실행 가능한 승인 업무는 1~3건입니다.')
+    if cancel is not None and cancel.is_set():
+        raise InterruptedError('승인 업무 자동 실행 전에 취소됐습니다.')
+    candidates=[]
+    for task in sorted(store.list_tasks(),key=lambda t:int(t['id'])):
+        tid=int(task['id'])
+        if task['status'] != 'todo' or store.read_chief_task_order(tid) is None:
+            continue
+        if store.list_task_runs(tid) or store.list_task_artifacts(tid):
+            continue
+        route=store.read_task_routing(tid)
+        employee=route['employee_id']
+        if not employee or store.read_employee_model(int(employee)) is None:
+            continue
+        candidates.append(tid)
+        if len(candidates)==limit:
+            break
+    if not candidates:
+        raise ValueError('실행 가능한 소유자 승인·직원 모델 연결 업무가 없습니다.')
+    reports=[]
+    for tid in candidates:
+        if cancel is not None and cancel.is_set():
+            raise InterruptedError('대기열 진행 도중 관리자가 취소했습니다.')
+        assert_running_allowed(store)
+        # Checks the order, routing, model binding and single-run state again.
+        # If any stage fails, do not try the next task automatically.
+        reports.append(execute_approved_chief_cycle(store,tid,cancel=cancel))
+    return {'reports':reports,'task_ids':candidates,
+            'completed_cycles':len(reports),
+            'pending_owner_review':len(reports),
+            'auto_approved':False,'tasks_finalized':False}
+
+
 def execute_batch(store, *, max_tasks: int=3, timeout: int=60,
                   cancel: threading.Event | None=None) -> list[dict]:
     """Explicitly triggered, bounded owner work session; not 24/7 autonomy."""

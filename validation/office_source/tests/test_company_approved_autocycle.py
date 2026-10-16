@@ -104,3 +104,73 @@ def test_failed_staff_does_not_invoke_chief(session,monkeypatch):
         ops.execute_approved_chief_cycle(store,tid)
     assert events==['worker']
     assert not store.list_task_artifacts(tid)
+
+def test_queue_never_runs_unapproved_work_and_runs_two_approved_in_order(tmp_path,monkeypatch):
+    store=LocalStore(tmp_path/'two-approved.sqlite3')
+    store.setup_owner('queue_owner','queue-test-password-2026')
+    chief=store.add_employee_draft('chief-queue','Chief')
+    staff=store.add_employee_draft('staff-queue','Staff')
+    store.assign_reporting_line(chief,'ceo')
+    mid=store.add_local_model(ModelConfig('SyntheticQueue','llamafile',sys.executable,'',24))
+    store.set_employee_model(chief,mid)
+    store.set_employee_model(staff,mid)
+    ids=[ops.create_task(store,f'Approved queue task {k}') for k in range(3)]
+    for tid in ids:
+        assert ops.assign_task(store,tid)['employee_id']==staff
+    for tid in ids[:2]:
+        ops.approve_chief_order(store,tid,f'Owner approved queue task {tid}')
+    events=[]
+    def fake_worker(*args,**kwargs):
+        events.append('worker')
+        return 'SYNTHETIC WORKER QUEUE RESULT'
+    def fake_chief(*args,**kwargs):
+        events.append('chief')
+        return 'SYNTHETIC CHIEF QUEUE REVIEW'
+    monkeypatch.setattr('desktop.task_runtime.run_local_model',fake_worker)
+    monkeypatch.setattr('desktop.chief_task_runtime.collect_chief_task_result',fake_chief)
+    result=ops.execute_approved_chief_queue(store,limit=3)
+    assert result['task_ids']==ids[:2]
+    assert result['completed_cycles']==2 and result['pending_owner_review']==2
+    assert events==['worker','chief','worker','chief']
+    for tid in ids[:2]:
+        assert store.read_task(tid)['status']=='in_progress'
+        aid=store.list_task_artifacts(tid)[0]['id']
+        assert store.find_chief_task_report(aid)['owner_decision']=='pending'
+    assert store.read_task(ids[2])['status']=='todo'
+    assert store.list_task_runs(ids[2])==[]
+    with pytest.raises(ValueError,match='실행 가능한'):
+        ops.execute_approved_chief_queue(store,limit=3)
+
+def test_queue_invalid_limits_and_precancel(session):
+    store,tid,events=session
+    ops.approve_chief_order(store,tid,'approved order')
+    for invalid in (True,0,4,-1,'2'):
+        with pytest.raises(ValueError,match='1~3'):
+            ops.execute_approved_chief_queue(store,limit=invalid)
+    flag=threading.Event();flag.set()
+    with pytest.raises(InterruptedError):
+        ops.execute_approved_chief_queue(store,cancel=flag)
+    assert not events and not store.list_task_runs(tid)
+
+def test_queue_stops_on_model_failure_without_running_following_task(tmp_path,monkeypatch):
+    store=LocalStore(tmp_path/'fail-queue.sqlite3')
+    store.setup_owner('queue_fail_owner','queue-test-password-2026')
+    chief=store.add_employee_draft('chief-failqueue','Chief')
+    staff=store.add_employee_draft('staff-failqueue','Staff')
+    store.assign_reporting_line(chief,'ceo')
+    mid=store.add_local_model(ModelConfig('SyntheticFailQueue','llamafile',sys.executable,'',24))
+    store.set_employee_model(chief,mid)
+    store.set_employee_model(staff,mid)
+    ids=[ops.create_task(store,'Queue fail task A'),ops.create_task(store,'Queue fail task B')]
+    for tid in ids:
+        ops.assign_task(store,tid)
+        ops.approve_chief_order(store,tid,'Approved')
+    seen=[]
+    def fail_worker(*args,**kwargs):
+        seen.append('worker')
+        raise RuntimeError('First synthetic worker failed')
+    monkeypatch.setattr('desktop.task_runtime.run_local_model',fail_worker)
+    with pytest.raises(RuntimeError,match='First synthetic worker'):
+        ops.execute_approved_chief_queue(store)
+    assert seen==['worker']
+    assert store.list_task_runs(ids[1])==[] and store.read_task(ids[1])['status']=='todo'
