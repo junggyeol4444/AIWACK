@@ -529,6 +529,25 @@ class CompanyOffice:
             except (ValueError,PermissionError) as exc:
                 self._say('총괄 AI 지시 승인 실패: '+str(exc))
         self._action(actions,'확인 후 지시 승인',approve,strong=True,compact=True)
+        def approve_and_automate():
+            """One owner click authorizes bounded staff -> chief review.
+
+            Human review remains mandatory for both report and artifact.
+            """
+            if self.worker and self.worker.is_alive():
+                self._say('다른 AI 실행이 끝난 후 지시 승인과 자동 실행을 요청하세요.')
+                return
+            try:
+                order_id=ops.approve_chief_order(self.store,task_id,instruction)
+                dialog.destroy()
+                self.refresh()
+                self._say(f'총괄 지시 #{order_id} 승인 · 직원 실행→총괄 회수 자동 진행 중')
+                self._start(lambda:ops.execute_approved_chief_cycle(
+                    self.store,task_id,cancel=self.cancel),after='chief_report')
+            except (ValueError,PermissionError) as exc:
+                self._say('자동 진행 승인 실패: '+str(exc))
+        self._action(actions,'승인 후 직원·총괄 자동 회수',
+                     approve_and_automate,strong=True,compact=True)
         self._action(actions,'기각하고 닫기',dialog.destroy,danger=True,compact=True)
         return dialog
 

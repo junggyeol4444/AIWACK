@@ -144,6 +144,46 @@ def execute_task(store, task_id: int, *, timeout: int=60,
             'status':'awaiting_owner_review'}
 
 
+
+def execute_approved_chief_cycle(store, task_id: int, *,
+                                 cancel: threading.Event | None = None) -> dict:
+    """Run staff then chief-review automatically AFTER a human-approved order.
+
+    One explicitly approved task; never schedule jobs, retry a failed model,
+    accept the chief report, approve artifacts, or finalize tasks. Each model
+    call goes through the existing subprocess/audit, timeout and stop guards.
+    """
+    assert_running_allowed(store)
+    if type(task_id) is not int or task_id <= 0:
+        raise ValueError('자동 실행할 업무 번호가 올바르지 않습니다.')
+    if cancel is not None and cancel.is_set():
+        raise InterruptedError('자동 실행 시작 전에 관리자가 취소했습니다.')
+    order = store.read_chief_task_order(task_id)
+    if order is None:
+        raise ValueError('소유자가 승인한 총괄 AI 지시가 필요합니다.')
+    task = store.read_task(task_id)
+    if task['status'] != 'todo':
+        raise ValueError('아직 실행하지 않은 업무만 1회 자동 실행할 수 있습니다.')
+    if store.list_task_runs(task_id) or store.list_task_artifacts(task_id):
+        raise ValueError('기존 실행 기록이 있어 중복 자동 실행하지 않습니다.')
+    routing = store.read_task_routing(task_id)
+    if not routing['employee_id']:
+        raise ValueError('업무에 담당 직원을 먼저 배정하세요.')
+    if store.read_employee_model(int(routing['employee_id'])) is None:
+        raise ValueError('담당 직원의 로컬 AI 모델을 먼저 연결하세요.')
+    worker = execute_task(store, task_id, cancel=cancel)
+    # Cancellation leaves the draft for human recovery but never starts
+    # a late chief-model call or approves a result.
+    if cancel is not None and cancel.is_set():
+        raise InterruptedError('직원 결과를 저장했으나 관리자가 취소해 총괄 검토는 중단했습니다.')
+    assert_running_allowed(store)
+    report = collect_chief_review(store, int(worker['artifact_id']), cancel=cancel)
+    return {**report, 'task_id':task_id, 'run_id':worker['run_id'],
+            'worker_employee_id':worker['employee_id'],
+            'automatic_worker_and_chief': True,
+            'owner_approval_required': True}
+
+
 def execute_batch(store, *, max_tasks: int=3, timeout: int=60,
                   cancel: threading.Event | None=None) -> list[dict]:
     """Explicitly triggered, bounded owner work session; not 24/7 autonomy."""
