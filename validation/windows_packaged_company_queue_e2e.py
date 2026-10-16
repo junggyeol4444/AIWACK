@@ -239,7 +239,9 @@ def perform(exe, stub):
         wait_sql("SELECT title FROM company_tasks ORDER BY id DESC LIMIT 1",
                  "Physical EXE second approved queue task")
         second_id=read("SELECT id FROM company_tasks ORDER BY id DESC LIMIT 1")
-        click(w, 170, 483)
+        # Real Windows screenshot: task rows are oldest-first. The new
+        # SECOND row is y=513, not the existing selected row y=483.
+        click(w, 170, 513)
         click(w, 334, 413)
         wait_sql("SELECT employee_id FROM company_task_assignments WHERE task_id=?",
                  4, (second_id,))
@@ -248,7 +250,7 @@ def perform(exe, stub):
 
         # Two separate CEO orders must first be approved by the owner, via
         # physically-clicked Windows dialogs. Neither has executed yet.
-        for current_id,row_y in ((second_id,483),(task_id,508)):
+        for current_id,row_y in ((second_id,513),(task_id,483)):
             click(w, 170, row_y)
             click(w, 125, 653)
             prompt=find_dialog("총괄 AI → 직원 업무 지휘",timeout=20)
@@ -267,7 +269,10 @@ def perform(exe, stub):
         # One visible batch-action click (plus the owner's confirmation).
         # The desktop app itself must execute TWO workers and TWO chief reviews,
         # with no additional clicks by the acceptance driver.
-        click(w, 462, 653)
+        # Windows screenshot: approved queue blue button occupies x=289..447.
+        # x=462 would click '결과' instead of starting the approved task queue.
+        click(w, 367, 653)
+        evidence("owner-clicked-approved-two-task-queue")
         confirm()
         for current_id in (task_id,second_id):
             wait_sql("SELECT status FROM company_task_runs WHERE task_id=? ORDER BY id DESC LIMIT 1",
