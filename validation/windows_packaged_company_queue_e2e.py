@@ -88,8 +88,27 @@ def find_dialog(fragment, timeout=65):
 
 
 def click(w, x, y):
-    # Real Windows mouse input, never tkinter Button.invoke or direct callbacks.
+    # Real Windows mouse input. Never invoke an application callback directly.
     assert w.width > 500 and w.height > 350, (w.title, w.width, w.height)
+    for _ in range(3):
+        foreground = pygetwindow.getActiveWindow()
+        if foreground is not None and foreground._hWnd == w._hWnd:
+            break
+        if w.isMinimized:
+            w.restore()
+        try:
+            w.activate()
+        except Exception:
+            pass
+        time.sleep(.4)
+        foreground = pygetwindow.getActiveWindow()
+        if foreground is not None and foreground._hWnd == w._hWnd:
+            break
+        pyautogui.click(w.left + 125, w.top + 18)
+        time.sleep(.6)
+    else:
+        evidence("gui-foreground-not-restored")
+        raise AssertionError("Packaged AIWACK.exe dialog is not foreground; refuse blind clicks")
     pyautogui.click(w.left + x, w.top + y)
     time.sleep(.6)
 
