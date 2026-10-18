@@ -439,6 +439,58 @@ def perform(exe, model_cli, gguf):
         wait_sql("SELECT review_status FROM company_task_artifacts WHERE id=?",
                  "approved", (first_artifact_id,))
         evidence("reopened-exe-shows-both-separately-approved-tasks")
+
+        # Windows GUI-only verification of ALL 31 draft employee model bindings.
+        # Binding is not inference: independently invoke each actual GGUF runner
+        # through the application's existing "실제 모델 1회 호출 테스트" button.
+        click(w, 215, 270)
+        for employee_index in range(31):
+            if employee_index not in (0, 2, 4):
+                bind_model(w, employee_index, model_cli, gguf)
+        wait_sql("SELECT COUNT(DISTINCT employee_id) "
+                 "FROM ai_employee_model_assignments", 31, timeout=90)
+        evidence("31-real-gguf-model-assignments-through-windows-exe")
+
+        for employee_index in range(31):
+            employee_id = employee_index + 1
+            before = read(
+                "SELECT COUNT(*) FROM ai_model_call_history "
+                "WHERE employee_id=? AND status='success'", (employee_id,)) or 0
+            click(w, 515, 413)
+            dialog = find_dialog("AIWACK | 로컬 AI 모델 연결", timeout=25)
+            click(dialog, 170, 155)
+            pyautogui.press("home")
+            if employee_index:
+                pyautogui.press("down", presses=employee_index, interval=.12)
+            pyautogui.press("enter")
+            # The genuine GGUF probe is a physical click, not a direct Python
+            # call to the model backend or a fabricated DB audit record.
+            click(dialog, 325, 460)
+            wait_sql("SELECT COUNT(*) FROM ai_model_call_history "
+                     "WHERE employee_id=? AND status='success'",
+                     before + 1, (employee_id,), timeout=95)
+            result_window = find_dialog(
+                "AIWACK | 로컬 AI 직원 모델 호출 진단", timeout=25)
+            evidence("employee-%02d-real-gguf-model-probe-success" % employee_id)
+            try:
+                result_window.activate()
+            except Exception:
+                pass
+            pyautogui.hotkey("alt", "f4")
+            time.sleep(.4)
+            try:
+                dialog.activate()
+            except Exception:
+                pass
+            pyautogui.hotkey("alt", "f4")
+            time.sleep(.4)
+        wait_sql("SELECT COUNT(DISTINCT employee_id) FROM ai_model_call_history "
+                 "WHERE status='success'", 31, timeout=20)
+        wait_sql("SELECT COUNT(*) FROM ai_model_call_history "
+                 "WHERE status='success'", 37, timeout=20)
+        snapshot_real_model_audit()
+        evidence("all-31-staff-real-gguf-probes-audited-no-sales-or-approval")
+
         gui.shutdown(w, p)
         p = None
         print("PACKAGED_WINDOWS_EXE_REAL_GGUF_TWO_TASK_QUEUE_PASS", flush=True)
