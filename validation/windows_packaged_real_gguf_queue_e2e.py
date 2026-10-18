@@ -380,6 +380,43 @@ def perform(exe, model_cli, gguf):
         wait_sql("SELECT status FROM company_tasks WHERE id=?", "done", (task_id,))
         evidence("separate-owner-finalize-to-done")
 
+        # First task: independent report acceptance, artifact approval, and finalization.
+        # The review list displays most recently created artifacts first.
+        first_task_id = read("SELECT id FROM company_tasks WHERE title=?", (TASK_TITLE,))
+        first_artifact_id = read(
+            "SELECT id FROM company_task_artifacts WHERE task_id=?", (first_task_id,))
+        assert first_task_id is not None and first_artifact_id is not None
+        wait_sql("SELECT owner_decision FROM company_chief_task_reports WHERE artifact_id=?",
+                 "pending", (first_artifact_id,))
+        wait_sql("SELECT review_status FROM company_task_artifacts WHERE id=?",
+                 "pending", (first_artifact_id,))
+        click(w, 165, 513)
+        click(w, 421, 636)
+        first_report = find_dialog("총괄 AI 회수 보고서", timeout=30)
+        evidence("first-task-chief-report-opened-through-exe")
+        click(first_report, 115, 491)
+        confirm()
+        wait_sql("SELECT owner_decision FROM company_chief_task_reports WHERE artifact_id=?",
+                 "accepted", (first_artifact_id,))
+        wait_sql("SELECT review_status FROM company_task_artifacts WHERE id=?",
+                 "pending", (first_artifact_id,))
+        wait_sql("SELECT status FROM company_tasks WHERE id=?",
+                 "in_progress", (first_task_id,))
+        evidence("first-task-report-accepted-not-autoapproved")
+        click(w, 165, 513)
+        click(w, 381, 414)
+        confirm()
+        wait_sql("SELECT review_status FROM company_task_artifacts WHERE id=?",
+                 "approved", (first_artifact_id,))
+        wait_sql("SELECT status FROM company_tasks WHERE id=?",
+                 "in_progress", (first_task_id,))
+        evidence("first-task-artifact-approved-not-autofinished")
+        click(w, 165, 513)
+        click(w, 130, 636)
+        confirm()
+        wait_sql("SELECT status FROM company_tasks WHERE id=?", "done", (first_task_id,))
+        evidence("first-task-separate-owner-finalize-to-done")
+
         # Real process shutdown/restart, same SQLite data dir and GUI re-login.
         gui.shutdown(w, p)
         p = None
@@ -396,7 +433,12 @@ def perform(exe, model_cli, gguf):
                  "accepted", (artifact_id,))
         wait_sql("SELECT review_status FROM company_task_artifacts WHERE id=?",
                  "approved", (artifact_id,))
-        evidence("reopened-exe-shows-same-approved-task")
+        wait_sql("SELECT status FROM company_tasks WHERE id=?", "done", (first_task_id,))
+        wait_sql("SELECT owner_decision FROM company_chief_task_reports WHERE artifact_id=?",
+                 "accepted", (first_artifact_id,))
+        wait_sql("SELECT review_status FROM company_task_artifacts WHERE id=?",
+                 "approved", (first_artifact_id,))
+        evidence("reopened-exe-shows-both-separately-approved-tasks")
         gui.shutdown(w, p)
         p = None
         print("PACKAGED_WINDOWS_EXE_REAL_GGUF_TWO_TASK_QUEUE_PASS", flush=True)
