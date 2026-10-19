@@ -1,5 +1,21 @@
 # AIWACK — AI Autonomous Company
 
+## 최신 Windows 배포 후보 (2026-10-19)
+
+**실사용 방식:** `AIWACK.exe`를 압축 해제 후 직접 실행합니다. PC에 Python/브라우저/로컬 웹 서버 설치는 불필요합니다. 관리자 계정은 첫 실행 시 한 번 생성합니다.
+
+- [Windows EXE 배포 워크플로](.github/workflows/windows-exe.yml): 원본 소스 ZIP의 SHA256을 검증하고 현재 `validation/`의 Windows 실검증 패치를 적용한 **통합 소스**로 EXE를 빌드합니다. 각 실행의 `Artifacts`에 `AIWACK_Windows_Ready_windows-2022`, `AIWACK_Windows_Ready_windows-2025`와 `AIWACK_Integrated_Source_*`가 생성됩니다. **성공한 워크플로 아티팩트만 사용하세요.**
+- [Windows 사용자 안내](deployment/Windows_사용가이드.md): 첫 실행, 모델 연결, 데이터 보존과 백업, 제한 사항.
+- [검증된 CPU 모델 다운로드 (선택)](deployment/Setup_Verified_Local_GGUF.ps1): 사용자가 직접 실행하는 해시 검증 스크립트. 자동 다운로드·자동 실행·보안 우회는 없습니다.
+- [실제 Windows GGUF 31명 호출 E2E](https://github.com/junggyeol4444/AIWACK/actions/runs/39175819156): Windows Server 2022·2025 둘 다 PASS (개별 모델 진단 31명, 총 모델 호출 37회).
+- [실제 Windows 비상 정지·재실행 보존 E2E](https://github.com/junggyeol4444/AIWACK/actions/runs/39180679598): Windows Server 2022·2025 둘 다 PASS.
+
+**중요:** Windows Server 2022/2025 패키징 EXE 실검증을 Windows 11 개인 PC 실검증으로 바꿔 보고하지 않습니다. 직원 31명의 각각의 실제 GGUF 호출은 증명됐지만 31명 고품질 자율 업무 운영·실제 외부 고객/판매·결제·정산·매출·T01~T20 전체 인수는 **미완료**입니다. 원본 100단계 로드맵의 완료 54개와 미충족 46개를 숨기거나 완료로 바꾸지 않습니다.
+
+---
+
+## 초기 단계 안내 (이하 역사적 내용; 최신 운영 기능은 위 배포 안내 우선)
+
 **Windows EXE 데스크톱 프로그램을 최종 사용자 실행 형태로 사용합니다.** 기존 웹 진단 서버는 개발/호환용 코드이며 **EXE를 실행할 때 웹사이트, 브라우저, FastAPI 서버, 인터넷 연결이 필요하지 않습니다.** 원본 기획서의 개발 목표는 유지하고, 사용자가 PC에서 직접 실행하는 화면을 Windows 데스크톱 앱으로 구현합니다.
 
 > **현재 14/100단계 + 데스크톱 실행 기반 구현.** 초기 관리자 계정·로그인·접근 제한 및 로컬 데이터 저장/복구가 실제 동작하는 프로토타입입니다. **AI 총괄/직원, 사업 자동화, 수익 기능은 아직 개발되지 않았습니다.** 원본 기획서의 10단계 관리 화면 항목도 최종 완성된 것은 아닙니다.
