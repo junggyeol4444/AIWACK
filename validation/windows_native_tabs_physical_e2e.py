@@ -50,9 +50,13 @@ def run(exe):
             # The readonly navigation combobox is the native UI's exact tab
             # order. Pressing keys invokes ComboboxSelected, not a Tk callback.
             gui.click(w,300,146)
-            pyautogui.press("home")
+            # Screenshot-backed Windows 2022 failure: Home on an OPEN
+            # ttk readonly combobox popup did NOT reset its highlight. Down
+            # presses accumulated: 0,1,3,6,...,55,58,58 => only 12 distinct.
+            # Send real UP keys to reach item zero before every selection.
+            pyautogui.press("up", presses=TOTAL_NATIVE_TABS, interval=.025)
             if idx:
-                pyautogui.press("down",presses=idx,interval=.007)
+                pyautogui.press("down", presses=idx, interval=.04)
             pyautogui.press("enter")
             time.sleep(.32)
             frame=pyautogui.screenshot().convert("RGB")
