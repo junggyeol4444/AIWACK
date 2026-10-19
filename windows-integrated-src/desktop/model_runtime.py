@@ -92,7 +92,14 @@ def run_local_model(config: ModelConfig, prompt: str, *, timeout: int = 60,
     }}
     if cancel is not None and cancel.is_set():
         raise InterruptedError('모델 실행을 취소했습니다.')
-    if os.path.basename(os.fspath(args[0])).lower() == 'llama-cli.exe':
+    # llama.cpp's completion executable defaults to a chat-template-driven
+    # interactive session. A stdin=DEVNULL EOF after output has caused genuine
+    # STATUS_HEAP_CORRUPTION (0xC0000374) on Windows CPU runners. Request one
+    # bounded turn and clean shutdown, including the modern llama-completion
+    # binary. Never retry a failed inference or accept a nonzero exit code.
+    if os.path.basename(os.fspath(args[0])).lower() in {
+        'llama-cli.exe', 'llama-completion.exe', 'llama-cli', 'llama-completion'
+    }:
         args.append('--single-turn')
     try:
         process = subprocess.Popen(args, shell=False, stdout=subprocess.PIPE, stderr=subprocess.PIPE,

@@ -175,3 +175,30 @@ def test_explicit_cancellation_terminates_local_process(tmp_path):
     task.join(timeout=3)
     assert not task.is_alive()
     assert result == ["cancelled"]
+
+
+def test_llama_completion_and_cli_force_one_shot_without_changing_other_executables(tmp_path, monkeypatch):
+    """No external program executes. Assert actual Popen argv passed by runtime."""
+    from desktop import model_runtime
+    emitted = []
+    class FakeProcess:
+        returncode = 0
+        def communicate(self, timeout=None):
+            return b'SYNTHETIC ONE TURN MODEL OUTPUT', b''
+    def record_process(args, **kwargs):
+        emitted.append(list(args))
+        assert kwargs['shell'] is False
+        return FakeProcess()
+    monkeypatch.setattr(model_runtime.subprocess, 'Popen', record_process)
+    gguf = tmp_path/'synthetic.gguf'
+    gguf.write_bytes(b'GGUF\x00\x00\x00\x00')
+    for program, expected in (('llama-completion.exe', True),
+                              ('llama-cli.exe', True),
+                              ('custom-runner.exe', False)):
+        exe=tmp_path/program
+        exe.write_bytes(b'SYNTHETIC TEST EXECUTABLE; NOT A WORKING MODEL')
+        text=run_local_model(ModelConfig(program, 'llama_cpp', str(exe),
+                                         str(gguf), 8), 'single turn only',timeout=5)
+        assert text=='SYNTHETIC ONE TURN MODEL OUTPUT'
+        assert ('--single-turn' in emitted[-1]) is expected
+        assert emitted[-1][-2:] == (['8','--single-turn'] if expected else ['-n','8'])

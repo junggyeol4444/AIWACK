@@ -78,7 +78,7 @@ jobs:
           $program = @'
           import os, subprocess, sys
           engine, gguf, path = sys.argv[1:]
-          args = [engine, "-m", gguf, "-p", "Respond with one safe word.", "-n", "16"]
+          args = [engine, "-m", gguf, "-p", "Respond with one safe word.", "-n", "16", "--single-turn"]
           try:
               result = subprocess.run(args, capture_output=True, text=True, errors="replace", timeout=70)
           except Exception as exc:
