@@ -78,7 +78,12 @@ def run(exe):
         # First list row, then owner-only approval button (not auto-execution).
         real.click(w,164,528)
         real.evidence("planning-first-pending-proposal-selected")
-        real.click(w,266,653)
+        # Windows 2025 *real screenshot* 06-planning-first-pending-proposal-selected:
+        # the blue "업무로 승인" control occupies absolute x=140..230,
+        # y=669..702. Prior x=266,y=653 missed the physical control.
+        real.click(w,173,677)
+        approval_dialog = real.find_dialog("업무 생성 승인", timeout=15)
+        real.evidence("planning-actual-owner-approval-dialog-visible")
         real.confirm()
         real.wait_sql("SELECT status FROM company_task_proposals WHERE id=?", "approved",(proposal,))
         task=real.read("SELECT approved_task_id FROM company_task_proposals WHERE id=?",(proposal,))
