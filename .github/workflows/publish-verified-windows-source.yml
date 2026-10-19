@@ -1,0 +1,118 @@
+name: Publish Windows-tested integrated AIWACK application source to main
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/publish-verified-windows-source.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  actions: read
+
+concurrency:
+  group: aiwack-verified-source-main
+  cancel-in-progress: false
+
+jobs:
+  verify-and-publish:
+    name: Verify genuine packaged Windows EXE then commit its complete source
+    runs-on: windows-2025
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: true
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Ensure tested application inputs have not changed
+        shell: pwsh
+        run: |
+          git diff --quiet 9eb950adb30da7e694e0b698bbcd2bf849c15c53 HEAD -- validation/patch_source.py validation/app_navigation_patch.py validation/install_company_office.py validation/office_source source-archives
+          if ($LASTEXITCODE -ne 0) { throw 'Application source changed since proven Windows release; refuse to publish stale snapshot' }
+
+      - name: Download known successful Windows 2025 tested integrated source
+        shell: pwsh
+        env:
+          GH_TOKEN: \${{ github.token }}
+        run: |
+          $run = gh api "repos/$env:GITHUB_REPOSITORY/actions/runs/39184374421" | ConvertFrom-Json
+          if ($run.conclusion -ne 'success' -or $run.head_sha -ne '9eb950adb30da7e694e0b698bbcd2bf849c15c53') { throw 'Source release verification does not match expected successful Windows Actions run' }
+          $folder = Join-Path $env:RUNNER_TEMP 'original-tested-source-artifact'
+          New-Item -ItemType Directory -Force -Path $folder | Out-Null
+          gh run download 39184374421 -R $env:GITHUB_REPOSITORY -n AIWACK_Integrated_Source_windows-2025 -D $folder
+          if ($LASTEXITCODE -ne 0) { throw 'Cannot download verified integrated source' }
+          $zip = Join-Path $folder 'AIWACK_Integrated_Source.zip'
+          if (!(Test-Path -LiteralPath $zip)) { throw 'Integrated source ZIP not found in verified artifact' }
+          $expected = '07f154c47aa0f7d747824a3a4763e1d12c1fbf475d647df0e2da6e3471709f2a'
+          if ((Get-FileHash -LiteralPath $zip -Algorithm SHA256).Hash.ToLowerInvariant() -ne $expected) { throw 'Source SHA256 mismatch' }
+          "AIWACK_INTEGRATED_ZIP=$zip" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+
+      - name: Export actual app source to main-tracked folder, not a test-only overlay
+        shell: pwsh
+        run: |
+          $destination = Join-Path $env:GITHUB_WORKSPACE 'windows-integrated-src'
+          python validation/export_verified_integrated_source.py $env:AIWACK_INTEGRATED_ZIP $destination
+          if ($LASTEXITCODE -ne 0) { throw 'Verified source export or Python AST validation failed' }
+          if (!(Test-Path (Join-Path $destination 'desktop/entry.py'))) { throw 'Runnable desktop app source missing' }
+          if (!(Test-Path (Join-Path $destination 'desktop/company_office_gui.py'))) { throw 'Real company GUI source missing' }
+
+      - name: Compile Windows EXE DIRECTLY from newly exported app source
+        shell: pwsh
+        run: |
+          python -m pip install --disable-pip-version-check pyinstaller pyautogui pygetwindow pyperclip pillow
+          if ($LASTEXITCODE -ne 0) { throw 'Required Windows EXE build tools unavailable' }
+          $app = Join-Path $env:GITHUB_WORKSPACE 'windows-integrated-src'
+          Set-Location $app
+          python -m PyInstaller --noconfirm --clean --onefile --windowed --name AIWACK --paths . --hidden-import desktop.company_operations --hidden-import desktop.company_office_gui --hidden-import desktop.company_model_connect_ui --add-data 'docs/roadmap_100.csv;docs' --distpath (Join-Path $env:RUNNER_TEMP 'verified-source-dist') --workpath (Join-Path $env:RUNNER_TEMP 'verified-source-build') --specpath (Join-Path $env:RUNNER_TEMP 'verified-source-spec') desktop/entry.py
+          if ($LASTEXITCODE -ne 0) { throw 'Real desktop Windows EXE compilation failed' }
+          $exe = Join-Path $env:RUNNER_TEMP 'verified-source-dist/AIWACK.exe'
+          if (!(Test-Path -LiteralPath $exe)) { throw 'Actual Windows EXE binary missing' }
+          $process = Start-Process -FilePath $exe -ArgumentList '--self-test' -PassThru -Wait
+          if ($process.ExitCode -ne 0) { throw "Packaged Windows EXE self-test failed with code $($process.ExitCode)" }
+          "AIWACK_VERIFIED_EXE=$exe" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+
+      - name: Physically click packaged EXE through owner-company acceptance
+        shell: pwsh
+        env:
+          AIWACK_PACKAGED_GUI_ARTIFACTS: \${{ runner.temp }}/verified-source-gui-evidence
+        run: |
+          Set-Location $env:GITHUB_WORKSPACE
+          python -m PyInstaller --noconfirm --clean --onefile --console --name AIWACK-ModelStub --distpath (Join-Path $env:RUNNER_TEMP 'verified-source-dist') --workpath (Join-Path $env:RUNNER_TEMP 'verified-stub-build') --specpath (Join-Path $env:RUNNER_TEMP 'verified-source-spec') validation/windows_fake_llm.py
+          if ($LASTEXITCODE -ne 0) { throw 'Synthetic verification-only model builder failed' }
+          $stub = Join-Path $env:RUNNER_TEMP 'verified-source-dist/AIWACK-ModelStub.exe'
+          if (!(Test-Path -LiteralPath $stub)) { throw 'Synthetic validation stub missing' }
+          python validation/windows_packaged_company_full_e2e.py $env:AIWACK_VERIFIED_EXE $stub
+          if ($LASTEXITCODE -ne 0) { throw 'Real mouse and keyboard EXE acceptance failed; source MUST NOT be published' }
+
+      - name: Commit all verified runnable source files to main
+        shell: pwsh
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git config core.autocrlf false
+          git -c core.longpaths=true add -- windows-integrated-src
+          if ($LASTEXITCODE -ne 0) { throw 'Cannot stage verified app source' }
+          git diff --cached --quiet
+          if ($LASTEXITCODE -eq 0) {
+            Write-Host 'Identical integrated source is already committed'
+            exit 0
+          }
+          git commit -m 'release: publish 851 Windows EXE-verified integrated source files on main'
+          if ($LASTEXITCODE -ne 0) { throw 'Git commit of verified app source failed' }
+          git push origin HEAD:main
+          if ($LASTEXITCODE -ne 0) { throw 'Failed to upload verified app source to main' }
+
+      - name: Preserve physical Windows evidence even on failure
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: aiwack-integrated-source-physical-exe-evidence
+          path: \${{ runner.temp }}/verified-source-gui-evidence/
+          if-no-files-found: warn
+          retention-days: 30
