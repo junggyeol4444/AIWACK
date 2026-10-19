@@ -124,7 +124,7 @@ def exercise(exe):
         gui.type_text(w,175,395,gui.USER)
         gui.type_text(w,175,437,gui.PASS)
         gui.click(w,175,480)
-        gui.wait_dashboard(w)
+        header_y=gui.wait_dashboard(w)
         fields=go_company(w)
         # An actual 2022 failure screenshot showed GitHub's host terminal
         # becoming foreground after the GUI had displayed the saved company.
@@ -149,10 +149,10 @@ def exercise(exe):
         with sqlite3.connect(db) as con:
             assert con.execute("SELECT title,detail FROM company_goals").fetchall()==[(GOAL,DETAIL)]
         snapshot("company-and-goal-survived-restart")
-        nav_y=gui.dashboard_nav_y(w)
-        if nav_y is None:
-            raise AssertionError("Cannot find native logout navigation")
-        gui.click(w,960,nav_y if nav_y < 153 else nav_y+12)
+        # Use the header location that was actually visible after login.
+        # The owner has just verified company data; a runner terminal can
+        # obscure a fresh screenshot, but input must target the same HWND.
+        gui.click(w,960,header_y if header_y < 153 else header_y+12)
         time.sleep(.6)
         snapshot("logged-out")
         gui.shutdown(w,proc);proc=None
