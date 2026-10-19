@@ -2,8 +2,12 @@ name: Windows EXE build and real startup check
 
 on:
   push:
-    branches: [main]
-  pull_request:
+    branches: [main, validation/windows-user-e2e-20261015]
+    paths:
+      - '.github/workflows/windows-exe.yml'
+      - 'validation/**'
+      - 'source-archives/**'
+      - 'deployment/**'
   workflow_dispatch:
 
 permissions:
@@ -11,30 +15,98 @@ permissions:
 
 jobs:
   windows-exe:
-    runs-on: windows-latest
-    timeout-minutes: 30
+    name: Verified distributable AIWACK.exe (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-2022, windows-2025]
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
-          python-version: '3.12'
-      - name: Install build tools
-        run: python -m pip install --disable-pip-version-check pyinstaller pytest
-      - name: Windows desktop storage tests
-        run: python -m pytest -q tests/test_desktop.py
-      - name: Build standalone Windows GUI EXE
-        run: pyinstaller --noconfirm --clean --onefile --windowed --name AIWACK --paths . --add-data "docs/roadmap_100.csv;docs" desktop/entry.py
-      - name: Execute compiled Windows EXE and check database operations
+          python-version: '3.11'
+      - name: Extract verified original and integrate latest native company source
         shell: pwsh
         run: |
-          $process = Start-Process -FilePath (Resolve-Path .\dist\AIWACK.exe) -ArgumentList "--self-test" -PassThru -Wait
-          if ($process.ExitCode -ne 0) { throw "EXE self test failed ($($process.ExitCode))" }
-          if (!(Test-Path .\dist\AIWACK.exe)) { throw "AIWACK.exe missing" }
-          Write-Output "Native Windows EXE started and storage self-test passed."
-      - name: Save downloadable Windows EXE
+          $archive = Join-Path $env:GITHUB_WORKSPACE 'source-archives/AIWACK_Stage100_Robots_Compliant_Crawling_Plugin_Market_Integration_Source.zip'
+          if ((Get-FileHash $archive -Algorithm SHA256).Hash.ToLowerInvariant() -ne 'f855f9ed9afada6a75f80011bf86f95cda053045d54e4445fbf399531626b020') { throw 'Source archive SHA256 mismatch' }
+          $root = Join-Path $env:RUNNER_TEMP 'aiwack-release-source'
+          Expand-Archive -LiteralPath $archive -DestinationPath $root
+          $src = Join-Path $root 'AIWACK-Stage54'
+          python validation/patch_source.py $src
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          python validation/app_navigation_patch.py $src
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          python validation/install_company_office.py $src
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          python -m compileall -q (Join-Path $src 'desktop')
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          $sourceZip = Join-Path $env:RUNNER_TEMP 'AIWACK_Integrated_Source.zip'
+          Compress-Archive -LiteralPath $src -DestinationPath $sourceZip -Force
+          if (!(Test-Path $sourceZip)) { throw 'Integrated source ZIP missing' }
+          "AIWACK_RELEASE_SRC=$src" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+          "AIWACK_RELEASE_SOURCE_ZIP=$sourceZip" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+      - name: Install native Windows EXE builder and actual GUI drivers
+        shell: pwsh
+        run: |
+          python -m pip install --disable-pip-version-check pyinstaller pytest pyautogui pygetwindow pyperclip pillow
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Build verified native Windows desktop application
+        shell: pwsh
+        run: |
+          Set-Location $env:AIWACK_RELEASE_SRC
+          python -m PyInstaller --noconfirm --clean --onefile --windowed --name AIWACK --paths . --hidden-import desktop.company_operations --hidden-import desktop.company_office_gui --hidden-import desktop.company_model_connect_ui --add-data 'docs/roadmap_100.csv;docs' desktop/entry.py
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          $exe = Join-Path $env:AIWACK_RELEASE_SRC 'dist/AIWACK.exe'
+          if (!(Test-Path $exe)) { throw 'Native release AIWACK.exe missing' }
+          "AIWACK_RELEASE_EXE=$exe" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+      - name: Actual compiled EXE self-test in fresh Windows process
+        shell: pwsh
+        run: |
+          & $env:AIWACK_RELEASE_EXE --self-test
+          if ($LASTEXITCODE -ne 0) { throw "Native EXE self-test exit code $LASTEXITCODE" }
+      - name: Physically click type save exit and reopen the actual EXE
+        shell: pwsh
+        env:
+          AIWACK_PACKAGED_GUI_ARTIFACTS: ${{ runner.temp }}/aiwack-production-gui-evidence
+        run: |
+          python validation/windows_built_exe_gui.py $env:AIWACK_RELEASE_EXE
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Package end-user EXE, verified optional model setup and Korean guide
+        shell: pwsh
+        run: |
+          $folder = Join-Path $env:RUNNER_TEMP 'AIWACK_Windows_Ready'
+          New-Item -ItemType Directory -Force -Path $folder | Out-Null
+          Copy-Item -LiteralPath $env:AIWACK_RELEASE_EXE -Destination (Join-Path $folder 'AIWACK.exe')
+          Copy-Item -LiteralPath (Join-Path $env:GITHUB_WORKSPACE 'deployment/Windows_사용가이드.md') -Destination (Join-Path $folder 'Windows_사용가이드.md')
+          Copy-Item -LiteralPath (Join-Path $env:GITHUB_WORKSPACE 'deployment/Setup_Verified_Local_GGUF.ps1') -Destination (Join-Path $folder 'Setup_Verified_Local_GGUF.ps1')
+          $checksum = (Get-FileHash (Join-Path $folder 'AIWACK.exe') -Algorithm SHA256).Hash.ToLowerInvariant()
+          "AIWACK.exe SHA256: $checksum" | Set-Content -LiteralPath (Join-Path $folder 'SHA256.txt') -Encoding utf8
+          $release = Join-Path $env:RUNNER_TEMP 'AIWACK_Windows_Ready.zip'
+          Compress-Archive -LiteralPath $folder -DestinationPath $release -Force
+          if (!(Test-Path $release)) { throw 'Distributable Windows ZIP missing' }
+          "AIWACK_RELEASE_ZIP=$release" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+      - name: Upload ready-to-use Windows EXE distribution
         uses: actions/upload-artifact@v4
         with:
-          name: AIWACK-Windows-EXE
-          path: dist/AIWACK.exe
+          name: AIWACK_Windows_Ready_${{ matrix.os }}
+          path: ${{ env.AIWACK_RELEASE_ZIP }}
           if-no-files-found: error
+          retention-days: 30
+      - name: Upload fully integrated original-plus-latest source
+        uses: actions/upload-artifact@v4
+        with:
+          name: AIWACK_Integrated_Source_${{ matrix.os }}
+          path: ${{ env.AIWACK_RELEASE_SOURCE_ZIP }}
+          if-no-files-found: error
+          retention-days: 30
+      - name: Save actual Windows GUI evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: AIWACK_Release_GUI_Evidence_${{ matrix.os }}
+          path: ${{ runner.temp }}/aiwack-production-gui-evidence/
+          if-no-files-found: warn
           retention-days: 30
