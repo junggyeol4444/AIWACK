@@ -264,7 +264,7 @@ def test_batch_chief_recovery_three_no_duplicate_staff_and_no_auto_approval(tmp_
         assert store.read_task_artifact(aid)['review_status']=='pending'
         assert store.find_chief_task_report(aid)['owner_decision']=='pending'
     assert ops.list_interrupted_chief_reviews(store)==[]
-    with pytest.raises(ValueError,match='복구'):
+    with pytest.raises(ValueError,match='중단 총괄 검토'):
         ops.recover_interrupted_chief_review_queue(store)
     assert len(calls)==3
 
