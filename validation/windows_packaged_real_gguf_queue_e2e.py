@@ -491,6 +491,55 @@ def perform(exe, model_cli, gguf):
         snapshot_real_model_audit()
         evidence("all-31-staff-real-gguf-probes-audited-no-sales-or-approval")
 
+        # T20 partial: the owner physically clicks emergency stop in the
+        # packaged EXE. This confirms LOCAL AI execution blocking only;
+        # the project explicitly does not yet block external services.
+        click(w, 424, 270)
+        # Windows 2025 screenshot: red "비상 정지" button is screen
+        # x=532..608, y=639..670 (window-relative center 562,646).
+        click(w, 562, 646)
+        confirm()
+        wait_sql("SELECT stopped FROM local_emergency_control WHERE id=1", 1)
+        wait_sql("SELECT state FROM local_emergency_control_events ORDER BY id DESC LIMIT 1", 1)
+        evidence("owner-physical-emergency-stop-active")
+
+        # An owner clicking a model-probe button MUST NOT be able to bypass
+        # the persisted emergency stop. Verify no 38th model call appears.
+        click(w, 215, 270)
+        click(w, 515, 413)
+        stopped_dialog = find_dialog("AIWACK | 로컬 AI 모델 연결", timeout=25)
+        click(stopped_dialog, 325, 460)
+        time.sleep(8)
+        if read("SELECT COUNT(*) FROM ai_model_call_history") != 37:
+            evidence("emergency-stop-model-call-bypass")
+            raise AssertionError("Emergency-stop did not prevent new local GGUF inference")
+        evidence("owner-probe-blocked-no-new-model-call")
+        try:
+            stopped_dialog.activate()
+        except Exception:
+            pass
+        pyautogui.hotkey("alt", "f4")
+        time.sleep(.5)
+
+        # T07 partial: data and the safety stop must persist through an
+        # actual process exit and fresh packaged EXE login, not a GUI refresh.
+        gui.shutdown(w, p)
+        p = None
+        evidence("all-models-and-emergency-stop-exe-closed")
+        p = gui.start(exe, DATA)
+        w = gui.find_window()
+        write(w, 175, 395, OWNER)
+        write(w, 175, 437, PASSWORD)
+        click(w, 175, 480)
+        wait_office_dashboard(w)
+        wait_sql("SELECT COUNT(DISTINCT employee_id) FROM ai_employee_model_assignments", 31)
+        wait_sql("SELECT COUNT(DISTINCT employee_id) FROM ai_model_call_history WHERE status='success'", 31)
+        wait_sql("SELECT COUNT(*) FROM ai_model_call_history WHERE status='success'", 37)
+        wait_sql("SELECT stopped FROM local_emergency_control WHERE id=1", 1)
+        wait_sql("SELECT status FROM company_tasks WHERE id=?", "done", (task_id,))
+        wait_sql("SELECT status FROM company_tasks WHERE id=?", "done", (first_task_id,))
+        evidence("reopened-exe-31-model-audits-and-emergency-stop-persisted")
+
         gui.shutdown(w, p)
         p = None
         print("PACKAGED_WINDOWS_EXE_REAL_GGUF_TWO_TASK_QUEUE_PASS", flush=True)
