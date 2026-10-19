@@ -98,23 +98,36 @@ def shutdown(w,p):
         p.terminate();p.wait(timeout=8)
         raise AssertionError("EXE did not exit on Alt+F4")
 
+def dashboard_nav_y(w):
+    """Read actual navigation from the Windows screenshot, not the DB.
+
+    Stage100's old dashboard has the combobox at y=163, while the fully
+    integrated company app moves it to y=148. Windows Server 2022 screenshot
+    from run 39207283133 showed the app visible but the old pixel was dark.
+    """
+    img=pyautogui.screenshot().convert("RGB")
+    for y in (148,163):
+        px,py=w.left+200,w.top+y
+        if 0<=px<img.width and 0<=py<img.height:
+            rgb=img.getpixel((px,py))
+            if min(rgb)>170 and max(rgb)-min(rgb)<95:
+                return y
+    return None
+
+
 def wait_dashboard(w,seconds=85):
-    """After DB owner write, wait for actual Tk page transition and all widgets."""
+    """Require a visible native navigation field after owner login."""
     until=time.monotonic()+seconds
     while time.monotonic()<until:
-        img=pyautogui.screenshot().convert("RGB")
-        px,py=w.left+200,w.top+163
-        if 0<=px<img.width and 0<=py<img.height:
-            r,g,b=img.getpixel((px,py))
-            # The dashboard navigation combobox is visibly pale; setup/login
-            # screen at this point is the dark panel background.
-            if min(r,g,b)>170 and max(r,g,b)-min(r,g,b)<95:
-                time.sleep(.7)
-                print("VISIBLE_DASHBOARD_READY",px,py,(r,g,b),flush=True)
-                return
+        ensure_foreground(w)
+        y=dashboard_nav_y(w)
+        if y is not None:
+            time.sleep(.7)
+            print("VISIBLE_DASHBOARD_READY",w.left+200,w.top+y,flush=True)
+            return y
         time.sleep(.5)
     snapshot("dashboard-never-ready")
-    raise AssertionError("Owner database was written but actual EXE dashboard never became visible")
+    raise AssertionError("Owner account exists but actual EXE dashboard navigation is not visible")
 
 def note_input_y(w):
     """Observe the REAL EXE screenshot. A wide white input band exists only on notes page."""
@@ -133,7 +146,11 @@ def open_notes(w):
     # Human operation: physically click a plainly visible button in the packaged EXE.
     # Never mark success merely because the click command returned.
     print("PACKAGED_WINDOW_RECT",w.left,w.top,w.width,w.height,flush=True)
-    click(w,370,175)
+    nav_y=dashboard_nav_y(w)
+    if nav_y is None:
+        snapshot("navigation-not-visible-before-notes")
+        raise AssertionError("Cannot locate actual native navigation before opening notes")
+    click(w,370,148 if nav_y==148 else 175)
     snapshot("clicked-notes-button")
     until=time.monotonic()+12
     while time.monotonic()<until:
