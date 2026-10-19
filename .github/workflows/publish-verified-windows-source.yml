@@ -69,7 +69,7 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw 'Required Windows EXE build tools unavailable' }
           $app = Join-Path $env:GITHUB_WORKSPACE 'windows-integrated-src'
           Set-Location $app
-          python -m PyInstaller --noconfirm --clean --onefile --windowed --name AIWACK --paths . --hidden-import desktop.company_operations --hidden-import desktop.company_office_gui --hidden-import desktop.company_model_connect_ui --add-data 'docs/roadmap_100.csv;docs' --distpath (Join-Path $env:RUNNER_TEMP 'verified-source-dist') --workpath (Join-Path $env:RUNNER_TEMP 'verified-source-build') --specpath (Join-Path $env:RUNNER_TEMP 'verified-source-spec') desktop/entry.py
+          python -m PyInstaller --noconfirm --clean --onefile --windowed --name AIWACK --paths . --hidden-import desktop.company_operations --hidden-import desktop.company_office_gui --hidden-import desktop.company_model_connect_ui --add-data "$app/docs/roadmap_100.csv;docs" --distpath (Join-Path $env:RUNNER_TEMP 'verified-source-dist') --workpath (Join-Path $env:RUNNER_TEMP 'verified-source-build') --specpath (Join-Path $env:RUNNER_TEMP 'verified-source-spec') desktop/entry.py
           if ($LASTEXITCODE -ne 0) { throw 'Real desktop Windows EXE compilation failed' }
           $exe = Join-Path $env:RUNNER_TEMP 'verified-source-dist/AIWACK.exe'
           if (!(Test-Path -LiteralPath $exe)) { throw 'Actual Windows EXE binary missing' }
