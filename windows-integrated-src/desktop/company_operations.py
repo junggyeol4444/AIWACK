@@ -429,6 +429,42 @@ def collect_chief_review(store, artifact_id: int, *,
             'worker_result_auto_approved': False, 'task_completed': False}
 
 
+def recover_interrupted_chief_review(store, task_id: int, *,
+                                     cancel: threading.Event | None = None) -> dict:
+    """Owner-triggered T17 recovery of a SAVED worker result after interruption.
+
+    A crash or emergency stop after a successful worker run must not rerun the
+    worker or silently approve anything. Use the single existing audited
+    artifact for an already approved task, and execute ONLY the missing chief
+    review after the owner explicitly requests recovery in the native GUI.
+    """
+    assert_running_allowed(store)
+    if type(task_id) is not int or task_id <= 0:
+        raise ValueError('복구할 업무 번호가 올바르지 않습니다.')
+    if cancel is not None and cancel.is_set():
+        raise InterruptedError('중단된 검토 복구 전에 관리자가 취소했습니다.')
+    task = store.read_task(task_id)
+    if task['status'] != 'in_progress':
+        raise ValueError('실행 중 중단되어 저장된 업무만 검토를 재개할 수 있습니다.')
+    if store.read_chief_task_order(task_id) is None:
+        raise ValueError('관리자가 승인한 총괄 AI 지시가 없습니다.')
+    artifacts = store.list_task_artifacts(task_id)
+    if len(artifacts) != 1 or artifacts[0]['review_status'] != 'pending':
+        raise ValueError('복구 가능한 단일 미검수 결과물이 필요합니다.')
+    artifact_id = int(artifacts[0]['id'])
+    # Confirm provenance against the real signed-off chief dispatch and
+    # successful stored employee run before starting any new model subprocess.
+    context = store.chief_task_report_context(artifact_id)
+    if int(context['task_id']) != task_id:
+        raise ValueError('업무와 승인 결과물의 연결이 일치하지 않습니다.')
+    if store.find_chief_task_report(artifact_id) is not None:
+        raise ValueError('이미 총괄 AI 회수 보고서가 있습니다. 기존 보고서를 검토하세요.')
+    report = collect_chief_review(store, artifact_id, cancel=cancel)
+    return {**report, 'task_id': task_id,
+            'recovered_saved_worker_result': True,
+            'worker_reexecuted': False, 'owner_approval_required': True}
+
+
 def review_chief_feedback(store, report_id: int, decision: str, note: str = '') -> None:
     """Owner records acceptance/rejection of chief advice, NEVER task completion."""
     store.require_permission('company:manage')

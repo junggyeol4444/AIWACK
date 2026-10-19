@@ -139,3 +139,68 @@ def test_non_chief_provenance_is_not_accepted(tmp_path,monkeypatch):
     with pytest.raises(ValueError,match='승인된 총괄'):
         ops.collect_chief_review(store,artifact)
     assert store.find_chief_task_report(artifact) is None
+
+def test_explicit_interruption_recovery_persists_without_duplicate_worker(reviewed_candidate, monkeypatch):
+    """Crash after persisted worker output, restart owner session and run chief only."""
+    store, tid, aid, _, _ = reviewed_candidate
+    first_runs = store.list_task_runs(tid)
+    first_artifacts = store.list_task_artifacts(tid)
+    store.logout()
+    restored = LocalStore(store.path)
+    restored.login('report_owner', 'test-only-owner-password-2026')
+    events = []
+    def forbidden_worker(*args, **kwargs):
+        events.append('worker-duplicate')
+        raise AssertionError('Worker must never rerun during review recovery')
+    def chief(_store, artifact_id, **kwargs):
+        events.append(('chief-review-only', artifact_id))
+        return 'SYNTHETIC RECOVERED CHIEF REVIEW, OWNER STILL DECIDES'
+    monkeypatch.setattr('desktop.task_runtime.run_local_model', forbidden_worker)
+    monkeypatch.setattr('desktop.chief_task_runtime.collect_chief_task_result', chief)
+    recovered = ops.recover_interrupted_chief_review(restored, tid)
+    assert recovered['artifact_id'] == aid
+    assert recovered['recovered_saved_worker_result'] is True
+    assert recovered['worker_reexecuted'] is False
+    assert recovered['owner_approval_required'] is True
+    assert events == [('chief-review-only', aid)]
+    assert restored.list_task_runs(tid) == first_runs
+    assert restored.list_task_artifacts(tid) == first_artifacts
+    assert restored.find_chief_task_report(aid)['owner_decision'] == 'pending'
+    assert restored.read_task(tid)['status'] == 'in_progress'
+    with pytest.raises(ValueError, match='이미 총괄 AI 회수 보고서'):
+        ops.recover_interrupted_chief_review(restored, tid)
+    assert events == [('chief-review-only', aid)]
+
+
+def test_interrupted_recovery_cancel_stop_and_wrong_state(reviewed_candidate, monkeypatch):
+    store, tid, aid, _, _ = reviewed_candidate
+    calls = []
+    monkeypatch.setattr('desktop.chief_task_runtime.collect_chief_task_result',
+                        lambda *a, **kw: calls.append('chief') or 'SYNTHETIC REPORT')
+    for invalid in (0, True, -1, '1'):
+        with pytest.raises(ValueError):
+            ops.recover_interrupted_chief_review(store, invalid)
+    cancelled = threading.Event(); cancelled.set()
+    with pytest.raises(InterruptedError):
+        ops.recover_interrupted_chief_review(store, tid, cancel=cancelled)
+    assert store.find_chief_task_report(aid) is None
+    store.emergency_stop_local(True, 'Owner forbids recovery until resumed')
+    with pytest.raises(PermissionError, match='비상'):
+        ops.recover_interrupted_chief_review(store, tid)
+    assert calls == []
+
+
+def test_interrupted_recovery_refuses_unapproved_or_missing_results(reviewed_candidate, monkeypatch):
+    store, tid, aid, chief, worker = reviewed_candidate
+    another = ops.create_task(store, 'No approved staff work')
+    ops.assign_task(store, another)
+    calls = []
+    monkeypatch.setattr('desktop.chief_task_runtime.collect_chief_task_result',
+                        lambda *a, **kw: calls.append('chief') or 'SYNTHETIC')
+    with pytest.raises(ValueError):
+        ops.recover_interrupted_chief_review(store, another)
+    # A terminal task must not be re-opened merely by the recovery path.
+    store.set_task_status(tid, 'blocked')
+    with pytest.raises(ValueError, match='실행 중 중단'):
+        ops.recover_interrupted_chief_review(store, tid)
+    assert calls == []

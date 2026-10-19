@@ -51,6 +51,12 @@ jobs:
         run: |
           python -m pip install --disable-pip-version-check pyinstaller pytest pyautogui pygetwindow pyperclip pillow
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Verify actual Windows SQLite interruption recovery and owner safeguards
+        shell: pwsh
+        run: |
+          Set-Location $env:AIWACK_RELEASE_SRC
+          python -m pytest -q tests/test_company_chief_review.py tests/test_company_approved_autocycle.py
+          if ($LASTEXITCODE -ne 0) { throw 'Native Windows T17 recovery and approval regression failed' }
       - name: Build verified native Windows desktop application
         shell: pwsh
         run: |

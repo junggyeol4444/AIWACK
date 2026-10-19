@@ -285,6 +285,7 @@ class CompanyOffice:
         self._action(actionbar,'승인 결과로 업무 완료',self.finish_reviewed,strong=True,compact=True)
         self._action(actionbar,'총괄 AI 회수 검토',self.request_chief_report,compact=True)
         self._action(actionbar,'총괄 보고서 보기',self.open_chief_report,compact=True)
+        self._action(actionbar,'중단된 검토 재개',self.recover_interrupted_review,compact=True)
         self._label(card, '', size=9, color=AMBER, textvariable=self.review_summary).pack(anchor='w', pady=(5, 0))
         self._label(card, '실제 생성 결과가 없으면 표시하지 않습니다. 승인해도 업무가 자동 완료되지 않습니다.',
                     size=8, color=MUTED).pack(anchor='w', pady=(3, 0))
@@ -676,6 +677,23 @@ class CompanyOffice:
                         after='chief_report')
         except (ValueError,PermissionError) as exc:
             self._say('총괄 회수 검토 시작 실패: '+str(exc))
+
+    def recover_interrupted_review(self):
+        """Physical owner request; only recover chief review for persisted staff art."""
+        try:
+            artifact_id = self._selected_artifact()
+            artifact = self.store.read_task_artifact(artifact_id)
+            task_id = int(artifact['task_id'])
+            if not messagebox.askyesno('중단된 총괄 검토 복구',
+                    '저장된 직원 결과물로 총괄 AI 검토만 재개합니까?\n'
+                    '직원 AI는 재실행하지 않으며 결과물 승인·업무 완료·외부 작업은 하지 않습니다.',
+                    parent=self.root):
+                return
+            # Existing worker/owner session lock disallows concurrent requests.
+            self._start(lambda: ops.recover_interrupted_chief_review(
+                self.store, task_id, cancel=self.cancel), after='chief_report')
+        except (ValueError, PermissionError) as exc:
+            self._say('중단 검토 복구 실패: ' + str(exc))
 
     def open_chief_report(self, artifact_id=None):
         """Display a persisted chief report and require a physical owner decision."""
