@@ -65,8 +65,8 @@ jobs:
       - name: Actual compiled EXE self-test in fresh Windows process
         shell: pwsh
         run: |
-          & $env:AIWACK_RELEASE_EXE --self-test
-          if ($LASTEXITCODE -ne 0) { throw "Native EXE self-test exit code $LASTEXITCODE" }
+          $process = Start-Process -FilePath $env:AIWACK_RELEASE_EXE -ArgumentList '--self-test' -PassThru -Wait
+          if ($process.ExitCode -ne 0) { throw "Native EXE self-test exit code $($process.ExitCode)" }
       - name: Physically click type save exit and reopen the actual EXE
         shell: pwsh
         env:
