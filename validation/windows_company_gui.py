@@ -79,7 +79,7 @@ def go_company(w):
     pyautogui.press("down",presses=4,interval=.09)
     pyautogui.press("enter")
     time.sleep(.9)
-    fields=white_bands(w,295,480,xs=(700,780,860,930),required=3)
+    fields=white_bands(w,220,480,xs=(700,780,860,930),required=3)
     snapshot("company-screen-visible")
     return fields[:3]
 
@@ -107,7 +107,7 @@ def exercise(exe):
         gui.expect_db(db,"SELECT name FROM company_profile WHERE id=1",COMPANY)
         snapshot("company-profile-saved")
 
-        goal_fields=white_bands(w,520,660,xs=(190,300,650,790),required=1)
+        goal_fields=white_bands(w,445,660,xs=(190,300,650,790),required=1)
         goal_y=goal_fields[0]
         gui.type_text(w,200,goal_y,GOAL)
         gui.type_text(w,700,goal_y,DETAIL)
