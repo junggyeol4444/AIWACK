@@ -87,6 +87,13 @@ jobs:
           Write-Host "Model SHA256: $((Get-FileHash $gguf -Algorithm SHA256).Hash)"
           "AIWACK_REAL_LLAMA_CLI=$($engine.FullName)" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
           "AIWACK_REAL_GGUF_FILE=$gguf" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+      - name: Diagnose same genuine Windows GGUF runner independently without counting it as GUI PASS
+        continue-on-error: true
+        shell: pwsh
+        run: |
+          $path = Join-Path $env:RUNNER_TEMP 'aiwack-real-gguf-queue-evidence'
+          python validation/windows_gguf_engine_preflight.py $env:AIWACK_REAL_LLAMA_CLI $env:AIWACK_REAL_GGUF_FILE $path
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
       - name: Fresh data set A - actual EXE setup login chief staff owner approvals and restart
         shell: pwsh
         env:
