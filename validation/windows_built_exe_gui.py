@@ -99,21 +99,40 @@ def shutdown(w,p):
         raise AssertionError("EXE did not exit on Alt+F4")
 
 def dashboard_nav_y(w):
-    """Read actual navigation from the Windows screenshot, not the DB.
+    """Locate the ACTUAL native navigation combobox in a screenshot.
 
-    Stage100's old dashboard has the combobox at y=163, while the fully
-    integrated company app moves it to y=148. Windows Server 2022 screenshot
-    from run 39207283133 showed the app visible but the old pixel was dark.
+    Use the visible pale rectangular band rather than a hard-coded one-pixel
+    offset: decorated Tk window bounds differ between Windows 2022 and 2025.
+    The setup/login page has no such band in this top navigation region.
     """
     img=pyautogui.screenshot().convert("RGB")
-    for y in (148,163):
-        px,py=w.left+200,w.top+y
-        if 0<=px<img.width and 0<=py<img.height:
-            rgb=img.getpixel((px,py))
-            if min(rgb)>170 and max(rgb)-min(rgb)<95:
-                return y
+    pxs=(w.left+185,w.left+230)
+    if any(px<0 or px>=img.width for px in pxs):
+        return None
+    hits=[]
+    for y in range(108,185):
+        py=w.top+y
+        if py<0 or py>=img.height:
+            continue
+        rgbs=[img.getpixel((px,py)) for px in pxs]
+        if all(min(rgb)>170 and max(rgb)-min(rgb)<95 for rgb in rgbs):
+            hits.append(y)
+    spans=[]
+    if hits:
+        start=previous=hits[0]
+        for y in hits[1:]:
+            if y>previous+1:
+                if previous-start>=8:
+                    spans.append((start,previous))
+                start=y
+            previous=y
+        if previous-start>=8:
+            spans.append((start,previous))
+    # A durable area on the live EXE is required; isolated bright letters
+    # and screenshot noise are NOT treated as an authenticated dashboard.
+    if spans:
+        return (spans[0][0]+spans[0][1])//2
     return None
-
 
 def wait_dashboard(w,seconds=85):
     """Require a visible native navigation field after owner login."""
@@ -150,7 +169,7 @@ def open_notes(w):
     if nav_y is None:
         snapshot("navigation-not-visible-before-notes")
         raise AssertionError("Cannot locate actual native navigation before opening notes")
-    click(w,370,148 if nav_y==148 else 175)
+    click(w,370,nav_y if nav_y < 153 else nav_y+12)
     snapshot("clicked-notes-button")
     until=time.monotonic()+12
     while time.monotonic()<until:
