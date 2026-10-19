@@ -1,0 +1,147 @@
+name: AIWACK clean install full packaged GUI acceptance (validation only)
+on:
+  push:
+    branches: [validation/windows-user-e2e-20261015]
+    paths:
+      - '.github/workflows/validation-windows-fresh-all-gui.yml'
+      - 'validation/windows_packaged_real_gguf_queue_e2e.py'
+      - 'validation/windows_one_worker_real_gguf_soak_e2e.py'
+      - 'validation/windows_packaged_company_full_e2e.py'
+      - 'validation/windows_packaged_company_queue_e2e.py'
+      - 'validation/patch_source.py'
+      - 'validation/office_source/**'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  fresh-start-full-gui:
+    name: Fresh install real Windows EXE GUI acceptance (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 165
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-2022, windows-2025]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Prepare immutable original and test-branch desktop overlay
+        shell: pwsh
+        run: |
+          $archive = Join-Path $env:GITHUB_WORKSPACE 'source-archives/AIWACK_Stage100_Robots_Compliant_Crawling_Plugin_Market_Integration_Source.zip'
+          if ((Get-FileHash $archive -Algorithm SHA256).Hash.ToLowerInvariant() -ne 'f855f9ed9afada6a75f80011bf86f95cda053045d54e4445fbf399531626b020') { throw 'Source ZIP checksum mismatch' }
+          $root = Join-Path $env:RUNNER_TEMP 'aiwack-real-gguf-source'
+          Expand-Archive -LiteralPath $archive -DestinationPath $root
+          $src = Join-Path $root 'AIWACK-Stage54'
+          python validation/patch_source.py $src
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          python validation/app_navigation_patch.py $src
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          python validation/install_company_office.py $src
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Install actual EXE builder and Windows mouse keyboard drivers
+        shell: pwsh
+        run: |
+          python -m pip install pyinstaller pyautogui pygetwindow pyperclip pillow
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Build native packaged Windows AIWACK.exe
+        shell: pwsh
+        run: |
+          Set-Location (Join-Path $env:RUNNER_TEMP 'aiwack-real-gguf-source/AIWACK-Stage54')
+          python -m PyInstaller --noconfirm --clean --onefile --windowed --name AIWACK --paths . --hidden-import desktop.company_operations --hidden-import desktop.company_office_gui --add-data 'docs/roadmap_100.csv;docs' desktop/entry.py
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          if (-not (Test-Path 'dist/AIWACK.exe')) { throw 'Actual packaged EXE missing' }
+      - name: Build test-only Windows synthetic runner for real GUI test (not distributed)
+        shell: pwsh
+        run: |
+          python -m PyInstaller --noconfirm --clean --onefile --console --name AIWACK-ModelStub validation/windows_fake_llm.py
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          $stub = Join-Path $env:GITHUB_WORKSPACE 'dist/AIWACK-ModelStub.exe'
+          if (-not (Test-Path $stub)) { throw 'Test-only Windows model stub missing' }
+          "AIWACK_FRESH_MODEL_STUB=$stub" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+      - name: Download VERIFIED Windows llama.cpp CPU runner and a REAL small GGUF
+        shell: pwsh
+        run: |
+          $dir = Join-Path $env:RUNNER_TEMP 'real-gguf-files'
+          New-Item -ItemType Directory -Force $dir | Out-Null
+          $zip = Join-Path $dir 'llama-b11433-bin-win-cpu-x64.zip'
+          Invoke-WebRequest -Uri 'https://github.com/ggml-org/llama.cpp/releases/download/b11433/llama-b11433-bin-win-cpu-x64.zip' -OutFile $zip -MaximumRedirection 10
+          if ((Get-FileHash $zip -Algorithm SHA256).Hash.ToLowerInvariant() -ne '301943380e45deae3991d42dddd03fae65c6a4963a5d882328a60208b43aa9e0') { throw 'llama.cpp official release SHA256 differs' }
+          Expand-Archive -LiteralPath $zip -DestinationPath (Join-Path $dir 'cpu')
+          $engine = Get-ChildItem (Join-Path $dir 'cpu') -Recurse -File -Filter 'llama-completion.exe' | Select-Object -First 1
+          if (-not $engine) { throw 'Verified official archive has no llama-completion.exe' }
+          $gguf = Join-Path $dir 'SmolLM2-135M-Instruct-Q4_K_M.gguf'
+          Invoke-WebRequest -Uri 'https://huggingface.co/lmstudio-community/SmolLM2-135M-Instruct-GGUF/resolve/main/SmolLM2-135M-Instruct-Q4_K_M.gguf?download=true' -OutFile $gguf -MaximumRedirection 10
+          if ((Get-Item $gguf).Length -lt 80000000 -or (Get-Item $gguf).Length -gt 120000000) { throw 'GGUF size invalid; do not use an HTML error page' }
+          # SHA256 published on the verified model artifact's Hugging Face file page.
+          if ((Get-FileHash $gguf -Algorithm SHA256).Hash.ToLowerInvariant() -ne 'bda484992f9655d22504b14e57985257fa6a86937c61f957cf99c10a3bcae169') { throw 'Real GGUF source checksum mismatch' }
+          $stream = [System.IO.File]::OpenRead($gguf)
+          try {
+            $magic = [byte[]]::new(4)
+            [void]$stream.Read($magic,0,4)
+            if ([System.Text.Encoding]::ASCII.GetString($magic) -ne 'GGUF') { throw 'Downloaded model lacks GGUF magic' }
+          } finally { $stream.Dispose() }
+          Write-Host "Verified public llama.cpp SHA256 and genuine GGUF magic"
+          Write-Host "Model SHA256: $((Get-FileHash $gguf -Algorithm SHA256).Hash)"
+          "AIWACK_REAL_LLAMA_CLI=$($engine.FullName)" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+          "AIWACK_REAL_GGUF_FILE=$gguf" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+      - name: Fresh data set A - actual EXE setup login chief staff owner approvals and restart
+        shell: pwsh
+        env:
+          AIWACK_PACKAGED_GUI_ARTIFACTS: ${{ runner.temp }}/fresh-actual-company-full
+        run: |
+          $exe = Join-Path $env:RUNNER_TEMP 'aiwack-real-gguf-source/AIWACK-Stage54/dist/AIWACK.exe'
+          python validation/windows_packaged_company_full_e2e.py $exe $env:AIWACK_FRESH_MODEL_STUB
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Fresh data set B - actual EXE physical approvals of BOTH queue tasks
+        shell: pwsh
+        env:
+          AIWACK_PACKAGED_GUI_ARTIFACTS: ${{ runner.temp }}/fresh-actual-company-queue
+        run: |
+          $exe = Join-Path $env:RUNNER_TEMP 'aiwack-real-gguf-source/AIWACK-Stage54/dist/AIWACK.exe'
+          python validation/windows_packaged_company_queue_e2e.py $exe $env:AIWACK_FRESH_MODEL_STUB
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Fresh data set C - real GGUF two tasks plus 31 physical employee probes
+        shell: pwsh
+        env:
+          AIWACK_REAL_GGUF_QUEUE_EVIDENCE: ${{ runner.temp }}/aiwack-real-gguf-queue-evidence
+        run: |
+          $exe = Join-Path $env:RUNNER_TEMP 'aiwack-real-gguf-source/AIWACK-Stage54/dist/AIWACK.exe'
+          python validation/windows_packaged_real_gguf_queue_e2e.py $exe $env:AIWACK_REAL_LLAMA_CLI $env:AIWACK_REAL_GGUF_FILE
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Fresh data set D - 60 minute REAL Windows EXE single worker soak and restart
+        shell: pwsh
+        env:
+          AIWACK_LONG_SOAK_EVIDENCE: ${{ runner.temp }}/fresh-actual-one-worker-soak
+        run: |
+          $exe = Join-Path $env:RUNNER_TEMP 'aiwack-real-gguf-source/AIWACK-Stage54/dist/AIWACK.exe'
+          python validation/windows_one_worker_real_gguf_soak_e2e.py $exe $env:AIWACK_REAL_LLAMA_CLI $env:AIWACK_REAL_GGUF_FILE
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Save real EXE screen captures and errors
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: fresh-acceptance-real-gguf-${{ matrix.os }}
+          path: ${{ runner.temp }}/aiwack-real-gguf-queue-evidence/
+          if-no-files-found: warn
+          retention-days: 30
+      - name: Save fresh install model-stub GUI artifacts and errors
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: fresh-acceptance-synthetic-company-${{ matrix.os }}
+          path: |
+            ${{ runner.temp }}/fresh-actual-company-full/
+            ${{ runner.temp }}/fresh-actual-company-queue/
+          if-no-files-found: warn
+          retention-days: 30
+      - name: Save 60min real-GGUF Windows GUI evidence and errors
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: fresh-acceptance-one-worker-60min-${{ matrix.os }}
+          path: ${{ runner.temp }}/fresh-actual-one-worker-soak/
+          if-no-files-found: warn
+          retention-days: 30
