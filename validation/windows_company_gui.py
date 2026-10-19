@@ -122,12 +122,25 @@ def exercise(exe):
         gui.click(w,175,480)
         gui.wait_dashboard(w)
         fields=go_company(w)
-        gui.click(w,220,fields[0])
-        pyperclip.copy("sentinel")
-        pyautogui.hotkey("ctrl","a")
-        pyautogui.hotkey("ctrl","c")
-        time.sleep(.5)
-        shown=pyperclip.paste()
+        # An actual 2022 failure screenshot showed GitHub's host terminal
+        # becoming foreground after the GUI had displayed the saved company.
+        # Read the Tk field using physical focus+clipboard and independently
+        # verify that the focused Win32 HWND remains AIWACK; never fake data.
+        shown=""
+        for attempt in range(3):
+            gui.click(w,220,fields[0])
+            gui.ensure_foreground(w)
+            pyperclip.copy("sentinel")
+            pyautogui.hotkey("ctrl","a")
+            pyautogui.hotkey("ctrl","c")
+            time.sleep(.4)
+            foreground=gui.pygetwindow.getActiveWindow()
+            if foreground is not None and foreground._hWnd == w._hWnd:
+                shown=pyperclip.paste()
+                if shown==COMPANY:
+                    break
+            snapshot("company-visible-clipboard-retry-"+str(attempt+1))
+            time.sleep(.5)
         assert shown==COMPANY,"Company GUI field did not restore saved value: "+repr(shown)
         with sqlite3.connect(db) as con:
             assert con.execute("SELECT title,detail FROM company_goals").fetchall()==[(GOAL,DETAIL)]
