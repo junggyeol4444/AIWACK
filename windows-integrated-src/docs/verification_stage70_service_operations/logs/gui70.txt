@@ -1,0 +1,1 @@
+PASS Stage70 GUI: cancel/create/owner claims/retire/logout; no network or deployment

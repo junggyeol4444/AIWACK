@@ -1,0 +1,7 @@
+PYTHONPATH=. pytest -q --disable-warnings
+PYTHONPATH=. pytest -q tests/test_stage56_code_authoring.py
+xvfb-run -a python -m scripts.stage56_code_authoring_gui_smoke
+python scripts/next_step.py
+python -m compileall -q desktop scripts
+python -m desktop.entry --self-test
+python -m scripts.verify_offline_runtime  # socket/DNS guard, Xvfb when available

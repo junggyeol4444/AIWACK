@@ -1,0 +1,8 @@
+Offline checks 70:76 of 76
+PASS offline sockets blocked: /usr/bin/xvfb-run -a /opt/pyvenv/bin/python -m scripts.stage66_business_projects_gui_smoke
+PASS offline sockets blocked: /usr/bin/xvfb-run -a /opt/pyvenv/bin/python -m scripts.stage67_product_catalog_gui_smoke
+PASS offline sockets blocked: /usr/bin/xvfb-run -a /opt/pyvenv/bin/python -m scripts.stage68_product_production_gui_smoke
+PASS offline sockets blocked: /usr/bin/xvfb-run -a /opt/pyvenv/bin/python -m scripts.stage69_release_review_gui_smoke
+PASS offline sockets blocked: /usr/bin/xvfb-run -a /opt/pyvenv/bin/python -m scripts.stage70_service_operations_gui_smoke
+PASS offline sockets blocked: /usr/bin/xvfb-run -a /opt/pyvenv/bin/python -m scripts.stage71_sales_channel_gui_smoke
+PASS: desktop tests completed without a network connection

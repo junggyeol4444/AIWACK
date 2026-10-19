@@ -1,0 +1,13 @@
+{
+  "group": 15,
+  "files": [
+    "test_performance_reviews.py",
+    "test_project_chat.py",
+    "test_project_structure.py",
+    "test_queue_recovery.py",
+    "test_recurring_scheduler.py"
+  ],
+  "exit": 0,
+  "seconds": 7.19,
+  "last": ".............................................................            [100%]\n61 passed in 5.46s\n"
+}

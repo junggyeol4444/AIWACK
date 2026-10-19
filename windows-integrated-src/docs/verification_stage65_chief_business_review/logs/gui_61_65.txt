@@ -1,0 +1,6 @@
+Stage61 GUI PASS
+Stage62 GUI PASS
+Stage63 GUI PASS
+Stage64 GUI PASS
+Stage65 GUI PASS
+Linux Xvfb; not Windows. Stage65 socket/DNS blocked.

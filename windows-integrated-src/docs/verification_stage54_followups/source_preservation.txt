@@ -1,0 +1,5 @@
+ORIGINAL ZIP: AIWACK_Stage54_Offline_Evidence_Drift_Continuation_Source.zip
+Original members preserved: 345/345
+Intentionally changed existing files: desktop/app.py, desktop/storage.py, docs/WORK_LOG.md, docs/progress.json, docs/roadmap_100.md, scripts/verify_offline_runtime.py
+Original project specification, traceability, roadmap CSV and SQLite database: byte-identical
+No GitHub, external server or cloud AI API accessed.

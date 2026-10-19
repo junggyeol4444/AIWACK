@@ -1,0 +1,13 @@
+{
+  "group": 6,
+  "files": [
+    "test_managed_documents.py",
+    "test_meeting_decisions.py",
+    "test_meeting_opinions.py",
+    "test_meetings.py",
+    "test_offline_research.py"
+  ],
+  "exit": 0,
+  "seconds": 14.12,
+  "last": "........................................................................ [ 56%]\n........................................................                 [100%]\n128 passed in 12.42s\n"
+}

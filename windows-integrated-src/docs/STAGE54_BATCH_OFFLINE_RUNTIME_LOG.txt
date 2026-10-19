@@ -1,0 +1,25 @@
+PASS offline sockets blocked: /opt/pyvenv/bin/python -m desktop.entry --self-test
+PASS offline sockets blocked: /usr/bin/xvfb-run -a /opt/pyvenv/bin/python -m scripts.desktop_gui_smoke
+PASS offline sockets blocked: /usr/bin/xvfb-run -a /opt/pyvenv/bin/python -m scripts.stage29_gui_smoke
+PASS offline sockets blocked: /usr/bin/xvfb-run -a /opt/pyvenv/bin/python -m scripts.stage30_gui_smoke
+PASS offline sockets blocked: /usr/bin/xvfb-run -a /opt/pyvenv/bin/python -m scripts.stage31_gui_smoke
+PASS offline sockets blocked: /usr/bin/xvfb-run -a /opt/pyvenv/bin/python -m scripts.stage32_gui_smoke
+PASS offline sockets blocked: /usr/bin/xvfb-run -a /opt/pyvenv/bin/python -m scripts.stage33_gui_smoke
+PASS offline sockets blocked: /usr/bin/xvfb-run -a /opt/pyvenv/bin/python -m scripts.stage34_gui_smoke
+PASS offline sockets blocked: /usr/bin/xvfb-run -a /opt/pyvenv/bin/python -m scripts.stage35_gui_smoke
+PASS offline sockets blocked: /usr/bin/xvfb-run -a /opt/pyvenv/bin/python -m scripts.stage42_gui_smoke
+PASS offline sockets blocked: /usr/bin/xvfb-run -a /opt/pyvenv/bin/python -m scripts.stage43_gui_smoke
+PASS offline sockets blocked: /usr/bin/xvfb-run -a /opt/pyvenv/bin/python -m scripts.stage44_offline_gui_smoke
+PASS offline sockets blocked: /usr/bin/xvfb-run -a /opt/pyvenv/bin/python -m scripts.stage45_offline_gui_smoke
+PASS offline sockets blocked: /usr/bin/xvfb-run -a /opt/pyvenv/bin/python -m scripts.stage46_offline_gui_smoke
+PASS offline sockets blocked: /usr/bin/xvfb-run -a /opt/pyvenv/bin/python -m scripts.stage47_offline_gui_smoke
+PASS offline sockets blocked: /usr/bin/xvfb-run -a /opt/pyvenv/bin/python -m scripts.stage48_offline_gui_smoke
+PASS offline sockets blocked: /usr/bin/xvfb-run -a /opt/pyvenv/bin/python -m scripts.stage49_offline_gui_smoke
+PASS offline sockets blocked: /usr/bin/xvfb-run -a /opt/pyvenv/bin/python -m scripts.stage50_offline_gui_smoke
+PASS offline sockets blocked: /usr/bin/xvfb-run -a /opt/pyvenv/bin/python -m scripts.stage51_offline_gui_smoke
+PASS offline sockets blocked: /usr/bin/xvfb-run -a /opt/pyvenv/bin/python -m scripts.stage52_offline_gui_smoke
+PASS offline sockets blocked: /usr/bin/xvfb-run -a /opt/pyvenv/bin/python -m scripts.stage53_offline_gui_smoke
+PASS offline sockets blocked: /usr/bin/xvfb-run -a /opt/pyvenv/bin/python -m scripts.stage54_offline_gui_smoke
+PASS offline sockets blocked: /usr/bin/xvfb-run -a /opt/pyvenv/bin/python -m scripts.stage54_local_import_gui_smoke
+PASS offline sockets blocked: /usr/bin/xvfb-run -a /opt/pyvenv/bin/python -m scripts.stage54_bundle_gui_smoke
+PASS: desktop tests completed without a network connection

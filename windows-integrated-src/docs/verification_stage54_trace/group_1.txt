@@ -1,0 +1,11 @@
+tests/test_admin_sections.py
+tests/test_chief_task_handoff.py
+tests/test_database.py
+tests/test_direct_messages.py
+tests/test_employee_schema.py
+tests/test_meeting_decisions.py
+tests/test_offline_research_bundles.py
+tests/test_project_chat.py
+tests/test_task_artifacts.py
+tests/test_task_parallel.py
+tests/test_tool_approvals.py

@@ -1,0 +1,8 @@
+tests/test_chief_company_status.py
+tests/test_departments.py
+tests/test_employee_schema.py
+tests/test_meetings.py
+tests/test_offline_research_followups.py
+tests/test_project_structure.py
+tests/test_task_feasibility.py
+tests/test_work_plans.py

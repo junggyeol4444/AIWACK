@@ -1,0 +1,13 @@
+{
+  "group": 4,
+  "files": [
+    "test_direct_messages.py",
+    "test_employee_access.py",
+    "test_employee_management.py",
+    "test_employee_memory.py",
+    "test_employee_models.py"
+  ],
+  "exit": 0,
+  "seconds": 11.45,
+  "last": ".....................................................................    [100%]\n69 passed in 9.78s\n"
+}

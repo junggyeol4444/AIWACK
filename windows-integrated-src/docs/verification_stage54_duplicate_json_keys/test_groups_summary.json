@@ -1,0 +1,84 @@
+{
+  "groups": [
+    {
+      "group": 1,
+      "exit": 0,
+      "passed": 60,
+      "last_line": "60 passed in 13.12s"
+    },
+    {
+      "group": 2,
+      "exit": 0,
+      "passed": 91,
+      "last_line": "91 passed in 10.25s"
+    },
+    {
+      "group": 3,
+      "exit": 0,
+      "passed": 113,
+      "last_line": "113 passed in 17.71s"
+    },
+    {
+      "group": 4,
+      "exit": 0,
+      "passed": 143,
+      "last_line": "143 passed in 15.79s"
+    },
+    {
+      "group": 5,
+      "exit": 0,
+      "passed": 105,
+      "last_line": "105 passed in 9.09s"
+    },
+    {
+      "group": 6,
+      "exit": 0,
+      "passed": 107,
+      "last_line": "107 passed in 7.81s"
+    },
+    {
+      "group": 7,
+      "exit": 0,
+      "passed": 118,
+      "last_line": "118 passed in 10.49s"
+    },
+    {
+      "group": 8,
+      "exit": 0,
+      "passed": 112,
+      "last_line": "112 passed in 8.97s"
+    },
+    {
+      "group": 9,
+      "exit": 0,
+      "passed": 96,
+      "last_line": "96 passed in 6.17s"
+    },
+    {
+      "group": 10,
+      "exit": 0,
+      "passed": 136,
+      "last_line": "136 passed in 7.64s"
+    },
+    {
+      "group": 11,
+      "exit": 0,
+      "passed": 72,
+      "last_line": "72 passed in 6.48s"
+    },
+    {
+      "group": 12,
+      "exit": 0,
+      "passed": 86,
+      "last_line": "86 passed in 11.37s"
+    },
+    {
+      "group": 13,
+      "exit": 0,
+      "passed": 103,
+      "last_line": "103 passed in 9.91s"
+    }
+  ],
+  "passed": 1342,
+  "all_groups_passed": true
+}

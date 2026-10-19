@@ -1,0 +1,69 @@
+{
+  "base_zip": "AIWACK_Stage56_Offline_Code_Authoring_Continuation_Source.zip",
+  "base_entries": 1082,
+  "unchanged_paths": 1075,
+  "changed_existing_paths": [
+    "AIWACK-Stage54/README.md",
+    "AIWACK-Stage54/scripts/verify_offline_runtime.py",
+    "AIWACK-Stage54/docs/roadmap_100.md",
+    "AIWACK-Stage54/docs/roadmap_100.csv",
+    "AIWACK-Stage54/docs/progress.json",
+    "AIWACK-Stage54/desktop/storage.py",
+    "AIWACK-Stage54/desktop/app.py"
+  ],
+  "missing_previous_paths": [],
+  "protected_original_spec_sha256": "652c0dce8a748a92a3ab3c2cb88fc82973ec68c6c3b560714fc3fe4159be14f7",
+  "protected_traceability_sha256": "fef43d2905b756732807446456f3d8acf01df030abab17e65d63967234e32afb",
+  "protected_sqlite_sha256": "fa8dac076da84212d79cfbee370593414b4ef0e75312b7f7a3106430a083d5c8",
+  "pytest": {
+    "total_passed_in_disjoint_groups": 1410,
+    "total_files": 92,
+    "groups": 19,
+    "counts": [
+      38,
+      55,
+      74,
+      69,
+      84,
+      128,
+      64,
+      77,
+      63,
+      109,
+      68,
+      72,
+      77,
+      103,
+      61,
+      79,
+      66,
+      73,
+      50
+    ],
+    "single_full_run": "TIMEOUT around 10-15%, not completed",
+    "stage57_plus_stage56": 57,
+    "post_dashboard_code_targeted": 73
+  },
+  "offline": {
+    "subprocess_commands_passed": 62,
+    "command_groups": 8,
+    "guard": "sitecustomize.py blocks Python socket/DNS APIs only, NOT an operating-system firewall"
+  },
+  "limitations": [
+    "arbitrary Python cannot execute",
+    "not OS sandbox",
+    "no Windows hardware/EXE",
+    "no actual GGUF inference",
+    "no external server"
+  ],
+  "progress": {
+    "completed": 54,
+    "blocked": [
+      54,
+      56,
+      57
+    ],
+    "next": 58,
+    "product_completeness_subjective_percent": "20-25"
+  }
+}

@@ -1,0 +1,11 @@
+tests/test_task_dependencies.py
+tests/test_task_execution.py
+tests/test_task_feasibility.py
+tests/test_task_parallel.py
+tests/test_task_priorities.py
+tests/test_task_queue.py
+tests/test_task_routing.py
+tests/test_tasks.py
+tests/test_tool_approvals.py
+tests/test_tool_registry.py
+tests/test_work_plans.py

@@ -1,0 +1,300 @@
+[
+  {
+    "group": 1,
+    "files": [
+      "tests/test_admin_sections.py",
+      "tests/test_api.py",
+      "tests/test_autonomous_task_proposals.py",
+      "tests/test_chief_chat.py"
+    ],
+    "returncode": 0,
+    "seconds": 25.95,
+    "summary": "29 passed in 18.96s"
+  },
+  {
+    "group": 2,
+    "files": [
+      "tests/test_chief_company_status.py",
+      "tests/test_chief_task_handoff.py",
+      "tests/test_company.py",
+      "tests/test_company_detection.py"
+    ],
+    "returncode": 0,
+    "seconds": 24.92,
+    "summary": "40 passed in 17.97s"
+  },
+  {
+    "group": 3,
+    "files": [
+      "tests/test_company_health_monitor.py",
+      "tests/test_company_knowledge.py",
+      "tests/test_database.py",
+      "tests/test_department_chat.py"
+    ],
+    "returncode": 0,
+    "seconds": 10.98,
+    "summary": "48 passed in 6.74s"
+  },
+  {
+    "group": 4,
+    "files": [
+      "tests/test_departments.py",
+      "tests/test_designations.py",
+      "tests/test_desktop.py",
+      "tests/test_direct_messages.py"
+    ],
+    "returncode": 0,
+    "seconds": 24.27,
+    "summary": "52 passed in 20.53s"
+  },
+  {
+    "group": 5,
+    "files": [
+      "tests/test_employee_access.py",
+      "tests/test_employee_management.py",
+      "tests/test_employee_memory.py",
+      "tests/test_employee_models.py"
+    ],
+    "returncode": 0,
+    "seconds": 27.38,
+    "summary": "67 passed in 22.57s"
+  },
+  {
+    "group": 6,
+    "files": [
+      "tests/test_employee_schema.py",
+      "tests/test_event_task_engine.py",
+      "tests/test_hierarchy.py",
+      "tests/test_knowledge_access.py"
+    ],
+    "returncode": 0,
+    "seconds": 13.79,
+    "summary": "67 passed in 10.39s"
+  },
+  {
+    "group": 7,
+    "files": [
+      "tests/test_local_models.py",
+      "tests/test_managed_documents.py",
+      "tests/test_meeting_decisions.py",
+      "tests/test_meeting_opinions.py"
+    ],
+    "returncode": 0,
+    "seconds": 26.07,
+    "summary": "104 passed in 22.44s"
+  },
+  {
+    "group": 8,
+    "files": [
+      "tests/test_meetings.py",
+      "tests/test_offline_research.py",
+      "tests/test_offline_research_active_targets.py",
+      "tests/test_offline_research_audit.py"
+    ],
+    "returncode": 0,
+    "seconds": 14.19,
+    "summary": "72 passed in 10.71s"
+  },
+  {
+    "group": 9,
+    "files": [
+      "tests/test_offline_research_bundle_context_guard.py",
+      "tests/test_offline_research_bundle_custody.py",
+      "tests/test_offline_research_bundle_html_links_preview.py",
+      "tests/test_offline_research_bundle_preview.py"
+    ],
+    "returncode": 0,
+    "seconds": 11.93,
+    "summary": "57 passed in 8.77s"
+  },
+  {
+    "group": 10,
+    "files": [
+      "tests/test_offline_research_bundle_provenance_preflight.py",
+      "tests/test_offline_research_bundle_receipts.py",
+      "tests/test_offline_research_bundle_source_hints.py",
+      "tests/test_offline_research_bundle_url_review.py"
+    ],
+    "returncode": 0,
+    "seconds": 10.84,
+    "summary": "53 passed in 7.61s"
+  },
+  {
+    "group": 11,
+    "files": [
+      "tests/test_offline_research_bundles.py",
+      "tests/test_offline_research_css_references.py",
+      "tests/test_offline_research_drift.py",
+      "tests/test_offline_research_duplicate_json_keys.py"
+    ],
+    "returncode": 0,
+    "seconds": 10.67,
+    "summary": "52 passed in 6.82s"
+  },
+  {
+    "group": 12,
+    "files": [
+      "tests/test_offline_research_evidence.py",
+      "tests/test_offline_research_exports.py",
+      "tests/test_offline_research_file_custody.py",
+      "tests/test_offline_research_followup_domains.py"
+    ],
+    "returncode": 0,
+    "seconds": 16.78,
+    "summary": "75 passed in 12.19s"
+  },
+  {
+    "group": 13,
+    "files": [
+      "tests/test_offline_research_followup_exports.py",
+      "tests/test_offline_research_followup_notes.py",
+      "tests/test_offline_research_followup_verification.py",
+      "tests/test_offline_research_followups.py"
+    ],
+    "returncode": 0,
+    "seconds": 16.71,
+    "summary": "72 passed in 13.04s"
+  },
+  {
+    "group": 14,
+    "files": [
+      "tests/test_offline_research_form_controls.py",
+      "tests/test_offline_research_imports.py",
+      "tests/test_offline_research_links.py",
+      "tests/test_offline_research_manifest_builder.py"
+    ],
+    "returncode": 0,
+    "seconds": 14.69,
+    "summary": "61 passed in 10.68s"
+  },
+  {
+    "group": 15,
+    "files": [
+      "tests/test_offline_research_manifest_stability.py",
+      "tests/test_offline_research_navigation_directives.py",
+      "tests/test_offline_research_pagination.py",
+      "tests/test_offline_research_passive_resources.py"
+    ],
+    "returncode": 0,
+    "seconds": 12.5,
+    "summary": "52 passed in 8.65s"
+  },
+  {
+    "group": 16,
+    "files": [
+      "tests/test_offline_research_preflight_exports.py",
+      "tests/test_offline_research_receipt_reverification.py",
+      "tests/test_offline_research_responsive_images.py",
+      "tests/test_offline_research_review_filters.py"
+    ],
+    "returncode": 0,
+    "seconds": 11.01,
+    "summary": "57 passed in 7.13s"
+  },
+  {
+    "group": 17,
+    "files": [
+      "tests/test_offline_research_source_overlap.py",
+      "tests/test_offline_research_trace.py",
+      "tests/test_offline_research_url_preflight.py",
+      "tests/test_offline_research_usage_hints.py"
+    ],
+    "returncode": 0,
+    "seconds": 13.61,
+    "summary": "80 passed in 9.77s"
+  },
+  {
+    "group": 18,
+    "files": [
+      "tests/test_offline_research_verification.py",
+      "tests/test_offline_research_windows_bundle_names.py",
+      "tests/test_performance_reviews.py",
+      "tests/test_project_chat.py"
+    ],
+    "returncode": 0,
+    "seconds": 17.06,
+    "summary": "94 passed in 13.22s"
+  },
+  {
+    "group": 19,
+    "files": [
+      "tests/test_project_structure.py",
+      "tests/test_queue_recovery.py",
+      "tests/test_recurring_scheduler.py",
+      "tests/test_stage40_integration.py"
+    ],
+    "returncode": 0,
+    "seconds": 4.35,
+    "summary": "11 passed in 1.30s"
+  },
+  {
+    "group": 20,
+    "files": [
+      "tests/test_stage55_offline_browser.py",
+      "tests/test_stage56_code_authoring.py",
+      "tests/test_stage57_restricted_code.py",
+      "tests/test_stage58_media_adapters.py"
+    ],
+    "returncode": 0,
+    "seconds": 8.24,
+    "summary": "87 passed in 4.70s"
+  },
+  {
+    "group": 21,
+    "files": [
+      "tests/test_stage59_offline_service_integrations.py",
+      "tests/test_stage60_tool_use_audit.py",
+      "tests/test_stage61_business_portfolio.py",
+      "tests/test_stage62_business_discovery.py"
+    ],
+    "returncode": 0,
+    "seconds": 18.06,
+    "summary": "89 passed in 14.30s"
+  },
+  {
+    "group": 22,
+    "files": [
+      "tests/test_stage63_market_evidence.py",
+      "tests/test_task_artifacts.py",
+      "tests/test_task_breakdown.py",
+      "tests/test_task_dependencies.py"
+    ],
+    "returncode": 0,
+    "seconds": 17.59,
+    "summary": "60 passed in 13.28s"
+  },
+  {
+    "group": 23,
+    "files": [
+      "tests/test_task_execution.py",
+      "tests/test_task_feasibility.py",
+      "tests/test_task_parallel.py",
+      "tests/test_task_priorities.py"
+    ],
+    "returncode": 1,
+    "seconds": 19.37,
+    "summary": "1 failed, 51 passed in 15.49s"
+  },
+  {
+    "group": 24,
+    "files": [
+      "tests/test_task_queue.py",
+      "tests/test_task_routing.py",
+      "tests/test_tasks.py",
+      "tests/test_tool_approvals.py"
+    ],
+    "returncode": 0,
+    "seconds": 15.74,
+    "summary": "56 passed in 11.34s"
+  },
+  {
+    "group": 25,
+    "files": [
+      "tests/test_tool_registry.py",
+      "tests/test_work_plans.py"
+    ],
+    "returncode": 0,
+    "seconds": 11.6,
+    "summary": "50 passed in 8.27s"
+  }
+]

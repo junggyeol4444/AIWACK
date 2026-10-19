@@ -1,0 +1,10 @@
+Stage64: owner-entered offline financial scenario arithmetic (PARTIAL/BLOCKED).
+Target: existing business or Stage62 candidate. No actual revenue/settlement.
+Deterministic integer-KRW scenarios, +/-25% units, break-even threshold.
+SQLite append-only event audit, owner-only Tkinter UI.
+Tests: Stage64 37 passed; Stage55-64 + project structure 237 passed.
+Single full pytest: attempted but TIMED OUT (~13% progress); NOT PASSED.
+Offline suite: 14 of 69 commands before timeout; separate last 4 (Stage61-64) PASSED with sockets/DNS blocked.
+Stage64 GUI: Linux Xvfb PASS, Windows NOT TESTED.
+Completed steps count 54/100; highest implemented stage 64; next stage 65.
+Unpacked preliminary ZIP: 42 pytest passed; Stage64 Tk Linux Xvfb PASS with sockets/DNS blocked.

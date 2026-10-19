@@ -1,0 +1,22 @@
+{
+  "baseline_archive": "AIWACK_Stage54_Offline_Windows_Bundle_Names_Continuation_Source.zip",
+  "original_count": 1011,
+  "preserved_count": 1011,
+  "unchanged_count": 1006,
+  "modified_original_paths": [
+    "AIWACK-Stage54/README.md",
+    "AIWACK-Stage54/desktop/research_bundle_manifest.py",
+    "AIWACK-Stage54/desktop/research_captures.py",
+    "AIWACK-Stage54/docs/progress.json",
+    "AIWACK-Stage54/scripts/verify_offline_runtime.py"
+  ],
+  "missing_paths": [],
+  "protected_paths": [
+    "AIWACK-Stage54/dev_company.sqlite3",
+    "AIWACK-Stage54/docs/original_project_spec.txt",
+    "AIWACK-Stage54/docs/requirements_traceability.md",
+    "AIWACK-Stage54/docs/roadmap_100.csv",
+    "AIWACK-Stage54/docs/roadmap_100.md"
+  ],
+  "protected_identical": true
+}

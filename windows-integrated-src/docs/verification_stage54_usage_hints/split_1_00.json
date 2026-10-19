@@ -1,0 +1,13 @@
+{
+  "files": [
+    "tests/test_api.py",
+    "tests/test_chief_company_status.py",
+    "tests/test_company_detection.py",
+    "tests/test_database.py",
+    "tests/test_designations.py"
+  ],
+  "status": "pass",
+  "passed": 53,
+  "seconds": 7.17,
+  "log": "split_1_00.log"
+}

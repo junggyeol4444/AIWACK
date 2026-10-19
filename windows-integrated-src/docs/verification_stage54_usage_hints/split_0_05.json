@@ -1,0 +1,11 @@
+{
+  "files": [
+    "tests/test_task_parallel.py",
+    "tests/test_task_routing.py",
+    "tests/test_tool_registry.py"
+  ],
+  "status": "pass",
+  "passed": 55,
+  "seconds": 7.41,
+  "log": "split_0_05.log"
+}

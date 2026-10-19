@@ -1,0 +1,16 @@
+Stage54 full pytest split verification (all 49 test_*.py files, no omissions):
+
+group1.log:
+169 passed in 28.72s
+
+group2a.log:
+134 passed in 16.32s
+
+group2b.log:
+196 passed in 19.53s
+
+group3.log:
+210 passed in 23.72s
+
+Total: 709 passed across four disjoint pytest invocations.
+Single pytest command: timed out; no claim of full single-run completion.

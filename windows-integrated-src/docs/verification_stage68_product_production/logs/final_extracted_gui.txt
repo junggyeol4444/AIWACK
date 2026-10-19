@@ -1,0 +1,1 @@
+PASS Stage68 GUI: owner/cancel/static artifact/hash/review/logout; sockets and DNS blocked

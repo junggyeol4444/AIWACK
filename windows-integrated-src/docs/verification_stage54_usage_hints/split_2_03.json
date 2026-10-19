@@ -1,0 +1,13 @@
+{
+  "files": [
+    "tests/test_offline_research_followup_verification.py",
+    "tests/test_offline_research_imports.py",
+    "tests/test_offline_research_navigation_directives.py",
+    "tests/test_offline_research_preflight_exports.py",
+    "tests/test_offline_research_source_overlap.py"
+  ],
+  "status": "pass",
+  "passed": 85,
+  "seconds": 8.27,
+  "log": "split_2_03.log"
+}

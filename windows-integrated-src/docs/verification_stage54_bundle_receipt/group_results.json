@@ -1,0 +1,283 @@
+[
+  {
+    "group": "group_01",
+    "files": [
+      "test_admin_sections.py",
+      "test_api.py",
+      "test_autonomous_task_proposals.py",
+      "test_chief_chat.py",
+      "test_chief_company_status.py"
+    ],
+    "returncode": 0,
+    "elapsed_seconds": 11.19,
+    "last_lines": [
+      "......................................                                   [100%]",
+      "38 passed in 9.00s"
+    ]
+  },
+  {
+    "group": "group_02",
+    "files": [
+      "test_chief_task_handoff.py",
+      "test_company.py",
+      "test_company_detection.py",
+      "test_company_health_monitor.py",
+      "test_company_knowledge.py"
+    ],
+    "returncode": 0,
+    "elapsed_seconds": 9.29,
+    "last_lines": [
+      ".......................................................                  [100%]",
+      "55 passed in 7.56s"
+    ]
+  },
+  {
+    "group": "group_03",
+    "files": [
+      "test_database.py",
+      "test_department_chat.py",
+      "test_departments.py",
+      "test_designations.py",
+      "test_desktop.py"
+    ],
+    "returncode": 0,
+    "elapsed_seconds": 14.01,
+    "last_lines": [
+      "........................................................................ [ 97%]",
+      "..                                                                       [100%]",
+      "74 passed in 11.91s"
+    ]
+  },
+  {
+    "group": "group_04",
+    "files": [
+      "test_direct_messages.py",
+      "test_employee_access.py",
+      "test_employee_management.py",
+      "test_employee_memory.py",
+      "test_employee_models.py"
+    ],
+    "returncode": 0,
+    "elapsed_seconds": 12.8,
+    "last_lines": [
+      ".....................................................................    [100%]",
+      "69 passed in 11.10s"
+    ]
+  },
+  {
+    "group": "group_05",
+    "files": [
+      "test_employee_schema.py",
+      "test_event_task_engine.py",
+      "test_hierarchy.py",
+      "test_knowledge_access.py",
+      "test_local_models.py"
+    ],
+    "returncode": 0,
+    "elapsed_seconds": 11.78,
+    "last_lines": [
+      "........................................................................ [ 85%]",
+      "............                                                             [100%]",
+      "84 passed in 10.05s"
+    ]
+  },
+  {
+    "group": "group_06",
+    "files": [
+      "test_managed_documents.py",
+      "test_meeting_decisions.py",
+      "test_meeting_opinions.py",
+      "test_meetings.py",
+      "test_offline_research.py"
+    ],
+    "returncode": 0,
+    "elapsed_seconds": 14.8,
+    "last_lines": [
+      "........................................................................ [ 56%]",
+      "........................................................                 [100%]",
+      "128 passed in 12.97s"
+    ]
+  },
+  {
+    "group": "group_07",
+    "files": [
+      "test_offline_research_active_targets.py",
+      "test_offline_research_audit.py",
+      "test_offline_research_bundle_context_guard.py",
+      "test_offline_research_bundle_custody.py",
+      "test_offline_research_bundle_html_links_preview.py"
+    ],
+    "returncode": 0,
+    "elapsed_seconds": 9.04,
+    "last_lines": [
+      "................................................................         [100%]",
+      "64 passed in 6.97s"
+    ]
+  },
+  {
+    "group": "group_08",
+    "files": [
+      "test_offline_research_bundle_preview.py",
+      "test_offline_research_bundle_provenance_preflight.py",
+      "test_offline_research_bundle_receipts.py",
+      "test_offline_research_bundle_source_hints.py",
+      "test_offline_research_bundle_url_review.py"
+    ],
+    "returncode": 0,
+    "elapsed_seconds": 9.18,
+    "last_lines": [
+      "........................................................................ [ 98%]",
+      ".                                                                        [100%]",
+      "73 passed in 7.25s"
+    ]
+  },
+  {
+    "group": "group_09",
+    "files": [
+      "test_offline_research_bundles.py",
+      "test_offline_research_css_references.py",
+      "test_offline_research_drift.py",
+      "test_offline_research_evidence.py",
+      "test_offline_research_exports.py"
+    ],
+    "returncode": 0,
+    "elapsed_seconds": 7.48,
+    "last_lines": [
+      "................................................................         [100%]",
+      "64 passed in 5.60s"
+    ]
+  },
+  {
+    "group": "group_10",
+    "files": [
+      "test_offline_research_file_custody.py",
+      "test_offline_research_followup_domains.py",
+      "test_offline_research_followup_exports.py",
+      "test_offline_research_followup_notes.py",
+      "test_offline_research_followup_verification.py"
+    ],
+    "returncode": 0,
+    "elapsed_seconds": 14.38,
+    "last_lines": [
+      "........................................................................ [ 64%]",
+      ".......................................                                  [100%]",
+      "111 passed in 12.44s"
+    ]
+  },
+  {
+    "group": "group_11",
+    "files": [
+      "test_offline_research_followups.py",
+      "test_offline_research_form_controls.py",
+      "test_offline_research_imports.py",
+      "test_offline_research_links.py",
+      "test_offline_research_manifest_builder.py"
+    ],
+    "returncode": 0,
+    "elapsed_seconds": 8.85,
+    "last_lines": [
+      "........................................................................ [ 96%]",
+      "...                                                                      [100%]",
+      "75 passed in 6.95s"
+    ]
+  },
+  {
+    "group": "group_12",
+    "files": [
+      "test_offline_research_navigation_directives.py",
+      "test_offline_research_pagination.py",
+      "test_offline_research_passive_resources.py",
+      "test_offline_research_preflight_exports.py",
+      "test_offline_research_responsive_images.py"
+    ],
+    "returncode": 0,
+    "elapsed_seconds": 8.44,
+    "last_lines": [
+      "........................................................................ [ 84%]",
+      ".............                                                            [100%]",
+      "85 passed in 6.48s"
+    ]
+  },
+  {
+    "group": "group_13",
+    "files": [
+      "test_offline_research_review_filters.py",
+      "test_offline_research_source_overlap.py",
+      "test_offline_research_trace.py",
+      "test_offline_research_url_preflight.py",
+      "test_offline_research_usage_hints.py"
+    ],
+    "returncode": 0,
+    "elapsed_seconds": 9.49,
+    "last_lines": [
+      "........................................................................ [ 77%]",
+      ".....................                                                    [100%]",
+      "93 passed in 7.48s"
+    ]
+  },
+  {
+    "group": "group_14",
+    "files": [
+      "test_offline_research_verification.py",
+      "test_performance_reviews.py",
+      "test_project_chat.py",
+      "test_project_structure.py",
+      "test_queue_recovery.py"
+    ],
+    "returncode": 0,
+    "elapsed_seconds": 9.72,
+    "last_lines": [
+      ".....................................................................    [100%]",
+      "69 passed in 7.82s"
+    ]
+  },
+  {
+    "group": "group_15",
+    "files": [
+      "test_recurring_scheduler.py",
+      "test_stage40_integration.py",
+      "test_task_artifacts.py",
+      "test_task_breakdown.py",
+      "test_task_dependencies.py"
+    ],
+    "returncode": 0,
+    "elapsed_seconds": 8.16,
+    "last_lines": [
+      ".............................................                            [100%]",
+      "45 passed in 6.39s"
+    ]
+  },
+  {
+    "group": "group_16",
+    "files": [
+      "test_task_execution.py",
+      "test_task_feasibility.py",
+      "test_task_parallel.py",
+      "test_task_priorities.py",
+      "test_task_queue.py"
+    ],
+    "returncode": 0,
+    "elapsed_seconds": 10.91,
+    "last_lines": [
+      ".......................................................                  [100%]",
+      "55 passed in 9.08s"
+    ]
+  },
+  {
+    "group": "group_17",
+    "files": [
+      "test_task_routing.py",
+      "test_tasks.py",
+      "test_tool_approvals.py",
+      "test_tool_registry.py",
+      "test_work_plans.py"
+    ],
+    "returncode": 0,
+    "elapsed_seconds": 13.71,
+    "last_lines": [
+      "........................................................................ [ 69%]",
+      "...............................                                          [100%]",
+      "103 passed in 11.76s"
+    ]
+  }
+]

@@ -1,0 +1,26 @@
+[
+  {
+    "files": [
+      "tests/test_offline_research_trace.py",
+      "tests/test_offline_research_verification.py",
+      "tests/test_project_structure.py",
+      "tests/test_stage40_integration.py",
+      "tests/test_task_dependencies.py"
+    ],
+    "status": "pass",
+    "passed": 38,
+    "seconds": 4.63,
+    "log": "split_0_04.log"
+  },
+  {
+    "files": [
+      "tests/test_task_parallel.py",
+      "tests/test_task_routing.py",
+      "tests/test_tool_registry.py"
+    ],
+    "status": "pass",
+    "passed": 55,
+    "seconds": 7.41,
+    "log": "split_0_05.log"
+  }
+]

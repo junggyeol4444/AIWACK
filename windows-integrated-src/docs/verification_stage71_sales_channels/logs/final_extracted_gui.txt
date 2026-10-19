@@ -1,0 +1,1 @@
+PASS Stage71 GUI: create/cancel/review/retire/logout, no network or connection

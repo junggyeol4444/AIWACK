@@ -1,0 +1,13 @@
+{
+  "group": 5,
+  "files": [
+    "test_employee_schema.py",
+    "test_event_task_engine.py",
+    "test_hierarchy.py",
+    "test_knowledge_access.py",
+    "test_local_models.py"
+  ],
+  "exit": 0,
+  "seconds": 11.3,
+  "last": "........................................................................ [ 85%]\n............                                                             [100%]\n84 passed in 9.66s\n"
+}

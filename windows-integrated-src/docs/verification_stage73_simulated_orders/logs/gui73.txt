@@ -1,0 +1,1 @@
+PASS Stage73 GUI: local simulation/cancel/review/close/logout, no network, no real commerce

@@ -1,0 +1,13 @@
+tests/test_designations.py
+tests/test_desktop.py
+tests/test_direct_messages.py
+tests/test_employee_access.py
+tests/test_employee_management.py
+tests/test_employee_memory.py
+tests/test_employee_models.py
+tests/test_employee_schema.py
+tests/test_event_task_engine.py
+tests/test_hierarchy.py
+tests/test_knowledge_access.py
+tests/test_local_models.py
+tests/test_managed_documents.py

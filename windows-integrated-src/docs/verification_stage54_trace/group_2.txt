@@ -1,0 +1,11 @@
+tests/test_api.py
+tests/test_company.py
+tests/test_department_chat.py
+tests/test_employee_access.py
+tests/test_event_task_engine.py
+tests/test_meeting_opinions.py
+tests/test_offline_research_imports.py
+tests/test_project_structure.py
+tests/test_task_breakdown.py
+tests/test_task_priorities.py
+tests/test_tool_registry.py

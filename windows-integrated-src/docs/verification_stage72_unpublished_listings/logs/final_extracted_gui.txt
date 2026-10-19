@@ -1,0 +1,1 @@
+PASS Stage72 GUI: create/cancel/revise/review/retire/logout, no network/publishing

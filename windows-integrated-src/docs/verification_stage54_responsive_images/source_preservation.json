@@ -1,0 +1,27 @@
+{
+  "baseline_zip": "AIWACK_Stage54_Offline_Passive_Resource_Preapproval_Continuation_Source.zip",
+  "baseline_file_count": 741,
+  "all_baseline_paths_preserved": true,
+  "unchanged_count": 736,
+  "changed_existing_files": [
+    "README.md",
+    "desktop/app.py",
+    "desktop/research_captures.py",
+    "docs/progress.json",
+    "scripts/verify_offline_runtime.py"
+  ],
+  "protected_sha256_match": {
+    "docs/original_project_spec.txt": true,
+    "docs/requirements_traceability.md": true,
+    "docs/roadmap_100.csv": true,
+    "docs/roadmap_100.md": true,
+    "dev_company.sqlite3": true
+  },
+  "new_feature": [
+    "desktop/research_captures.py",
+    "desktop/app.py",
+    "tests/test_offline_research_responsive_images.py",
+    "scripts/stage54_responsive_images_gui_smoke.py"
+  ],
+  "unverified": "User-provided original spec standalone attachment not available separately; ZIP original was read."
+}

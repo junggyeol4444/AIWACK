@@ -1,0 +1,81 @@
+First run initially: 21 passed / 2 failed (test message pattern and test symlink_to keyword typo). Test expectations fixed; 23 passed on rerun. Source code was not changed for these failures.
+
+.................FF....                                                  [100%]
+=================================== FAILURES ===================================
+______________________ test_external_file_tamper_blocked _______________________
+
+tmp_path = PosixPath('/tmp/pytest-of-root/pytest-41/test_external_file_tamper_bloc0')
+
+    def test_external_file_tamper_blocked(tmp_path):
+        store=_owner(tmp_path);item=store.save_code_draft('new.py','a=1\n',0)
+        (tmp_path/'code_drafts'/'new.py').write_text('b=2\n')
+        with pytest.raises(ValueError,match='일치하지|외부'):
+>           store.read_code_draft(item['id'])
+
+tests/test_stage56_code_authoring.py:59: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+desktop/storage.py:3484: in read_code_draft
+    return read_code(con, self.code_dir, artifact_id)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+con = <sqlite3.Connection object at 0x7f2f189174c0>
+folder = PosixPath('/tmp/pytest-of-root/pytest-41/test_external_file_tamper_bloc0/code_drafts')
+artifact_id = 1
+
+    def read_code(con: sqlite3.Connection, folder: Path, artifact_id: int) -> dict:
+        if type(artifact_id) is not int or artifact_id < 1:
+            raise ValueError('코드 항목 ID가 올바르지 않습니다.')
+        con.row_factory = sqlite3.Row
+        row = con.execute('SELECT * FROM local_code_artifacts WHERE id=?', (artifact_id,)).fetchone()
+        if row is None:
+            raise ValueError('코드 파일이 존재하지 않습니다.')
+        result = dict(row)
+        file_path = _workspace(folder) / result['filename']
+        try:
+            disk = _safe_disk_file(file_path)
+        except (OSError, PermissionError) as exc:
+            raise ValueError('코드 파일을 안전하게 읽을 수 없습니다.') from exc
+        if _digest(disk) != result['digest']:
+>           raise ValueError('코드 파일이 SQLite 버전 기록과 다릅니다. 재검토가 필요합니다.')
+E           ValueError: 코드 파일이 SQLite 버전 기록과 다릅니다. 재검토가 필요합니다.
+
+desktop/code_authoring.py:135: ValueError
+
+During handling of the above exception, another exception occurred:
+
+tmp_path = PosixPath('/tmp/pytest-of-root/pytest-41/test_external_file_tamper_bloc0')
+
+    def test_external_file_tamper_blocked(tmp_path):
+        store=_owner(tmp_path);item=store.save_code_draft('new.py','a=1\n',0)
+        (tmp_path/'code_drafts'/'new.py').write_text('b=2\n')
+>       with pytest.raises(ValueError,match='일치하지|외부'):
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       AssertionError: Regex pattern did not match.
+E         Expected regex: '일치하지|외부'
+E         Actual message: '코드 파일이 SQLite 버전 기록과 다릅니다. 재검토가 필요합니다.'
+
+tests/test_stage56_code_authoring.py:58: AssertionError
+___________________ test_symlink_workspace_and_file_refused ____________________
+
+tmp_path = PosixPath('/tmp/pytest-of-root/pytest-41/test_symlink_workspace_and_fil0')
+
+    def test_symlink_workspace_and_file_refused(tmp_path):
+        store=_owner(tmp_path)
+        external=tmp_path/'external.py';external.write_text('x=1\n')
+        folder=tmp_path/'code_drafts';folder.mkdir()
+        (folder/'unsafe.py').symlink_to(external)
+        with pytest.raises(ValueError):store.save_code_draft('unsafe.py','x=3\n',0)
+        assert external.read_text()=='x=1\n'
+        folder.rmdir() if not list(folder.iterdir()) else (folder/'unsafe.py').unlink()
+>       folder.rmdir();folder.symlink_to(tmp_path,is_directory=True)
+                       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       TypeError: Path.symlink_to() got an unexpected keyword argument 'is_directory'
+
+tests/test_stage56_code_authoring.py:72: TypeError
+=========================== short test summary info ============================
+FAILED tests/test_stage56_code_authoring.py::test_external_file_tamper_blocked - AssertionError: Regex pattern did not match.
+  Expected regex: '일치하지|외부'
+  Actual message: '코드 파일이 SQLite 버전 기록과 다릅니다. 재검토가 필요합니다.'
+FAILED tests/test_stage56_code_authoring.py::test_symlink_workspace_and_file_refused - TypeError: Path.symlink_to() got an unexpected keyword argument 'is_directory'
+2 failed, 21 passed in 0.80s

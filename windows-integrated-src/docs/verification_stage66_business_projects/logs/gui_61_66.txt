@@ -1,0 +1,12 @@
+== Stage61 ==
+PASS Stage61 GUI: custom type, business, cancel/confirm, logout denied
+== Stage62 ==
+PASS Stage62 GUI: generation, cancel/approve, review, audit, logout denied
+== Stage63 ==
+PASS Stage63 Tk: owner, cancel, link, review, audit, logout denial; no sockets/DNS
+== Stage64 ==
+PASS Stage64 Tk: owner, cancel, save, scenario, audit, logout denial; no sockets/DNS
+== Stage65 ==
+PASS Stage65 Tk: login, cancel, comparison, review-only, logout; no sockets/DNS
+== Stage66 ==
+PASS Stage66 Tk: owner login, cancel, two businesses, task link, state, logout; sockets/DNS blocked

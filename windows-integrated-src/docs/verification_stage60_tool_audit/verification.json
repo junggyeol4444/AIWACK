@@ -1,0 +1,16 @@
+{
+  "stage": 60,
+  "status": "PARTIAL_BLOCKED",
+  "next_step": 61,
+  "completed_steps_count": 54,
+  "regression_groups": 24,
+  "regression_files": 95,
+  "pytest_passed": 1467,
+  "pytest_skipped": 0,
+  "offline_commands_passed": 65,
+  "single_full_pytest": "TIMEOUT (not a pass)",
+  "first_regression_group19": "1 failed (roadmap CSV 60 TODO vs blocked progress); fixed CSV, rerun 11 passed",
+  "windows_real_device": "NOT_TESTED",
+  "external_services": "NOT_USED",
+  "local_GGUF": "NOT_TESTED"
+}

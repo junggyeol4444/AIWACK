@@ -1,0 +1,39 @@
+{
+  "full_pytest": {
+    "status": "passed",
+    "count": 1289,
+    "seconds": 132.42,
+    "execution": "single",
+    "network": "python_socket_dns_blocked"
+  },
+  "related_pytest": {
+    "passed": 34
+  },
+  "gui": {
+    "status": "passed",
+    "platform": "Linux Xvfb",
+    "network": "python_socket_dns_blocked"
+  },
+  "offline_runtime": {
+    "passed_commands": 55,
+    "finished": true
+  },
+  "reextract_related_pytest": {
+    "passed": 34
+  },
+  "reextract_gui": {
+    "status": "passed"
+  },
+  "windows_real_device": "not_tested",
+  "gguf_model": "not_tested",
+  "remote_collection": "not_implemented",
+  "roadmap": {
+    "completed": 53,
+    "total": 100,
+    "current": 54
+  },
+  "product_maturity_estimate_percent": [
+    20,
+    25
+  ]
+}

@@ -1,0 +1,8 @@
+# Work directory: extracted latest cumulative ZIP, root AIWACK-Stage54
+PYTHONPATH=. python -m pytest -q tests/test_offline_research_manifest_stability.py tests/test_offline_research_manifest_builder.py tests/test_offline_research_bundle_receipts.py tests/test_offline_research_receipt_reverification.py
+PYTHONPATH=. xvfb-run -a python scripts/stage54_manifest_stability_gui_smoke.py
+PYTHONPATH=. python -m pytest -q
+PYTHONPATH=. python scripts/verify_offline_runtime.py
+python -m compileall -q desktop backend scripts tests
+# Related recheck under temporary sitecustomize.py from scripts.verify_offline_runtime.BLOCKER:
+PYTHONPATH=<temporary_socket_guard>:. python -m pytest -q tests/test_offline_research_manifest_stability.py tests/test_offline_research_manifest_builder.py tests/test_offline_research_bundle_receipts.py tests/test_offline_research_receipt_reverification.py

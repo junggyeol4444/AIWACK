@@ -1,0 +1,15 @@
+{
+  "format": "aiwack-offline-research-bundle-v1",
+  "items": [
+    {
+      "file": "sample-page.html",
+      "url": "https://example.org/example",
+      "title": "예시로 저장한 HTML 페이지"
+    },
+    {
+      "file": "sample-notes.txt",
+      "url": "https://example.org/notes",
+      "title": "예시로 저장한 텍스트 메모"
+    }
+  ]
+}

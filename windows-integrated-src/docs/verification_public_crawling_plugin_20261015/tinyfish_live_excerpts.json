@@ -1,0 +1,15 @@
+{
+  "provider": "tinyfish",
+  "results": [
+    {
+      "url": "https://docs.python.org/3/library/urllib.request.html",
+      "title": "urllib.request — Extensible library for opening URLs",
+      "text": "Python urllib.request is an extensible URL-opening library. This is a short, attributed excerpt of a real plugin-retrieved documentation page. Full page content is not embedded."
+    },
+    {
+      "url": "https://docs.python.org/3/library/urllib.robotparser.html",
+      "title": "urllib.robotparser — Parser for robots.txt",
+      "text": "Python urllib.robotparser provides RobotFileParser for interpreting a site's robots.txt policy. This is a short, attributed excerpt of a real plugin-retrieved documentation page."
+    }
+  ]
+}

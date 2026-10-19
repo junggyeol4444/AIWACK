@@ -1,0 +1,49 @@
+{
+  "stage": 61,
+  "status": "PARTIAL_BLOCKED",
+  "next_step": 62,
+  "completed_steps_count": 54,
+  "highest_implemented_stage": 61,
+  "blocked_steps": [
+    54,
+    56,
+    57,
+    58,
+    59,
+    60,
+    61
+  ],
+  "regression_groups": 24,
+  "regression_test_files": 96,
+  "regression_initial_passed": 1496,
+  "regression_initial_failed_groups": [
+    23
+  ],
+  "regression_initial_failure": "group23: test_real_two_local_subprocesses_overlap 1.73s >= 1.5s; isolated rechecks 2.06s, 2.24s, 1.53s; Stage60 baseline same test 1.57s failed; threshold unchanged",
+  "single_full_pytest": "NOT_RUN (all files partitioned, not a single-run pass)",
+  "targeted_pytest": "35 passed (30 Stage61 + 5 project structure)",
+  "offline_commands_passed": 66,
+  "offline_sockets_blocked": true,
+  "gui": "PASS on Linux Xvfb (not Windows)",
+  "unpacked_archive_pytest": "35 passed (30 Stage61 + 5 project structure)",
+  "unpacked_archive_gui": "PASS on Linux Xvfb",
+  "original_file_count": 1246,
+  "original_files_missing": 0,
+  "original_files_byte_identical": 1239,
+  "original_files_modified": [
+    "AIWACK-Stage54/README.md",
+    "AIWACK-Stage54/desktop/app.py",
+    "AIWACK-Stage54/desktop/storage.py",
+    "AIWACK-Stage54/docs/progress.json",
+    "AIWACK-Stage54/docs/roadmap_100.csv",
+    "AIWACK-Stage54/docs/roadmap_100.md",
+    "AIWACK-Stage54/scripts/verify_offline_runtime.py"
+  ],
+  "original_spec_traceability_and_sqlite_unchanged": true,
+  "windows_real_device": "NOT_TESTED",
+  "external_services": "NOT_USED",
+  "local_GGUF": "NOT_TESTED",
+  "real_sales_and_transactions": "NOT_IMPLEMENTED",
+  "final_file_count": 1287,
+  "new_files_count": 41
+}

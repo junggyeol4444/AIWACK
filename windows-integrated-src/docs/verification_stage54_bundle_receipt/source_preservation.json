@@ -1,0 +1,40 @@
+{
+  "previous_zip": "AIWACK_Stage54_Offline_Inline_CSS_Preapproval_Continuation_Source.zip",
+  "old_entry_count": 918,
+  "unchanged_count": 911,
+  "changed_count": 7,
+  "missing_count": 0,
+  "changed_files": [
+    "AIWACK-Stage54/README.md",
+    "AIWACK-Stage54/desktop/app.py",
+    "AIWACK-Stage54/desktop/research_bundle_manifest.py",
+    "AIWACK-Stage54/desktop/storage.py",
+    "AIWACK-Stage54/docs/progress.json",
+    "AIWACK-Stage54/docs/roadmap_100.md",
+    "AIWACK-Stage54/scripts/verify_offline_runtime.py"
+  ],
+  "missing_files": [],
+  "preserved_paths": 918,
+  "protected": {
+    "docs/original_project_spec.txt": {
+      "sha256_before": "652c0dce8a748a92a3ab3c2cb88fc82973ec68c6c3b560714fc3fe4159be14f7",
+      "sha256_after": "652c0dce8a748a92a3ab3c2cb88fc82973ec68c6c3b560714fc3fe4159be14f7",
+      "identical": true
+    },
+    "docs/requirements_traceability.md": {
+      "sha256_before": "fef43d2905b756732807446456f3d8acf01df030abab17e65d63967234e32afb",
+      "sha256_after": "fef43d2905b756732807446456f3d8acf01df030abab17e65d63967234e32afb",
+      "identical": true
+    },
+    "docs/roadmap_100.csv": {
+      "sha256_before": "d03cd823e5ee70bcf194bdd3fdac068ea60a504193b572de9e32d16b253662f2",
+      "sha256_after": "d03cd823e5ee70bcf194bdd3fdac068ea60a504193b572de9e32d16b253662f2",
+      "identical": true
+    },
+    "dev_company.sqlite3": {
+      "sha256_before": "fa8dac076da84212d79cfbee370593414b4ef0e75312b7f7a3106430a083d5c8",
+      "sha256_after": "fa8dac076da84212d79cfbee370593414b4ef0e75312b7f7a3106430a083d5c8",
+      "identical": true
+    }
+  }
+}

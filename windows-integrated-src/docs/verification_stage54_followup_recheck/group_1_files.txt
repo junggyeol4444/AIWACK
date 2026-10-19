@@ -1,0 +1,10 @@
+tests/test_admin_sections.py
+tests/test_company_detection.py
+tests/test_desktop.py
+tests/test_event_task_engine.py
+tests/test_meetings.py
+tests/test_offline_research_followup_exports.py
+tests/test_offline_research_review_filters.py
+tests/test_recurring_scheduler.py
+tests/test_task_parallel.py
+tests/test_work_plans.py

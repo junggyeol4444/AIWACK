@@ -1,0 +1,10 @@
+group_1.log: 93 passed
+group_2.log: 165 passed
+group_3.log: 200 passed
+group_4.log: 156 passed
+group_5.log: 87 passed
+group_6.log: 123 passed
+group_7_models.log: 6 passed
+TOTAL: 830 passed (58 disjoint test files, 7 groups).
+Single uninterrupted pytest run not claimed.
+8 socket-blocked offline commands passed.

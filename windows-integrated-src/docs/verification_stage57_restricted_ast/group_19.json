@@ -1,0 +1,10 @@
+{
+  "group": 19,
+  "files": [
+    "test_tool_registry.py",
+    "test_work_plans.py"
+  ],
+  "exit": 0,
+  "seconds": 5.89,
+  "last": "..................................................                       [100%]\n50 passed in 4.30s\n"
+}

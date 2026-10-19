@@ -1,0 +1,1 @@
+NOT COMPLETED: one single-process pytest -q run was interrupted by execution timeout around 16% progress. No full-suite single-process success is claimed. Full test coverage was subsequently run as 13 nonoverlapping file groups (1342 passed, all exit 0).

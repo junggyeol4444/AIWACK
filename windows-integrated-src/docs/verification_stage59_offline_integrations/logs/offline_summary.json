@@ -1,0 +1,73 @@
+{
+  "commands": 64,
+  "batches": 8,
+  "failed_batches": [],
+  "results": [
+    {
+      "range": [
+        0,
+        8
+      ],
+      "returncode": 0,
+      "passed": 8
+    },
+    {
+      "range": [
+        8,
+        16
+      ],
+      "returncode": 0,
+      "passed": 8
+    },
+    {
+      "range": [
+        16,
+        24
+      ],
+      "returncode": 0,
+      "passed": 8
+    },
+    {
+      "range": [
+        24,
+        32
+      ],
+      "returncode": 0,
+      "passed": 8
+    },
+    {
+      "range": [
+        32,
+        40
+      ],
+      "returncode": 0,
+      "passed": 8
+    },
+    {
+      "range": [
+        40,
+        48
+      ],
+      "returncode": 0,
+      "passed": 8
+    },
+    {
+      "range": [
+        48,
+        56
+      ],
+      "returncode": 0,
+      "passed": 8
+    },
+    {
+      "range": [
+        56,
+        64
+      ],
+      "returncode": 0,
+      "passed": 8
+    }
+  ],
+  "python_socket_dns_blocked": true,
+  "linux_xvfb_gui": true
+}

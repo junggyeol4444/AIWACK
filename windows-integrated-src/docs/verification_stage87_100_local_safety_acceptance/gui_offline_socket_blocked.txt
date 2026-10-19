@@ -1,0 +1,8 @@
+===== stage78_80_gui_smoke.py =====
+PASS Stage78-80 Linux Xvfb GUI / owner gate / offline socket DNS blockers / logout; NO customer message or financial operation
+===== stage81_83_gui_smoke.py =====
+PASS Stage81-83 Xvfb GUI, local owner auth, no-network socket/DNS blockers, no actual tasks or revenue, logout gate
+===== stage84_86_gui_smoke.py =====
+PASS Stage84-86 Linux Xvfb no socket/DNS, staffing and model draft, snapshot and logout; no agent or model execution
+===== stage87_90_gui_smoke.py =====
+PASS Stage87-90 local owner GUI under blocked socket/DNS; no real external actions

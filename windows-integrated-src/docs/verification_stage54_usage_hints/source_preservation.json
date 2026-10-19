@@ -1,0 +1,148 @@
+{
+  "previous_zip": "AIWACK_Stage54_Offline_Responsive_Srcset_Continuation_Source.zip",
+  "old_total_files": 756,
+  "preserved_paths": 756,
+  "same_sha256": 750,
+  "modified_existing_paths": [
+    "AIWACK-Stage54/README.md",
+    "AIWACK-Stage54/desktop/app.py",
+    "AIWACK-Stage54/desktop/research_captures.py",
+    "AIWACK-Stage54/docs/progress.json",
+    "AIWACK-Stage54/docs/roadmap_100.md",
+    "AIWACK-Stage54/scripts/verify_offline_runtime.py"
+  ],
+  "missing_existing_paths": [],
+  "protected_sha256": {
+    "docs/original_project_spec.txt": "652c0dce8a748a92a3ab3c2cb88fc82973ec68c6c3b560714fc3fe4159be14f7",
+    "docs/requirements_traceability.md": "fef43d2905b756732807446456f3d8acf01df030abab17e65d63967234e32afb",
+    "docs/roadmap_100.csv": "d03cd823e5ee70bcf194bdd3fdac068ea60a504193b572de9e32d16b253662f2",
+    "dev_company.sqlite3": "fa8dac076da84212d79cfbee370593414b4ef0e75312b7f7a3106430a083d5c8"
+  },
+  "pytest": {
+    "mode": "18 nonoverlapping groups; full single run timed out",
+    "groups": [
+      {
+        "part": 0,
+        "group": 0,
+        "passed": 49,
+        "log": "split_0_00.log"
+      },
+      {
+        "part": 0,
+        "group": 1,
+        "passed": 75,
+        "log": "split_0_01.log"
+      },
+      {
+        "part": 0,
+        "group": 2,
+        "passed": 69,
+        "log": "split_0_02.log"
+      },
+      {
+        "part": 0,
+        "group": 3,
+        "passed": 85,
+        "log": "split_0_03.log"
+      },
+      {
+        "part": 0,
+        "group": 4,
+        "passed": 38,
+        "log": "split_0_04.log"
+      },
+      {
+        "part": 0,
+        "group": 5,
+        "passed": 55,
+        "log": "split_0_05.log"
+      },
+      {
+        "part": 1,
+        "group": 0,
+        "passed": 53,
+        "log": "split_1_00.log"
+      },
+      {
+        "part": 1,
+        "group": 1,
+        "passed": 73,
+        "log": "split_1_01.log"
+      },
+      {
+        "part": 1,
+        "group": 2,
+        "passed": 78,
+        "log": "split_1_02.log"
+      },
+      {
+        "part": 1,
+        "group": 3,
+        "passed": 81,
+        "log": "split_1_03.log"
+      },
+      {
+        "part": 1,
+        "group": 4,
+        "passed": 95,
+        "log": "split_1_04.log"
+      },
+      {
+        "part": 1,
+        "group": 5,
+        "passed": 60,
+        "log": "split_1_05.log"
+      },
+      {
+        "part": 2,
+        "group": 0,
+        "passed": 65,
+        "log": "split_2_00.log"
+      },
+      {
+        "part": 2,
+        "group": 1,
+        "passed": 133,
+        "log": "split_2_01.log"
+      },
+      {
+        "part": 2,
+        "group": 2,
+        "passed": 85,
+        "log": "split_2_02.log"
+      },
+      {
+        "part": 2,
+        "group": 3,
+        "passed": 85,
+        "log": "split_2_03.log"
+      },
+      {
+        "part": 2,
+        "group": 4,
+        "passed": 67,
+        "log": "split_2_04.log"
+      },
+      {
+        "part": 2,
+        "group": 5,
+        "passed": 17,
+        "log": "split_2_05.log"
+      }
+    ],
+    "tests_passed": 1263,
+    "files": 83,
+    "failed": 0
+  },
+  "offline": {
+    "commands": 53,
+    "passed": 53,
+    "method": "Python sitecustomize socket/DNS block, Linux Xvfb for GUI; not OS-wide firewall"
+  },
+  "limit": {
+    "windows_machine": false,
+    "windows_exe": false,
+    "gguf_inference": false,
+    "internet_research": false
+  }
+}

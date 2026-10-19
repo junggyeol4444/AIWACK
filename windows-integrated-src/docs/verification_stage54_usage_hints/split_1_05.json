@@ -1,0 +1,11 @@
+{
+  "files": [
+    "tests/test_task_priorities.py",
+    "tests/test_tasks.py",
+    "tests/test_work_plans.py"
+  ],
+  "status": "pass",
+  "passed": 60,
+  "seconds": 6.37,
+  "log": "split_1_05.log"
+}

@@ -1,0 +1,28 @@
+source_files 1443 changed 7 added 16 total 1459 removed 0
+changed_files:
+AIWACK-Stage54/README.md
+AIWACK-Stage54/desktop/app.py
+AIWACK-Stage54/desktop/storage.py
+AIWACK-Stage54/docs/progress.json
+AIWACK-Stage54/docs/roadmap_100.csv
+AIWACK-Stage54/docs/roadmap_100.md
+AIWACK-Stage54/scripts/verify_offline_runtime.py
+added_files:
+AIWACK-Stage54/desktop/service_operations_plan.py
+AIWACK-Stage54/docs/verification_stage70_service_operations/README.md
+AIWACK-Stage54/docs/verification_stage70_service_operations/USER_ACTIONS_PENDING.md
+AIWACK-Stage54/docs/verification_stage70_service_operations/logs/draft_zip.txt
+AIWACK-Stage54/docs/verification_stage70_service_operations/logs/gui70.txt
+AIWACK-Stage54/docs/verification_stage70_service_operations/logs/new_tests.txt
+AIWACK-Stage54/docs/verification_stage70_service_operations/logs/offline_self_test.txt
+AIWACK-Stage54/docs/verification_stage70_service_operations/logs/offline_tail.txt
+AIWACK-Stage54/docs/verification_stage70_service_operations/logs/regression55_60.txt
+AIWACK-Stage54/docs/verification_stage70_service_operations/logs/regression61_65.txt
+AIWACK-Stage54/docs/verification_stage70_service_operations/logs/regression61_70.txt
+AIWACK-Stage54/docs/verification_stage70_service_operations/logs/regression66_70.txt
+AIWACK-Stage54/docs/verification_stage70_service_operations/logs/stage70_only.txt
+AIWACK-Stage54/docs/verification_stage70_service_operations/logs/test_scope.txt
+AIWACK-Stage54/scripts/stage70_service_operations_gui_smoke.py
+AIWACK-Stage54/tests/test_stage70_service_operations.py
+zip /mnt/data/AIWACK_Stage70_Offline_Service_Operations_DRAFT.zip bytes 1522441 sha256 59411cd4f1be440ae6b5dd3bfcec92e03815e85a4621370447566eecfc8f6541
+CRC and entry byte SHA256: PASS

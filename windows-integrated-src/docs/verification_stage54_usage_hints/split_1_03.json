@@ -1,0 +1,13 @@
+{
+  "files": [
+    "tests/test_offline_research_followup_notes.py",
+    "tests/test_offline_research_form_controls.py",
+    "tests/test_offline_research_manifest_builder.py",
+    "tests/test_offline_research_passive_resources.py",
+    "tests/test_offline_research_review_filters.py"
+  ],
+  "status": "pass",
+  "passed": 81,
+  "seconds": 7.01,
+  "log": "split_1_03.log"
+}

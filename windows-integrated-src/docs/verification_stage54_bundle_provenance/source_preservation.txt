@@ -1,0 +1,31 @@
+ORIGINAL ZIP: AIWACK_Stage54_Offline_Manifest_Builder_Continuation_Source.zip
+Original regular file count: 590
+Original ZIP CRC: PASS
+Original files missing: 0
+Original files changed intentionally: 6
+Original files unchanged bytes: 584
+Changed original entries:
+AIWACK-Stage54/README.md
+AIWACK-Stage54/desktop/app.py
+AIWACK-Stage54/desktop/research_captures.py
+AIWACK-Stage54/docs/progress.json
+AIWACK-Stage54/docs/roadmap_100.md
+AIWACK-Stage54/scripts/verify_offline_runtime.py
+Missing original entries:
+
+docs/original_project_spec.txt
+ORIGINAL_SHA256 652c0dce8a748a92a3ab3c2cb88fc82973ec68c6c3b560714fc3fe4159be14f7
+CURRENT_SHA256  652c0dce8a748a92a3ab3c2cb88fc82973ec68c6c3b560714fc3fe4159be14f7
+BYTE_EQUAL True
+docs/requirements_traceability.md
+ORIGINAL_SHA256 fef43d2905b756732807446456f3d8acf01df030abab17e65d63967234e32afb
+CURRENT_SHA256  fef43d2905b756732807446456f3d8acf01df030abab17e65d63967234e32afb
+BYTE_EQUAL True
+docs/roadmap_100.csv
+ORIGINAL_SHA256 d03cd823e5ee70bcf194bdd3fdac068ea60a504193b572de9e32d16b253662f2
+CURRENT_SHA256  d03cd823e5ee70bcf194bdd3fdac068ea60a504193b572de9e32d16b253662f2
+BYTE_EQUAL True
+dev_company.sqlite3
+ORIGINAL_SHA256 fa8dac076da84212d79cfbee370593414b4ef0e75312b7f7a3106430a083d5c8
+CURRENT_SHA256  fa8dac076da84212d79cfbee370593414b4ef0e75312b7f7a3106430a083d5c8
+BYTE_EQUAL True

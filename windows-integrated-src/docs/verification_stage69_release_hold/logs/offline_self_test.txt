@@ -1,0 +1,3 @@
+Offline checks 0:1 of 74
+PASS offline sockets blocked: /opt/pyvenv/bin/python -m desktop.entry --self-test
+PASS: desktop tests completed without a network connection

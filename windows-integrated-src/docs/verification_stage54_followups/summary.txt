@@ -1,0 +1,9 @@
+pytest_group_1.log: 93 passed in 17.19s
+pytest_group_2.log: 143 passed in 21.68s
+pytest_group_3.log: 211 passed in 19.83s
+pytest_group_4.log: 152 passed in 13.90s
+pytest_group_5.log: 96 passed in 10.57s
+pytest_group_6.log: 132 passed in 14.58s
+pytest_group_7_models.log: 17 passed in 3.14s
+TOTAL: 844 passed in 7 non-overlapping groups.
+Single full pytest not claimed.

@@ -1,0 +1,9 @@
+tests/test_chief_task_handoff.py
+tests/test_department_chat.py
+tests/test_employee_management.py
+tests/test_managed_documents.py
+tests/test_offline_research_bundles.py
+tests/test_offline_research_imports.py
+tests/test_project_structure.py
+tests/test_task_dependencies.py
+tests/test_task_routing.py

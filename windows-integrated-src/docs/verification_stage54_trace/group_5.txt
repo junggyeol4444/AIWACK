@@ -1,0 +1,10 @@
+tests/test_chief_company_status.py
+tests/test_company_knowledge.py
+tests/test_desktop.py
+tests/test_employee_models.py
+tests/test_managed_documents.py
+tests/test_offline_research_audit.py
+tests/test_performance_reviews.py
+tests/test_stage40_integration.py
+tests/test_task_feasibility.py
+tests/test_tasks.py

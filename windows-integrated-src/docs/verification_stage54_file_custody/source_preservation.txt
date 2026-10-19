@@ -1,0 +1,16 @@
+Original ZIP: AIWACK_Stage54_Offline_Source_Overlap_Continuation_Source.zip
+Original entries: 550
+Kept: 550
+Unchanged: 544
+Modified: 6
+README.md
+desktop/app.py
+desktop/storage.py
+docs/progress.json
+docs/roadmap_100.md
+scripts/verify_offline_runtime.py
+
+IDENTICAL docs/original_project_spec.txt SHA256=652c0dce8a748a92a3ab3c2cb88fc82973ec68c6c3b560714fc3fe4159be14f7
+IDENTICAL docs/requirements_traceability.md SHA256=fef43d2905b756732807446456f3d8acf01df030abab17e65d63967234e32afb
+IDENTICAL docs/roadmap_100.csv SHA256=d03cd823e5ee70bcf194bdd3fdac068ea60a504193b572de9e32d16b253662f2
+IDENTICAL dev_company.sqlite3 SHA256=fa8dac076da84212d79cfbee370593414b4ef0e75312b7f7a3106430a083d5c8

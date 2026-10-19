@@ -1,0 +1,32 @@
+Base ZIP: /mnt/data/AIWACK_Stage67_Offline_Product_Catalog_Continuation_Source.zip
+Old files: 1412
+Preserved old files: 1412
+Byte-identical: 1406
+Modified: 6
+Missing: 0
+New files: 16
+Modified names:
+AIWACK-Stage54/desktop/app.py
+AIWACK-Stage54/desktop/storage.py
+AIWACK-Stage54/docs/progress.json
+AIWACK-Stage54/docs/roadmap_100.csv
+AIWACK-Stage54/docs/roadmap_100.md
+AIWACK-Stage54/scripts/verify_offline_runtime.py
+New names:
+AIWACK-Stage54/desktop/product_production.py
+AIWACK-Stage54/docs/verification_stage68_product_production/README.md
+AIWACK-Stage54/docs/verification_stage68_product_production/USER_ACTIONS_PENDING.md
+AIWACK-Stage54/docs/verification_stage68_product_production/logs/final_extracted_gui.txt
+AIWACK-Stage54/docs/verification_stage68_product_production/logs/final_extracted_pytest.txt
+AIWACK-Stage54/docs/verification_stage68_product_production/logs/gui68.txt
+AIWACK-Stage54/docs/verification_stage68_product_production/logs/new_tests.txt
+AIWACK-Stage54/docs/verification_stage68_product_production/logs/offline_self_test.txt
+AIWACK-Stage54/docs/verification_stage68_product_production/logs/offline_tail.txt
+AIWACK-Stage54/docs/verification_stage68_product_production/logs/preservation_and_zip.txt
+AIWACK-Stage54/docs/verification_stage68_product_production/logs/regression55_60.txt
+AIWACK-Stage54/docs/verification_stage68_product_production/logs/regression61_68.txt
+AIWACK-Stage54/docs/verification_stage68_product_production/logs/selected_regression_pytest.txt
+AIWACK-Stage54/docs/verification_stage68_product_production/logs/targeted_pytest.txt
+AIWACK-Stage54/scripts/stage68_product_production_gui_smoke.py
+AIWACK-Stage54/tests/test_stage68_product_production.py
+Original spec, traceability and existing SQLite data: byte-identical.

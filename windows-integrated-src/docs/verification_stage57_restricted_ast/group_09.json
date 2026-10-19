@@ -1,0 +1,13 @@
+{
+  "group": 9,
+  "files": [
+    "test_offline_research_bundles.py",
+    "test_offline_research_css_references.py",
+    "test_offline_research_drift.py",
+    "test_offline_research_duplicate_json_keys.py",
+    "test_offline_research_evidence.py"
+  ],
+  "exit": 0,
+  "seconds": 6.29,
+  "last": "...............................................................          [100%]\n63 passed in 4.70s\n"
+}

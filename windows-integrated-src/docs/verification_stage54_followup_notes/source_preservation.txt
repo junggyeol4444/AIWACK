@@ -1,0 +1,6 @@
+BASE ZIP: AIWACK_Stage54_Offline_Followup_Queue_Continuation_Source.zip
+Original files preserved: 359/359
+Intentionally changed existing files (8): desktop/app.py, desktop/research_captures.py, desktop/research_followups.py, desktop/storage.py, docs/WORK_LOG.md, docs/progress.json, docs/roadmap_100.md, scripts/verify_offline_runtime.py
+Original specification, requirements traceability, roadmap CSV and SQLite database: byte-identical.
+Original specification SHA-256: 652c0dce8a748a92a3ab3c2cb88fc82973ec68c6c3b560714fc3fe4159be14f7
+GitHub, external servers, cloud AI API: not used.

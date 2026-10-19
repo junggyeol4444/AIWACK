@@ -1,0 +1,27 @@
+{
+  "source_zip": "AIWACK_Stage54_Offline_Bundle_Preapproval_Continuation_Source.zip",
+  "original_files": 578,
+  "protected_sha256": {
+    "docs/original_project_spec.txt": "652c0dce8a748a92a3ab3c2cb88fc82973ec68c6c3b560714fc3fe4159be14f7",
+    "docs/requirements_traceability.md": "fef43d2905b756732807446456f3d8acf01df030abab17e65d63967234e32afb",
+    "docs/roadmap_100.csv": "d03cd823e5ee70bcf194bdd3fdac068ea60a504193b572de9e32d16b253662f2",
+    "dev_company.sqlite3": "fa8dac076da84212d79cfbee370593414b4ef0e75312b7f7a3106430a083d5c8"
+  },
+  "pytest": {
+    "passed": 1108,
+    "failed": 0,
+    "single_run_seconds": 121.06
+  },
+  "local_bundle_related_pytest": {
+    "passed": 62,
+    "failed": 0
+  },
+  "offline_socket_blocked_commands": 41,
+  "gui": "Linux Xvfb pass; no Windows validation",
+  "completed_roadmap_steps": 53,
+  "current_stage": 54,
+  "current_stage_done": false,
+  "practical_product_completion_estimate": "20-25% (subjective)",
+  "network_research_completed": false,
+  "external_services_used": false
+}

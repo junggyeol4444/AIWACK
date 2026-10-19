@@ -1,0 +1,13 @@
+{
+  "group": 3,
+  "files": [
+    "test_database.py",
+    "test_department_chat.py",
+    "test_departments.py",
+    "test_designations.py",
+    "test_desktop.py"
+  ],
+  "exit": 0,
+  "seconds": 13.36,
+  "last": "........................................................................ [ 97%]\n..                                                                       [100%]\n74 passed in 11.39s\n"
+}

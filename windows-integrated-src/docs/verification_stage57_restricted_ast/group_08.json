@@ -1,0 +1,13 @@
+{
+  "group": 8,
+  "files": [
+    "test_offline_research_bundle_preview.py",
+    "test_offline_research_bundle_provenance_preflight.py",
+    "test_offline_research_bundle_receipts.py",
+    "test_offline_research_bundle_source_hints.py",
+    "test_offline_research_bundle_url_review.py"
+  ],
+  "exit": 0,
+  "seconds": 7.98,
+  "last": "........................................................................ [ 93%]\n.....                                                                    [100%]\n77 passed in 6.46s\n"
+}

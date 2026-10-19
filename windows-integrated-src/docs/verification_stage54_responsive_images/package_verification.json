@@ -1,0 +1,35 @@
+{
+  "original_zip": "AIWACK_Stage54_Offline_Passive_Resource_Preapproval_Continuation_Source.zip",
+  "original_files": 741,
+  "new_or_extra_files": 15,
+  "total_files": 756,
+  "all_old_paths_preserved": true,
+  "original_protected_files_sha256_unchanged": true,
+  "tests": {
+    "research": {
+      "passed": 568
+    },
+    "nonresearch": {
+      "passed": 685
+    },
+    "split_total_passed": 1253,
+    "single_whole_suite_completed": false,
+    "reextract_related_passed": 30,
+    "offline_commands_passed": 52,
+    "tkinter_xvfb_passed": true
+  },
+  "known_limits": [
+    "Windows untested",
+    "EXE untested",
+    "GGUF untested",
+    "internet automation not implemented",
+    "system-wide network block unverified",
+    "full single-command pytest timed out near 17%"
+  ],
+  "completed_roadmap_steps": 53,
+  "in_progress_step": 54,
+  "product_completion_percent_subjective": [
+    20,
+    25
+  ]
+}

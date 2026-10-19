@@ -1,0 +1,17 @@
+BASE ZIP: AIWACK_Stage54_Offline_File_Custody_Continuation_Source.zip
+PREVIOUS_FILES=562
+UNCHANGED_FILES=554
+MODIFIED_FILES=8
+MISSING_FILES=0
+MODIFIED README.md
+MODIFIED desktop/app.py
+MODIFIED desktop/research_captures.py
+MODIFIED desktop/storage.py
+MODIFIED docs/progress.json
+MODIFIED docs/roadmap_100.md
+MODIFIED scripts/stage54_bundle_gui_smoke.py
+MODIFIED scripts/verify_offline_runtime.py
+CRITICAL MATCH docs/original_project_spec.txt SHA256 652c0dce8a748a92a3ab3c2cb88fc82973ec68c6c3b560714fc3fe4159be14f7
+CRITICAL MATCH docs/requirements_traceability.md SHA256 fef43d2905b756732807446456f3d8acf01df030abab17e65d63967234e32afb
+CRITICAL MATCH docs/roadmap_100.csv SHA256 d03cd823e5ee70bcf194bdd3fdac068ea60a504193b572de9e32d16b253662f2
+CRITICAL MATCH dev_company.sqlite3 SHA256 fa8dac076da84212d79cfbee370593414b4ef0e75312b7f7a3106430a083d5c8

@@ -1,0 +1,25 @@
+{
+  "baseline": "AIWACK_Stage54_Offline_HTML_Source_Claims_Continuation_Source.zip",
+  "baseline_file_count": 682,
+  "preserved_file_paths": 682,
+  "unchanged_file_count": 675,
+  "modified_existing_file_count": 7,
+  "modified_existing_files": [
+    "README.md",
+    "desktop/app.py",
+    "desktop/research_captures.py",
+    "docs/WORK_LOG.md",
+    "docs/progress.json",
+    "docs/roadmap_100.md",
+    "scripts/verify_offline_runtime.py"
+  ],
+  "required_protected_sha256": {
+    "docs/original_project_spec.txt": "652c0dce8a748a92a3ab3c2cb88fc82973ec68c6c3b560714fc3fe4159be14f7",
+    "docs/requirements_traceability.md": "fef43d2905b756732807446456f3d8acf01df030abab17e65d63967234e32afb",
+    "docs/roadmap_100.csv": "d03cd823e5ee70bcf194bdd3fdac068ea60a504193b572de9e32d16b253662f2",
+    "dev_company.sqlite3": "fa8dac076da84212d79cfbee370593414b4ef0e75312b7f7a3106430a083d5c8"
+  },
+  "missing_files": [],
+  "stage_completed": 53,
+  "stage_in_progress": 54
+}

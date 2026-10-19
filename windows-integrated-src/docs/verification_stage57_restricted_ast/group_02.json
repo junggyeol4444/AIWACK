@@ -1,0 +1,13 @@
+{
+  "group": 2,
+  "files": [
+    "test_chief_task_handoff.py",
+    "test_company.py",
+    "test_company_detection.py",
+    "test_company_health_monitor.py",
+    "test_company_knowledge.py"
+  ],
+  "exit": 0,
+  "seconds": 8.99,
+  "last": ".......................................................                  [100%]\n55 passed in 7.39s\n"
+}

@@ -1,0 +1,13 @@
+{
+  "group": 10,
+  "files": [
+    "test_offline_research_exports.py",
+    "test_offline_research_file_custody.py",
+    "test_offline_research_followup_domains.py",
+    "test_offline_research_followup_exports.py",
+    "test_offline_research_followup_notes.py"
+  ],
+  "exit": 0,
+  "seconds": 10.93,
+  "last": "........................................................................ [ 66%]\n.....................................                                    [100%]\n109 passed in 9.35s\n"
+}

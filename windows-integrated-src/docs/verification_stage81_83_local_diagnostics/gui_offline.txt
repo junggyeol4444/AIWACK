@@ -1,0 +1,1 @@
+PASS Stage81-83 Xvfb GUI, local owner auth, no-network socket/DNS blockers, no actual tasks or revenue, logout gate

@@ -1,0 +1,7 @@
+tests/test_company_detection.py
+tests/test_direct_messages.py
+tests/test_knowledge_access.py
+tests/test_offline_research_bundles.py
+tests/test_offline_research_review_filters.py
+tests/test_stage40_integration.py
+tests/test_task_queue.py

@@ -1,0 +1,13 @@
+{
+  "group": 7,
+  "files": [
+    "test_offline_research_active_targets.py",
+    "test_offline_research_audit.py",
+    "test_offline_research_bundle_context_guard.py",
+    "test_offline_research_bundle_custody.py",
+    "test_offline_research_bundle_html_links_preview.py"
+  ],
+  "exit": 0,
+  "seconds": 7.14,
+  "last": "................................................................         [100%]\n64 passed in 5.49s\n"
+}

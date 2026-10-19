@@ -1,0 +1,18 @@
+{
+  "base_zip": "AIWACK_Stage54_Offline_Inline_CSS_Preapproval_Continuation_Source.zip",
+  "final_zip": "AIWACK_Stage54_Offline_Bundle_Custody_Receipt_Continuation_Source.zip",
+  "files": 946,
+  "source_paths_preserved": 918,
+  "sha256": "0a81bb2b60a5fd7b6ecec4cafb83fd4cd7fcec13673505bb89205f789201ca52",
+  "zip_crc_ok": true,
+  "pytest_passed_in_groups": 1285,
+  "pytest_skipped_in_groups": 0,
+  "all_pytest_groups_succeeded": true,
+  "offline_runtime_commands_passed": 55,
+  "offline_runtime_passed": true,
+  "reextract_pytest_returncode": 0,
+  "reextract_pytest_tail": "30 passed in 2.52s",
+  "stage_completed": 53,
+  "stage_in_progress": 54,
+  "estimated_product_completion": "20-25% subjective"
+}

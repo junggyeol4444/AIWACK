@@ -1,0 +1,38 @@
+{
+  "source_zip": "AIWACK_Stage54_Offline_Bundle_HTML_Link_Preview_Continuation_Source.zip",
+  "source_zip_sha256": "9d041ec065529e0dcbd7cebc6fa87e6de4a9056c919aa757d5024a9d08f5d17e",
+  "old_file_count": 663,
+  "preserved_paths": 663,
+  "missing": [],
+  "unchanged": 657,
+  "modified": [
+    "README.md",
+    "desktop/app.py",
+    "desktop/research_captures.py",
+    "docs/progress.json",
+    "docs/roadmap_100.md",
+    "scripts/verify_offline_runtime.py"
+  ],
+  "critical": {
+    "docs/original_project_spec.txt": {
+      "original_sha256": "652c0dce8a748a92a3ab3c2cb88fc82973ec68c6c3b560714fc3fe4159be14f7",
+      "current_sha256": "652c0dce8a748a92a3ab3c2cb88fc82973ec68c6c3b560714fc3fe4159be14f7",
+      "same": true
+    },
+    "docs/requirements_traceability.md": {
+      "original_sha256": "fef43d2905b756732807446456f3d8acf01df030abab17e65d63967234e32afb",
+      "current_sha256": "fef43d2905b756732807446456f3d8acf01df030abab17e65d63967234e32afb",
+      "same": true
+    },
+    "docs/roadmap_100.csv": {
+      "original_sha256": "d03cd823e5ee70bcf194bdd3fdac068ea60a504193b572de9e32d16b253662f2",
+      "current_sha256": "d03cd823e5ee70bcf194bdd3fdac068ea60a504193b572de9e32d16b253662f2",
+      "same": true
+    },
+    "dev_company.sqlite3": {
+      "original_sha256": "fa8dac076da84212d79cfbee370593414b4ef0e75312b7f7a3106430a083d5c8",
+      "current_sha256": "fa8dac076da84212d79cfbee370593414b4ef0e75312b7f7a3106430a083d5c8",
+      "same": true
+    }
+  }
+}

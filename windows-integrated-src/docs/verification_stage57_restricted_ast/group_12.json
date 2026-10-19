@@ -1,0 +1,13 @@
+{
+  "group": 12,
+  "files": [
+    "test_offline_research_manifest_builder.py",
+    "test_offline_research_manifest_stability.py",
+    "test_offline_research_navigation_directives.py",
+    "test_offline_research_pagination.py",
+    "test_offline_research_passive_resources.py"
+  ],
+  "exit": 0,
+  "seconds": 6.45,
+  "last": "........................................................................ [100%]\n72 passed in 4.91s\n"
+}

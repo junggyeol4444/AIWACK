@@ -1,0 +1,46 @@
+{
+  "date": "2026-10-14",
+  "python": "3.13.5",
+  "platform": "Linux-6.18.44-x86_64-with-glibc2.41",
+  "source_zip": "AIWACK_Stage54_Offline_Receipt_Reverification_Continuation_Source.zip",
+  "full_pytest": {
+    "passed": 1300,
+    "failed": 0,
+    "exit_code": 0,
+    "duration_seconds": 124.39,
+    "socket_guard_applied": false
+  },
+  "related_pytest": {
+    "passed": 45,
+    "exit_code": 0,
+    "included_in_full_pytest": true
+  },
+  "related_pytest_network_guard": {
+    "passed": 45,
+    "exit_code": 0,
+    "socket_dns_blocked": true
+  },
+  "gui_smoke": {
+    "passed": true,
+    "display": "Linux Xvfb",
+    "socket_dns_blocked": true
+  },
+  "offline_runtime": {
+    "commands_passed": 57,
+    "exit_code": 0,
+    "python_socket_dns_blocked": true
+  },
+  "compileall": {
+    "passed": true
+  },
+  "windows_hardware_tested": false,
+  "exe_built": false,
+  "local_gguf_inference_tested": false,
+  "internet_crawling_implemented": false,
+  "step_54_complete": false,
+  "completed_steps": 53,
+  "product_maturity_estimate_percent": [
+    20,
+    25
+  ]
+}

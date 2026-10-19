@@ -1,0 +1,7 @@
+tests/test_chief_task_handoff.py
+tests/test_designations.py
+tests/test_event_task_engine.py
+tests/test_offline_research.py
+tests/test_offline_research_imports.py
+tests/test_queue_recovery.py
+tests/test_task_parallel.py

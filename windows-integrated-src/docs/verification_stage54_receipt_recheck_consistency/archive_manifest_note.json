@@ -1,0 +1,15 @@
+{
+  "baseline_zip": "AIWACK_Stage54_Offline_Receipt_Stability_Continuation_Source.zip",
+  "baseline_file_count": 957,
+  "test_exit_codes": {
+    "full_pytest.exit": 0,
+    "offline_runtime.exit": 0,
+    "related_pytest.exit": 0,
+    "gui_smoke.exit": 0,
+    "compileall.exit": 0,
+    "reextract_related_pytest.exit": 0,
+    "reextract_gui_smoke.exit": 0
+  },
+  "stage54_completed": false,
+  "expected_scope": "All original 957 files plus Stage54 receipt re-verification source/tests/logs"
+}

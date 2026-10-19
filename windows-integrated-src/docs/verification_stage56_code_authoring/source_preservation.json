@@ -1,0 +1,73 @@
+{
+  "baseline_zip": "AIWACK_Stage55_Offline_Browser_Continuation_Source.zip",
+  "baseline_count": 1067,
+  "source_count": 1082,
+  "preserved_paths": 1067,
+  "packaged_file_count": 1082,
+  "unchanged_count": 1060,
+  "modified_count": 7,
+  "modified_paths": [
+    "AIWACK-Stage54/README.md",
+    "AIWACK-Stage54/desktop/app.py",
+    "AIWACK-Stage54/desktop/storage.py",
+    "AIWACK-Stage54/docs/progress.json",
+    "AIWACK-Stage54/docs/roadmap_100.csv",
+    "AIWACK-Stage54/docs/roadmap_100.md",
+    "AIWACK-Stage54/scripts/verify_offline_runtime.py"
+  ],
+  "new_paths": [
+    "AIWACK-Stage54/desktop/code_authoring.py",
+    "AIWACK-Stage54/docs/verification_stage56_code_authoring/commands.txt",
+    "AIWACK-Stage54/docs/verification_stage56_code_authoring/entry_self_test.log",
+    "AIWACK-Stage54/docs/verification_stage56_code_authoring/full_pytest.exit",
+    "AIWACK-Stage54/docs/verification_stage56_code_authoring/full_pytest.log",
+    "AIWACK-Stage54/docs/verification_stage56_code_authoring/gui_network_blocked.log",
+    "AIWACK-Stage54/docs/verification_stage56_code_authoring/initial_unit_with_fixed_test_log.txt",
+    "AIWACK-Stage54/docs/verification_stage56_code_authoring/next_step.txt",
+    "AIWACK-Stage54/docs/verification_stage56_code_authoring/offline_runtime.exit",
+    "AIWACK-Stage54/docs/verification_stage56_code_authoring/offline_runtime.log",
+    "AIWACK-Stage54/docs/verification_stage56_code_authoring/source_preservation.json",
+    "AIWACK-Stage54/docs/verification_stage56_code_authoring/summary.md",
+    "AIWACK-Stage54/docs/verification_stage56_code_authoring/targeted_network_blocked.log",
+    "AIWACK-Stage54/scripts/stage56_code_authoring_gui_smoke.py",
+    "AIWACK-Stage54/tests/test_stage56_code_authoring.py"
+  ],
+  "protected": {
+    "docs/original_project_spec.txt": {
+      "source_sha256": "652c0dce8a748a92a3ab3c2cb88fc82973ec68c6c3b560714fc3fe4159be14f7",
+      "current_sha256": "652c0dce8a748a92a3ab3c2cb88fc82973ec68c6c3b560714fc3fe4159be14f7",
+      "identical": true
+    },
+    "docs/requirements_traceability.md": {
+      "source_sha256": "fef43d2905b756732807446456f3d8acf01df030abab17e65d63967234e32afb",
+      "current_sha256": "fef43d2905b756732807446456f3d8acf01df030abab17e65d63967234e32afb",
+      "identical": true
+    },
+    "dev_company.sqlite3": {
+      "source_sha256": "fa8dac076da84212d79cfbee370593414b4ef0e75312b7f7a3106430a083d5c8",
+      "current_sha256": "fa8dac076da84212d79cfbee370593414b4ef0e75312b7f7a3106430a083d5c8",
+      "identical": true
+    }
+  },
+  "completed_steps": 54,
+  "blocked_steps": [
+    54,
+    56
+  ],
+  "next_step": 57,
+  "pytest": {
+    "count": 1376,
+    "failed": 0,
+    "run": "single",
+    "seconds": 134.22
+  },
+  "offline_commands": 61,
+  "new_unit_tests": 23,
+  "limitations": [
+    "real GGUF model inference untested",
+    "Windows 10/11 physical machine untested",
+    "Windows EXE build untested",
+    "generated code never executed",
+    "OS-wide network isolation unverified"
+  ]
+}

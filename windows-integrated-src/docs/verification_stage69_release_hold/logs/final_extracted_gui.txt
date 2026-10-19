@@ -1,0 +1,1 @@
+PASS Stage69 GUI: owner/cancel/append-only review/hold/logout; sockets and DNS blocked

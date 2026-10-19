@@ -1,0 +1,10 @@
+Actual commands (from unpacked new source root):
+PYTHONPATH=. pytest -q tests/test_offline_research_bundle_receipts.py tests/test_offline_research_receipt_reverification.py
+PYTHONPATH=<temporary-network-blocker>:<source-root> python -m pytest -q
+PYTHONPATH=<temporary-network-blocker>:. xvfb-run -a python -m scripts.stage54_receipt_reverification_gui_smoke
+python -m compileall -q desktop scripts tests
+PYTHONPATH=<temporary-network-blocker>:<source-root> python -m scripts.verify_offline_runtime
+
+The temporary network blocker overrides Python socket connect/connect_ex/sendto/sendall,
+create_connection, getaddrinfo. It is not an OS-wide network firewall. No web,
+GitHub, cloud API or remote application access was used for these checks.

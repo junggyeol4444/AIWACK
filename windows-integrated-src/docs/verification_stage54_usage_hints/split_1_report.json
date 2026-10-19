@@ -1,0 +1,39 @@
+[
+  {
+    "files": [
+      "tests/test_offline_research_followup_notes.py",
+      "tests/test_offline_research_form_controls.py",
+      "tests/test_offline_research_manifest_builder.py",
+      "tests/test_offline_research_passive_resources.py",
+      "tests/test_offline_research_review_filters.py"
+    ],
+    "status": "pass",
+    "passed": 81,
+    "seconds": 7.01,
+    "log": "split_1_03.log"
+  },
+  {
+    "files": [
+      "tests/test_offline_research_url_preflight.py",
+      "tests/test_performance_reviews.py",
+      "tests/test_queue_recovery.py",
+      "tests/test_task_artifacts.py",
+      "tests/test_task_execution.py"
+    ],
+    "status": "pass",
+    "passed": 95,
+    "seconds": 9.09,
+    "log": "split_1_04.log"
+  },
+  {
+    "files": [
+      "tests/test_task_priorities.py",
+      "tests/test_tasks.py",
+      "tests/test_work_plans.py"
+    ],
+    "status": "pass",
+    "passed": 60,
+    "seconds": 6.37,
+    "log": "split_1_05.log"
+  }
+]

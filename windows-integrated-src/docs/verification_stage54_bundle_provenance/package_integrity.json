@@ -1,0 +1,37 @@
+{
+  "input_zip": "AIWACK_Stage54_Offline_Manifest_Builder_Continuation_Source.zip",
+  "input_file_count": 590,
+  "preserved_original_paths": 590,
+  "original_byte_identical_count": 584,
+  "modified_original_count": 6,
+  "new_files": [
+    "AIWACK-Stage54/docs/verification_stage54_bundle_provenance/compileall.log",
+    "AIWACK-Stage54/docs/verification_stage54_bundle_provenance/existing_related_pytest.log",
+    "AIWACK-Stage54/docs/verification_stage54_bundle_provenance/full_pytest.log",
+    "AIWACK-Stage54/docs/verification_stage54_bundle_provenance/gui_smoke.log",
+    "AIWACK-Stage54/docs/verification_stage54_bundle_provenance/new_related_pytest.log",
+    "AIWACK-Stage54/docs/verification_stage54_bundle_provenance/offline_runtime.log",
+    "AIWACK-Stage54/docs/verification_stage54_bundle_provenance/package_integrity.json",
+    "AIWACK-Stage54/docs/verification_stage54_bundle_provenance/reextracted_gui.log",
+    "AIWACK-Stage54/docs/verification_stage54_bundle_provenance/reextracted_related_pytest.log",
+    "AIWACK-Stage54/docs/verification_stage54_bundle_provenance/related_pytest.log",
+    "AIWACK-Stage54/docs/verification_stage54_bundle_provenance/source_preservation.txt",
+    "AIWACK-Stage54/docs/verification_stage54_bundle_provenance/summary.md",
+    "AIWACK-Stage54/scripts/stage54_bundle_provenance_gui_smoke.py",
+    "AIWACK-Stage54/tests/test_offline_research_bundle_provenance_preflight.py"
+  ],
+  "removed_original_files": [],
+  "protected_file_sha256": {
+    "docs/original_project_spec.txt": "652c0dce8a748a92a3ab3c2cb88fc82973ec68c6c3b560714fc3fe4159be14f7",
+    "docs/requirements_traceability.md": "fef43d2905b756732807446456f3d8acf01df030abab17e65d63967234e32afb",
+    "docs/roadmap_100.csv": "d03cd823e5ee70bcf194bdd3fdac068ea60a504193b572de9e32d16b253662f2",
+    "dev_company.sqlite3": "fa8dac076da84212d79cfbee370593414b4ef0e75312b7f7a3106430a083d5c8"
+  },
+  "pytest": "1120 passed in 131.97s; one full run; network socket/DNS blocked",
+  "offline_runtime": "see offline_runtime.log",
+  "windows_device_tested": false,
+  "real_model_tested": false,
+  "internet_auto_collection_implemented": false,
+  "completed_roadmap_steps": 53,
+  "in_progress_step": 54
+}

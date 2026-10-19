@@ -1,0 +1,11 @@
+tests/test_autonomous_task_proposals.py
+tests/test_company_detection.py
+tests/test_departments.py
+tests/test_employee_management.py
+tests/test_hierarchy.py
+tests/test_meetings.py
+tests/test_offline_research_links.py
+tests/test_queue_recovery.py
+tests/test_task_dependencies.py
+tests/test_task_queue.py
+tests/test_work_plans.py

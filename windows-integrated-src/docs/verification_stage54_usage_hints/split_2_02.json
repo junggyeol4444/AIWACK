@@ -1,0 +1,13 @@
+{
+  "files": [
+    "tests/test_offline_research_bundle_context_guard.py",
+    "tests/test_offline_research_bundle_preview.py",
+    "tests/test_offline_research_bundle_url_review.py",
+    "tests/test_offline_research_evidence.py",
+    "tests/test_offline_research_followup_domains.py"
+  ],
+  "status": "pass",
+  "passed": 85,
+  "seconds": 8.6,
+  "log": "split_2_02.log"
+}

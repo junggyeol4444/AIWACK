@@ -1,0 +1,7 @@
+tests/test_company.py
+tests/test_desktop.py
+tests/test_hierarchy.py
+tests/test_offline_research_audit.py
+tests/test_offline_research_links.py
+tests/test_recurring_scheduler.py
+tests/test_task_priorities.py

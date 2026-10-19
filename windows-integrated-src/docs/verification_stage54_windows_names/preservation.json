@@ -1,0 +1,52 @@
+{
+  "baseline_archive": "AIWACK_Stage54_Offline_Manifest_Stability_Continuation_Source.zip",
+  "baseline_files": 999,
+  "preserved_files": 999,
+  "unchanged_files": 994,
+  "modified_files": [
+    "AIWACK-Stage54/README.md",
+    "AIWACK-Stage54/desktop/research_bundle_manifest.py",
+    "AIWACK-Stage54/desktop/research_captures.py",
+    "AIWACK-Stage54/docs/progress.json",
+    "AIWACK-Stage54/scripts/verify_offline_runtime.py"
+  ],
+  "new_files": [
+    "AIWACK-Stage54/docs/verification_stage54_windows_names/compileall.log",
+    "AIWACK-Stage54/docs/verification_stage54_windows_names/full_pytest.exit",
+    "AIWACK-Stage54/docs/verification_stage54_windows_names/full_pytest.log",
+    "AIWACK-Stage54/docs/verification_stage54_windows_names/gui_smoke.log",
+    "AIWACK-Stage54/docs/verification_stage54_windows_names/network_blocked_checks.log",
+    "AIWACK-Stage54/docs/verification_stage54_windows_names/offline_runtime.log",
+    "AIWACK-Stage54/docs/verification_stage54_windows_names/preservation.json",
+    "AIWACK-Stage54/docs/verification_stage54_windows_names/reextract_checks.log",
+    "AIWACK-Stage54/docs/verification_stage54_windows_names/summary.md",
+    "AIWACK-Stage54/docs/verification_stage54_windows_names/targeted_pytest.log",
+    "AIWACK-Stage54/scripts/stage54_windows_names_gui_smoke.py",
+    "AIWACK-Stage54/tests/test_offline_research_windows_bundle_names.py"
+  ],
+  "protected_files": {
+    "docs/original_project_spec.txt": {
+      "unchanged": true,
+      "sha256": "652c0dce8a748a92a3ab3c2cb88fc82973ec68c6c3b560714fc3fe4159be14f7"
+    },
+    "docs/requirements_traceability.md": {
+      "unchanged": true,
+      "sha256": "fef43d2905b756732807446456f3d8acf01df030abab17e65d63967234e32afb"
+    },
+    "docs/roadmap_100.csv": {
+      "unchanged": true,
+      "sha256": "d03cd823e5ee70bcf194bdd3fdac068ea60a504193b572de9e32d16b253662f2"
+    },
+    "docs/roadmap_100.md": {
+      "unchanged": true,
+      "sha256": "0f13f9003e496d4fadc8741da42310b8e0c0a899b1ecd7b6373ed50c4e3cc7cb"
+    },
+    "dev_company.sqlite3": {
+      "unchanged": true,
+      "sha256": "fa8dac076da84212d79cfbee370593414b4ef0e75312b7f7a3106430a083d5c8"
+    }
+  },
+  "roadmap_completed": 53,
+  "total_steps": 100,
+  "step_54_complete": false
+}

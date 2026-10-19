@@ -1,0 +1,13 @@
+{
+  "files": [
+    "tests/test_employee_management.py",
+    "tests/test_employee_schema.py",
+    "tests/test_knowledge_access.py",
+    "tests/test_meeting_decisions.py",
+    "tests/test_offline_research.py"
+  ],
+  "status": "pass",
+  "passed": 133,
+  "seconds": 16.14,
+  "log": "split_2_01.log"
+}

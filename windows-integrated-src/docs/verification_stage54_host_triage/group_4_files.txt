@@ -1,0 +1,8 @@
+tests/test_chief_chat.py
+tests/test_department_chat.py
+tests/test_employee_models.py
+tests/test_meeting_opinions.py
+tests/test_offline_research_followup_domains.py
+tests/test_offline_research_review_filters.py
+tests/test_stage40_integration.py
+tests/test_task_queue.py

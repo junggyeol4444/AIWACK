@@ -1,0 +1,14 @@
+Input ZIP: /mnt/data/AIWACK_Stage66_Offline_Business_Projects_Continuation_Source.zip
+Existing files: 1400
+Byte-identical: 1394
+Modified: 6
+Missing: 0
+New files (excluding caches): 11
+Modified list:
+desktop/app.py
+desktop/storage.py
+docs/progress.json
+docs/roadmap_100.csv
+docs/roadmap_100.md
+scripts/verify_offline_runtime.py
+Original spec, requirements traceability and dev_company.sqlite3: byte-identical.

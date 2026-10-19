@@ -1,0 +1,13 @@
+{
+  "group": 17,
+  "files": [
+    "test_task_breakdown.py",
+    "test_task_dependencies.py",
+    "test_task_execution.py",
+    "test_task_feasibility.py",
+    "test_task_parallel.py"
+  ],
+  "exit": 0,
+  "seconds": 11.25,
+  "last": "..................................................................       [100%]\n66 passed in 9.63s\n"
+}

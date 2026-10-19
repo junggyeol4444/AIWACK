@@ -1,0 +1,38 @@
+{
+  "baseline_zip": "AIWACK_Stage54_Offline_Receipt_Stability_Continuation_Source.zip",
+  "original_count": 957,
+  "missing": [],
+  "modified": [
+    "README.md",
+    "desktop/app.py",
+    "desktop/research_bundle_manifest.py",
+    "docs/progress.json",
+    "docs/roadmap_100.md",
+    "scripts/verify_offline_runtime.py"
+  ],
+  "protected_sha256": {
+    "docs/original_project_spec.txt": {
+      "original": "652c0dce8a748a92a3ab3c2cb88fc82973ec68c6c3b560714fc3fe4159be14f7",
+      "current": "652c0dce8a748a92a3ab3c2cb88fc82973ec68c6c3b560714fc3fe4159be14f7",
+      "preserved": true
+    },
+    "docs/requirements_traceability.md": {
+      "original": "fef43d2905b756732807446456f3d8acf01df030abab17e65d63967234e32afb",
+      "current": "fef43d2905b756732807446456f3d8acf01df030abab17e65d63967234e32afb",
+      "preserved": true
+    },
+    "docs/roadmap_100.csv": {
+      "original": "d03cd823e5ee70bcf194bdd3fdac068ea60a504193b572de9e32d16b253662f2",
+      "current": "d03cd823e5ee70bcf194bdd3fdac068ea60a504193b572de9e32d16b253662f2",
+      "preserved": true
+    },
+    "dev_company.sqlite3": {
+      "original": "fa8dac076da84212d79cfbee370593414b4ef0e75312b7f7a3106430a083d5c8",
+      "current": "fa8dac076da84212d79cfbee370593414b4ef0e75312b7f7a3106430a083d5c8",
+      "preserved": true
+    }
+  },
+  "unchanged_count": 951,
+  "missing_count": 0,
+  "modified_count": 6
+}

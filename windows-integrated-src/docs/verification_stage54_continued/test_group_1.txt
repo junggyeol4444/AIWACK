@@ -1,0 +1,13 @@
+tests/test_admin_sections.py
+tests/test_api.py
+tests/test_autonomous_task_proposals.py
+tests/test_chief_chat.py
+tests/test_chief_company_status.py
+tests/test_chief_task_handoff.py
+tests/test_company.py
+tests/test_company_detection.py
+tests/test_company_health_monitor.py
+tests/test_company_knowledge.py
+tests/test_database.py
+tests/test_department_chat.py
+tests/test_departments.py

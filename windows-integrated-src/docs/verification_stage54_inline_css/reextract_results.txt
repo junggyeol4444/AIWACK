@@ -1,0 +1,4 @@
+Preliminary ZIP extracted to an independent temporary folder.
+Related pytest: 22 passed (exit 0).
+Linux Xvfb Tkinter GUI: PASS (exit 0), socket/DNS patched.
+Final ZIP will contain the same code plus these logs.

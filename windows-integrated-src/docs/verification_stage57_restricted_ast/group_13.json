@@ -1,0 +1,13 @@
+{
+  "group": 13,
+  "files": [
+    "test_offline_research_preflight_exports.py",
+    "test_offline_research_receipt_reverification.py",
+    "test_offline_research_responsive_images.py",
+    "test_offline_research_review_filters.py",
+    "test_offline_research_source_overlap.py"
+  ],
+  "exit": 0,
+  "seconds": 6.92,
+  "last": "........................................................................ [ 93%]\n.....                                                                    [100%]\n77 passed in 5.31s\n"
+}

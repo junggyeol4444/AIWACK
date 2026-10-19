@@ -1,0 +1,16 @@
+Stage69 preservation audit (before final ZIP)
+Baseline: AIWACK_Stage68_Offline_Static_Product_Prototype_Continuation_Source.zip
+Baseline files: 1428
+Missing baseline files: 0
+Changed baseline files: 6
+Unchanged baseline files: 1422
+Changed:
+- desktop/app.py
+- desktop/storage.py
+- docs/progress.json
+- docs/roadmap_100.csv
+- docs/roadmap_100.md
+- scripts/verify_offline_runtime.py
+Original docs/original_project_spec.txt, docs/requirements_traceability.md and dev_company.sqlite3: byte-identical to baseline.
+No original files deleted. New Stage69 files are additive.
+Final ZIP CRC and SHA-256 are checked after packaging; see external Stage69 verification TXT.

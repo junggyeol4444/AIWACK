@@ -1,0 +1,8 @@
+tests/test_autonomous_task_proposals.py
+tests/test_database.py
+tests/test_employee_memory.py
+tests/test_meeting_decisions.py
+tests/test_offline_research_exports.py
+tests/test_offline_research_pagination.py
+tests/test_recurring_scheduler.py
+tests/test_task_priorities.py

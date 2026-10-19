@@ -1,0 +1,12 @@
+57 unique test files, disjoint partition with group 2 split for runtime.
+group_1.log: 128 passed
+group_2_without_models.log: 128 passed
+group_2_models.log: 6 passed
+group_3.log: 194 passed
+group_4.log: 109 passed
+group_5.log: 105 passed
+group_6.log: 148 passed
+TOTAL: 818 passed; no test failures in completed partitions.
+Full uninterrupted pytest not claimed. Full offline runtime attempt interrupted by execution time limit; see offline_full.log.
+Selected offline socket-blocked checks: 6 commands passed (offline_subset.log).
+Real Tkinter verification button + restart + cancellation + mismatch passed under Linux Xvfb.

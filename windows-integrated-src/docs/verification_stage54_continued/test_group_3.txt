@@ -1,0 +1,13 @@
+tests/test_meeting_decisions.py
+tests/test_meeting_opinions.py
+tests/test_meetings.py
+tests/test_offline_research.py
+tests/test_offline_research_imports.py
+tests/test_performance_reviews.py
+tests/test_project_chat.py
+tests/test_project_structure.py
+tests/test_queue_recovery.py
+tests/test_recurring_scheduler.py
+tests/test_stage40_integration.py
+tests/test_task_artifacts.py
+tests/test_task_breakdown.py

@@ -1,0 +1,13 @@
+Stage70 actual tests (Linux):
+- Stage70-only: 43 passed (stage70_only.txt)
+- Stage70 + structure: 48 passed (new_tests.txt)
+- Stage55~60: 125 passed (regression55_60.txt)
+- Stage61~65: 129 passed (regression61_65.txt)
+- Stage66~70 + structure: 173 passed (regression66_70.txt)
+- Non-overlapping selected regression total: 427 passed, 0 failed (125+129+173)
+- A combined Stage61~70+structure invocation was interrupted by the command timeout before finishing; split into two non-overlapping groups, both passed. See regression61_70.txt (incomplete).
+- Linux Xvfb GUI Stage70: passed (gui70.txt)
+- Offline socket/DNS blocked: 6 commands passed (self-test + Stage66~70 GUI), offline_self_test.txt/offline_tail.txt
+- Entire project pytest: NOT RUN; full 75 offline commands: NOT RUN
+- Existing Stage63 parallel subprocess timing threshold failure history: UNRESOLVED/NOT RECHECKED
+- Windows device/EXE, actual GGUF, real service hosting, deployment, monitoring, recovery, external integrations, sales/payment, long autonomous runtime: NOT TESTED

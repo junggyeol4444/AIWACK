@@ -1,0 +1,30 @@
+{
+  "scope": "one selected non-overlapping pytest suite stage73-100 plus 4 Linux Xvfb offline GUI commands",
+  "selected_pytest": {
+    "passed": 174,
+    "failed": 0,
+    "log": "pytest_selected_73_100.txt"
+  },
+  "gui": {
+    "passed_commands": 4,
+    "log": "gui_offline_socket_blocked.txt",
+    "socket_and_dns_blocked": true
+  },
+  "not_tested": [
+    "entire single pytest suite",
+    "stage63 historical timing failure fixed",
+    "all offline commands",
+    "real Windows hardware",
+    "actual GGUF inference",
+    "external payment/sales",
+    "real multi-agent load",
+    "long-duration autonomous operation",
+    "original acceptance T01-T20 all passed"
+  ],
+  "progress": {
+    "highest_developed_step": 100,
+    "fully_completed_steps": 54,
+    "blocked_steps_count": 46,
+    "roadmap_next_step": null
+  }
+}

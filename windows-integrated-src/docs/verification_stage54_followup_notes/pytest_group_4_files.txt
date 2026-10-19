@@ -1,0 +1,10 @@
+tests/test_chief_chat.py
+tests/test_company_knowledge.py
+tests/test_direct_messages.py
+tests/test_hierarchy.py
+tests/test_offline_research.py
+tests/test_offline_research_followup_notes.py
+tests/test_performance_reviews.py
+tests/test_task_artifacts.py
+tests/test_task_priorities.py
+tests/test_work_plans.py

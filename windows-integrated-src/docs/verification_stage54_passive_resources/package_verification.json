@@ -1,0 +1,49 @@
+{
+  "output": "AIWACK_Stage54_Offline_Passive_Resource_Preapproval_Continuation_Source.zip",
+  "source": "AIWACK_Stage54_Offline_Form_Control_Preapproval_Verified_Source.zip",
+  "old_file_count": 719,
+  "new_total_file_count": 741,
+  "new_files": [
+    "docs/verification_stage54_passive_resources/full_pytest.exit",
+    "docs/verification_stage54_passive_resources/full_pytest.log",
+    "docs/verification_stage54_passive_resources/full_pytest_rerun.exit",
+    "docs/verification_stage54_passive_resources/full_pytest_rerun.log",
+    "docs/verification_stage54_passive_resources/gui_smoke.exit",
+    "docs/verification_stage54_passive_resources/gui_smoke.log",
+    "docs/verification_stage54_passive_resources/offline_runtime.exit",
+    "docs/verification_stage54_passive_resources/offline_runtime.log",
+    "docs/verification_stage54_passive_resources/parallel_recheck.exit",
+    "docs/verification_stage54_passive_resources/parallel_recheck.log",
+    "docs/verification_stage54_passive_resources/reextract_gui.exit",
+    "docs/verification_stage54_passive_resources/reextract_gui.log",
+    "docs/verification_stage54_passive_resources/reextract_pytest.exit",
+    "docs/verification_stage54_passive_resources/reextract_pytest.log",
+    "docs/verification_stage54_passive_resources/related_pytest.exit",
+    "docs/verification_stage54_passive_resources/related_pytest.log",
+    "docs/verification_stage54_passive_resources/source_compare_stdout.log",
+    "docs/verification_stage54_passive_resources/source_preservation.json",
+    "docs/verification_stage54_passive_resources/summary.md",
+    "scripts/stage54_passive_resources_gui_smoke.py",
+    "tests/test_offline_research_passive_resources.py",
+    "docs/verification_stage54_passive_resources/package_verification.json"
+  ],
+  "unchanged_old_file_count": 713,
+  "changed_old_files": [
+    "README.md",
+    "desktop/app.py",
+    "desktop/research_captures.py",
+    "docs/progress.json",
+    "docs/roadmap_100.md",
+    "scripts/verify_offline_runtime.py"
+  ],
+  "missing_old_files": [],
+  "zip_sha256": "see accompanying verification.txt (avoid self-hash)",
+  "crc_check": "PASS",
+  "all_file_bytes_validated": true,
+  "protected_hashes": {
+    "docs/original_project_spec.txt": "652c0dce8a748a92a3ab3c2cb88fc82973ec68c6c3b560714fc3fe4159be14f7",
+    "docs/requirements_traceability.md": "fef43d2905b756732807446456f3d8acf01df030abab17e65d63967234e32afb",
+    "docs/roadmap_100.csv": "d03cd823e5ee70bcf194bdd3fdac068ea60a504193b572de9e32d16b253662f2",
+    "dev_company.sqlite3": "fa8dac076da84212d79cfbee370593414b4ef0e75312b7f7a3106430a083d5c8"
+  }
+}

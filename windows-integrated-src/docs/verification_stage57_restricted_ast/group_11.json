@@ -1,0 +1,13 @@
+{
+  "group": 11,
+  "files": [
+    "test_offline_research_followup_verification.py",
+    "test_offline_research_followups.py",
+    "test_offline_research_form_controls.py",
+    "test_offline_research_imports.py",
+    "test_offline_research_links.py"
+  ],
+  "exit": 0,
+  "seconds": 7.1,
+  "last": "....................................................................     [100%]\n68 passed in 5.45s\n"
+}

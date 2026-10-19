@@ -1,0 +1,13 @@
+{
+  "files": [
+    "tests/test_offline_research_audit.py",
+    "tests/test_offline_research_bundle_html_links_preview.py",
+    "tests/test_offline_research_bundle_source_hints.py",
+    "tests/test_offline_research_drift.py",
+    "tests/test_offline_research_file_custody.py"
+  ],
+  "status": "pass",
+  "passed": 78,
+  "seconds": 9.08,
+  "log": "split_1_02.log"
+}

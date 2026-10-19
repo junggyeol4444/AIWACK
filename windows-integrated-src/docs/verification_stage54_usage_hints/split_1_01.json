@@ -1,0 +1,13 @@
+{
+  "files": [
+    "tests/test_employee_access.py",
+    "tests/test_employee_models.py",
+    "tests/test_hierarchy.py",
+    "tests/test_managed_documents.py",
+    "tests/test_meetings.py"
+  ],
+  "status": "pass",
+  "passed": 73,
+  "seconds": 10.3,
+  "log": "split_1_01.log"
+}
