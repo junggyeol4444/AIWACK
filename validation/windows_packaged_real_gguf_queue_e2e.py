@@ -340,7 +340,57 @@ def perform(exe, model_cli, gguf):
         artifact_id=read("SELECT id FROM company_task_artifacts WHERE task_id=?",(task_id,))
         evidence("two-staff-two-chief-reviews-automatic-after-one-queue-click")
         verify_two_tasks_real_model_calls()
-        # Queue UI opens the LAST pending report, so use its matching artifact.
+        # T17 partial: a hard Windows process termination AFTER genuine staff and
+        # chief calls but BEFORE any owner review must not silently approve,
+        # finalize, lose either artifact, or repeat the completed model calls.
+        # Unlike the clean Alt+F4 restart below, this exercises forced EXE exit.
+        evidence("t17-two-genuine-gguf-reviews-pending-before-hard-crash")
+        gui.kill_tree(p)
+        p.wait(timeout=20)
+        p = None
+        for current_id in (task_id, second_id):
+            wait_sql("SELECT status FROM company_tasks WHERE id=?",
+                     "in_progress", (current_id,))
+            wait_sql("SELECT review_status FROM company_task_artifacts WHERE task_id=?",
+                     "pending", (current_id,))
+            current_artifact = read(
+                "SELECT id FROM company_task_artifacts WHERE task_id=?", (current_id,))
+            wait_sql("SELECT owner_decision FROM company_chief_task_reports WHERE artifact_id=?",
+                     "pending", (current_artifact,))
+        assert read("SELECT COUNT(*) FROM ai_model_call_history") == 6, (
+            "Unexpected model call count after hard process termination")
+        evidence("t17-hard-crash-persisted-both-unapproved-results")
+
+        # Restart the SAME packaged EXE and data directory; use only the
+        # visible mouse/keyboard login. The database is never repaired or
+        # written by the driver. Owner approvals remain separate actions.
+        p = gui.start(exe, DATA)
+        w = gui.find_window()
+        write(w, 175, 395, OWNER)
+        write(w, 175, 437, PASSWORD)
+        click(w, 175, 480)
+        wait_office_dashboard(w)
+        for current_id in (task_id, second_id):
+            wait_sql("SELECT status FROM company_tasks WHERE id=?",
+                     "in_progress", (current_id,))
+            wait_sql("SELECT review_status FROM company_task_artifacts WHERE task_id=?",
+                     "pending", (current_id,))
+            current_artifact = read(
+                "SELECT id FROM company_task_artifacts WHERE task_id=?", (current_id,))
+            wait_sql("SELECT owner_decision FROM company_chief_task_reports WHERE artifact_id=?",
+                     "pending", (current_artifact,))
+        assert read("SELECT COUNT(*) FROM ai_model_call_history") == 6, (
+            "The hard-crash restart must not silently rerun worker or chief")
+        evidence("t17-hard-crash-reopened-exe-awaits-separate-owner-review")
+
+        # Re-enter the existing RESULTS page through real physical GUI clicks.
+        # The latest artifact occupies the first result row on this test fixture;
+        # a wrong row is detected by the persisted per-artifact assertions below.
+        click(w, 555, 270)
+        click(w, 165, 483)
+        click(w, 421, 636)
+        # Queue UI originally opened the LAST pending report automatically.
+        # After an abnormal exit, the owner must explicitly reopen it.
         last_artifact_id=read("SELECT id FROM company_task_artifacts WHERE task_id=?",(second_id,))
         report=find_dialog("총괄 AI 회수 보고서",timeout=30)
         artifact_id=last_artifact_id
