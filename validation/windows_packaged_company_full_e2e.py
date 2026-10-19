@@ -291,14 +291,36 @@ def perform(exe, stub):
         wait_sql("SELECT COUNT(*) FROM company_chief_task_dispatches", 1)
         evidence("worker-executed-artifact-pending-not-done")
 
-        # Explicit chief review from the EXE result tab, and second owner dialog.
-        time.sleep(1.5)
+        # REAL T17 interruption: the employee output was durably saved, but
+        # the chief has not produced a report. Hard-kill AIWACK.exe instead of
+        # invoking the graceful Alt+F4 path; NEVER mutate the SQLite database.
+        wait_sql("SELECT COUNT(*) FROM company_chief_task_reports WHERE artifact_id=?",
+                 0, (artifact_id,))
+        gui.kill_tree(p)
+        p.wait(timeout=20)
+        p = None
+        evidence("forced-exe-termination-after-saved-worker-result")
+        wait_sql("SELECT COUNT(*) FROM company_task_runs WHERE task_id=?", 1, (task_id,))
+        wait_sql("SELECT review_status FROM company_task_artifacts WHERE id=?",
+                 "pending", (artifact_id,))
+        p = gui.start(exe, DATA)
+        w = gui.find_window()
+        write(w, 175, 395, OWNER)
+        write(w, 175, 437, PASSWORD)
+        click(w, 175, 480)
+        wait_office_dashboard(w)
+        evidence("reopened-exe-before-recovery-staff-artifact-persisted")
+        # Physical mouse: result tab, persisted worker artifact row, new owner
+        # recovery button. This path reruns ONLY the chief model and prompts
+        # for owner authorization; employee must never be started twice.
         click(w, 556, 270)
         click(w, 155, 482)
-        click(w, 271, 646)
+        click(w, 530, 640)
         confirm()
         wait_sql("SELECT owner_decision FROM company_chief_task_reports WHERE artifact_id=?",
                  "pending", (artifact_id,), timeout=90)
+        wait_sql("SELECT COUNT(*) FROM company_task_runs WHERE task_id=?", 1, (task_id,))
+        evidence("owner-recovered-only-chief-after-hard-crash-no-worker-rerun")
         report = find_dialog("총괄 AI 회수 보고서", timeout=30)
         evidence("chief-report-awaiting-owner")
         # Screenshot: report dialog top=155, blue owner-accept button
