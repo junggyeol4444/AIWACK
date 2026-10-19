@@ -67,12 +67,20 @@ jobs:
         run: |
           $process = Start-Process -FilePath $env:AIWACK_RELEASE_EXE -ArgumentList '--self-test' -PassThru -Wait
           if ($process.ExitCode -ne 0) { throw "Native EXE self-test exit code $($process.ExitCode)" }
-      - name: Physically click type save exit and reopen the actual EXE
+      - name: Build offline test-only synthetic runner (never ship model stub)
+        shell: pwsh
+        run: |
+          python -m PyInstaller --noconfirm --clean --onefile --console --name AIWACK-ModelStub validation/windows_fake_llm.py
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          $stub = Join-Path $env:GITHUB_WORKSPACE 'dist/AIWACK-ModelStub.exe'
+          if (!(Test-Path $stub)) { throw 'Synthetic test runner missing' }
+          "AIWACK_RELEASE_TEST_STUB=$stub" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+      - name: Physically click packaged company EXE from setup to approval and restart
         shell: pwsh
         env:
           AIWACK_PACKAGED_GUI_ARTIFACTS: ${{ runner.temp }}/aiwack-production-gui-evidence
         run: |
-          python validation/windows_built_exe_gui.py $env:AIWACK_RELEASE_EXE
+          python validation/windows_packaged_company_full_e2e.py $env:AIWACK_RELEASE_EXE $env:AIWACK_RELEASE_TEST_STUB
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
       - name: Package end-user EXE, verified optional model setup and Korean guide
         shell: pwsh
