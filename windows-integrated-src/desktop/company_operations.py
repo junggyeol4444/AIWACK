@@ -465,6 +465,73 @@ def recover_interrupted_chief_review(store, task_id: int, *,
             'worker_reexecuted': False, 'owner_approval_required': True}
 
 
+def list_interrupted_chief_reviews(store, *, limit: int = 100) -> list[dict]:
+    """Read-only T17 recovery candidates; never infer success from a running row.
+
+    Include only exactly one audited, pending employee artifact linked to an
+    approved chief order. An interrupted model run with no durable artifact is
+    deliberately excluded; it cannot be safely rerun without owner direction.
+    """
+    store.require_permission('company:manage')
+    if type(limit) is not int or not 1 <= limit <= 100:
+        raise ValueError('검토 복구 후보 조회는 1~100건입니다.')
+    candidates = []
+    for task in sorted(store.list_tasks(), key=lambda row: int(row['id'])):
+        tid = int(task['id'])
+        if task['status'] != 'in_progress' or store.read_chief_task_order(tid) is None:
+            continue
+        artifacts = store.list_task_artifacts(tid)
+        if len(artifacts) != 1 or artifacts[0]['review_status'] != 'pending':
+            continue
+        artifact_id = int(artifacts[0]['id'])
+        if store.find_chief_task_report(artifact_id) is not None:
+            continue
+        try:
+            provenance = store.chief_task_report_context(artifact_id)
+        except ValueError:
+            # Non-chief/failed-run artifacts must not be presented as resumable.
+            continue
+        if int(provenance['task_id']) != tid:
+            continue
+        candidates.append({'task_id': tid, 'artifact_id': artifact_id,
+                           'title': task['title'], 'worker_reexecuted': False})
+        if len(candidates) == limit:
+            break
+    return candidates
+
+
+def recover_interrupted_chief_review_queue(store, *, limit: int = 3,
+                                           cancel: threading.Event | None = None) -> dict:
+    """Explicit owner batch recovery: up to 3 saved worker results, chief ONLY.
+
+    No unattended schedule, implicit approval, worker subprocess rerun,
+    automatic retry, or continuing after a failed chief invocation.
+    """
+    assert_running_allowed(store)
+    if type(limit) is not int or not 1 <= limit <= 3:
+        raise ValueError('한 번에 복구할 총괄 검토는 1~3건입니다.')
+    if cancel is not None and cancel.is_set():
+        raise InterruptedError('검토 복구 대기열 시작 전에 관리자가 취소했습니다.')
+    candidates = list_interrupted_chief_reviews(store, limit=limit)
+    if not candidates:
+        raise ValueError('관리자가 재개할 수 있는 중단 총괄 검토가 없습니다.')
+    reports = []
+    for candidate in candidates:
+        if cancel is not None and cancel.is_set():
+            raise InterruptedError('중단 검토 복구 대기열이 관리자에 의해 취소됐습니다.')
+        assert_running_allowed(store)
+        # Re-evaluate persisted order, run and report on EACH iteration.
+        # Existing saved worker artifact is never regenerated.
+        reports.append(recover_interrupted_chief_review(
+            store, candidate['task_id'], cancel=cancel))
+    return {'reports': reports,
+            'task_ids': [int(r['task_id']) for r in reports],
+            'recovered_reviews': len(reports),
+            'pending_owner_review': len(reports),
+            'worker_reexecuted': False,
+            'auto_approved': False, 'tasks_finalized': False}
+
+
 def review_chief_feedback(store, report_id: int, decision: str, note: str = '') -> None:
     """Owner records acceptance/rejection of chief advice, NEVER task completion."""
     store.require_permission('company:manage')

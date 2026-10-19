@@ -204,3 +204,127 @@ def test_interrupted_recovery_refuses_unapproved_or_missing_results(reviewed_can
     with pytest.raises(ValueError, match='실행 중 중단'):
         ops.recover_interrupted_chief_review(store, tid)
     assert calls == []
+
+
+def _recovery_queue_tasks(tmp_path, monkeypatch):
+    store=LocalStore(tmp_path/'batched-recovery.sqlite3')
+    store.setup_owner('batch_recovery_owner','test-batch-recovery-password-2026')
+    chief=store.add_employee_draft('batch_chief','Chief AI')
+    worker=store.add_employee_draft('batch_worker','Worker AI')
+    store.assign_reporting_line(chief,'ceo')
+    model=store.add_local_model(ModelConfig('synthetic batch recovery', 'llamafile',
+                                           sys.executable,'',24))
+    store.set_employee_model(chief,model)
+    store.set_employee_model(worker,model)
+    monkeypatch.setattr('desktop.task_runtime.run_local_model',
+                        lambda *a,**kw:'SYNTHETIC SAVED WORKER OUTPUT')
+    tasks=[]
+    for idx in range(3):
+        tid=ops.create_task(store,f'Saved task for batch recovery {idx}')
+        ops.assign_task(store,tid)
+        ops.approve_chief_order(store,tid,'Owner approved bounded chief order')
+        aid=ops.execute_task(store,tid)['artifact_id']
+        tasks.append((tid,aid))
+    return store,tasks
+
+
+def test_recovery_candidate_listing_read_only_and_persistent(tmp_path,monkeypatch):
+    store,tasks=_recovery_queue_tasks(tmp_path,monkeypatch)
+    before=[store.list_task_runs(tid) for tid,_ in tasks]
+    assert [(p['task_id'],p['artifact_id']) for p in
+            ops.list_interrupted_chief_reviews(store)]==tasks
+    assert len(ops.list_interrupted_chief_reviews(store,limit=2))==2
+    assert [store.list_task_runs(tid) for tid,_ in tasks]==before
+    store.logout()
+    with pytest.raises(AuthenticationError):
+        ops.list_interrupted_chief_reviews(store)
+    reopened=LocalStore(store.path)
+    reopened.login('batch_recovery_owner','test-batch-recovery-password-2026')
+    assert len(ops.list_interrupted_chief_reviews(reopened))==3
+
+
+def test_batch_chief_recovery_three_no_duplicate_staff_and_no_auto_approval(tmp_path,monkeypatch):
+    store,tasks=_recovery_queue_tasks(tmp_path,monkeypatch)
+    before=[store.list_task_runs(tid) for tid,_ in tasks]
+    calls=[]
+    def forbidden_worker(*args,**kwargs):
+        raise AssertionError('Replayed worker during bounded chief-only recovery')
+    def synthetic_chief(_store,artifact_id,**kwargs):
+        calls.append(artifact_id)
+        return f'SYNTHETIC CHIEF RE-REVIEW {artifact_id}'
+    monkeypatch.setattr('desktop.task_runtime.run_local_model',forbidden_worker)
+    monkeypatch.setattr('desktop.chief_task_runtime.collect_chief_task_result',synthetic_chief)
+    out=ops.recover_interrupted_chief_review_queue(store)
+    assert calls==[aid for _,aid in tasks]
+    assert out['recovered_reviews']==3 and out['worker_reexecuted'] is False
+    assert out['auto_approved'] is False and out['tasks_finalized'] is False
+    for (tid,aid),runs in zip(tasks,before):
+        assert store.list_task_runs(tid)==runs
+        assert store.read_task(tid)['status']=='in_progress'
+        assert store.read_task_artifact(aid)['review_status']=='pending'
+        assert store.find_chief_task_report(aid)['owner_decision']=='pending'
+    assert ops.list_interrupted_chief_reviews(store)==[]
+    with pytest.raises(ValueError,match='복구'):
+        ops.recover_interrupted_chief_review_queue(store)
+    assert len(calls)==3
+
+
+def test_batch_chief_recovery_limits_cancel_and_emergency(tmp_path,monkeypatch):
+    store,tasks=_recovery_queue_tasks(tmp_path,monkeypatch)
+    for invalid in (0,4,True,-1,'2'):
+        with pytest.raises(ValueError,match='1~3'):
+            ops.recover_interrupted_chief_review_queue(store,limit=invalid)
+    flag=threading.Event();flag.set()
+    with pytest.raises(InterruptedError):
+        ops.recover_interrupted_chief_review_queue(store,cancel=flag)
+    store.emergency_stop_local(True,'Owner paused all local work')
+    with pytest.raises(PermissionError,match='비상'):
+        ops.recover_interrupted_chief_review_queue(store)
+    # Read-only recovery status remains available while emergency stop is on.
+    assert len(ops.list_interrupted_chief_reviews(store))==3
+    assert all(store.find_chief_task_report(aid) is None for _,aid in tasks)
+
+
+def test_batch_chief_recovery_stops_at_first_failed_model(tmp_path,monkeypatch):
+    store,tasks=_recovery_queue_tasks(tmp_path,monkeypatch)
+    calls=[]
+    def chief(_store,artifact_id,**kwargs):
+        calls.append(artifact_id)
+        if len(calls)==2:
+            raise RuntimeError('Synthetic chief failed, never retry automatically')
+        return 'SYNTHETIC FIRST CHIEF SUCCESS'
+    monkeypatch.setattr('desktop.chief_task_runtime.collect_chief_task_result',chief)
+    with pytest.raises(RuntimeError,match='never retry'):
+        ops.recover_interrupted_chief_review_queue(store)
+    assert calls==[tasks[0][1],tasks[1][1]]
+    assert store.find_chief_task_report(tasks[0][1]) is not None
+    assert store.find_chief_task_report(tasks[1][1]) is None
+    assert store.find_chief_task_report(tasks[2][1]) is None
+    assert [p['task_id'] for p in ops.list_interrupted_chief_reviews(store)]==[
+        tasks[1][0],tasks[2][0]]
+
+
+def test_batch_chief_recovery_skips_already_reported_results(tmp_path,monkeypatch):
+    store,tasks=_recovery_queue_tasks(tmp_path,monkeypatch)
+    monkeypatch.setattr('desktop.chief_task_runtime.collect_chief_task_result',
+                        lambda *args,**kwargs:'SYNTHETIC ALREADY-REVIEWED RESULT')
+    ops.recover_interrupted_chief_review(store,tasks[0][0])
+    assert [c['task_id'] for c in ops.list_interrupted_chief_reviews(store)]==[
+        tasks[1][0],tasks[2][0]]
+    result=ops.recover_interrupted_chief_review_queue(store,limit=3)
+    assert result['recovered_reviews']==2
+    assert result['task_ids']==[tasks[1][0],tasks[2][0]]
+    assert all(store.find_chief_task_report(aid) is not None for _,aid in tasks)
+
+
+def test_recovery_candidates_exclude_unexecuted_work(tmp_path,monkeypatch):
+    store,tasks=_recovery_queue_tasks(tmp_path,monkeypatch)
+    tid=ops.create_task(store,'Unexecuted candidate must not be recovered')
+    ops.assign_task(store,tid)
+    ops.approve_chief_order(store,tid,'Explicitly approved but still unexecuted')
+    assert len(ops.list_interrupted_chief_reviews(store))==3
+    with pytest.raises(ValueError):
+        ops.recover_interrupted_chief_review(store,tid)
+    for invalid in (0,True,-1,'3',101):
+        with pytest.raises(ValueError):
+            ops.list_interrupted_chief_reviews(store,limit=invalid)

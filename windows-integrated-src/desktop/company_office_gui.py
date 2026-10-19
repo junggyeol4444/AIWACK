@@ -286,6 +286,10 @@ class CompanyOffice:
         self._action(actionbar,'총괄 AI 회수 검토',self.request_chief_report,compact=True)
         self._action(actionbar,'총괄 보고서 보기',self.open_chief_report,compact=True)
         self._action(actionbar,'중단된 검토 재개',self.recover_interrupted_review,compact=True)
+        recoverybar = tk.Frame(card, bg=CARD)
+        recoverybar.pack(fill='x', pady=(4, 0))
+        self._action(recoverybar, '복구 대기 총괄 검토 최대 3건',
+                     self.recover_interrupted_queue, compact=True)
         self._label(card, '', size=9, color=AMBER, textvariable=self.review_summary).pack(anchor='w', pady=(5, 0))
         self._label(card, '실제 생성 결과가 없으면 표시하지 않습니다. 승인해도 업무가 자동 완료되지 않습니다.',
                     size=8, color=MUTED).pack(anchor='w', pady=(3, 0))
@@ -365,7 +369,10 @@ class CompanyOffice:
                             tags=('warn',) if art['review_status']=='pending' else ())
                 if selected and tree.exists(selected[0]):
                     tree.selection_set(selected[0])
-            self.review_summary.set(f"총 결과물 {data['artifacts']}건 · 검수 대기 {data['pending_reviews']}건")
+            interrupted=ops.list_interrupted_chief_reviews(self.store)
+            self.review_summary.set(
+                f"총 결과물 {data['artifacts']}건 · 검수 대기 {data['pending_reviews']}건"
+                f" · 총괄 검토 복구 후보 {len(interrupted)}건 (직원 재실행 없음)")
             self.proposal_summary.set(f"업무 제안 {len(proposals)}건 중 승인 대기 {data['pending_proposals']}건 · 소유자 승인 필수")
             self._say('실제 회사 데이터 연결됨 · 허위 AI 활동이나 매출을 표시하지 않습니다.')
         except (ValueError, PermissionError, RuntimeError) as exc:
@@ -461,6 +468,12 @@ class CompanyOffice:
                 self.set_view('results')
                 n=int(result['completed_cycles'])
                 self._say(f'승인 업무 {n}건 직원 실행·총괄 회수 완료 · 모두 소유자 검수 대기')
+                if result['reports']:
+                    self.open_chief_report(int(result['reports'][-1]['artifact_id']))
+            elif self.after_action == 'chief_recovery_queue':
+                self.set_view('results')
+                count=int(result['recovered_reviews'])
+                self._say(f'저장된 직원 결과물의 총괄 AI 검토 {count}건 복구 · 직원 중복 실행 없음 · 관리자 검수 대기')
                 if result['reports']:
                     self.open_chief_report(int(result['reports'][-1]['artifact_id']))
             elif self.after_action == 'chief_report':
@@ -677,6 +690,30 @@ class CompanyOffice:
                         after='chief_report')
         except (ValueError,PermissionError) as exc:
             self._say('총괄 회수 검토 시작 실패: '+str(exc))
+
+    def recover_interrupted_queue(self):
+        """Only an explicit owner click may launch bounded chief-only recovery."""
+        if self.worker and self.worker.is_alive():
+            self._say('실행 중인 AI가 있으므로 중단 검토 대기열을 시작하지 않습니다.')
+            return
+        try:
+            candidates=ops.list_interrupted_chief_reviews(self.store,limit=3)
+            if not candidates:
+                self._say('복구 가능한 미검수 직원 결과물이 없습니다.')
+                return
+            listing='\n'.join(
+                f"#{item['task_id']} {str(item['title'])[:70]}"
+                for item in candidates)
+            if not messagebox.askyesno('중단된 총괄 검토 일괄 복구',
+                    f'기존 직원 결과물 {len(candidates)}건에 총괄 AI 검토만 실행합니다.\n'
+                    + listing + '\n직원 중복 실행·자동 승인·업무 완료는 하지 않습니다.\n'
+                    + '실패 시 다음 업무는 시작하지 않습니다. 진행합니까?',
+                    parent=self.root):
+                return
+            self._start(lambda:ops.recover_interrupted_chief_review_queue(
+                self.store,limit=3,cancel=self.cancel),after='chief_recovery_queue')
+        except (ValueError,PermissionError) as exc:
+            self._say('총괄 검토 일괄 복구 실패: '+str(exc))
 
     def recover_interrupted_review(self):
         """Physical owner request; only recover chief review for persisted staff art."""
