@@ -70,7 +70,11 @@ def blue_button_y(w, x, first, last):
 
 def go_company(w):
     # Select the fifth visible section using the REAL dropdown and keyboard.
-    gui.click(w,220,163)
+    nav_y=gui.dashboard_nav_y(w)
+    if nav_y is None:
+        snapshot("company-navigation-not-visible")
+        raise AssertionError("Real Windows company navigation is not visible")
+    gui.click(w,220,nav_y)
     pyautogui.press("home")
     pyautogui.press("down",presses=4,interval=.09)
     pyautogui.press("enter")
@@ -145,7 +149,10 @@ def exercise(exe):
         with sqlite3.connect(db) as con:
             assert con.execute("SELECT title,detail FROM company_goals").fetchall()==[(GOAL,DETAIL)]
         snapshot("company-and-goal-survived-restart")
-        gui.click(w,960,175)
+        nav_y=gui.dashboard_nav_y(w)
+        if nav_y is None:
+            raise AssertionError("Cannot find native logout navigation")
+        gui.click(w,960,148 if nav_y==148 else 175)
         time.sleep(.6)
         snapshot("logged-out")
         gui.shutdown(w,proc);proc=None
