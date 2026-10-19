@@ -31,12 +31,46 @@ def find_window(timeout=80):
         time.sleep(.5)
     raise AssertionError("Real packaged EXE window not shown")
 
+def ensure_foreground(w):
+    """Never send actual user keyboard/mouse input to a CI console window.
+
+    Actual Windows runner screenshots confirmed that GitHub's agent terminal
+    sometimes covers AIWACK after reopening. Require this exact Tk HWND to
+    become the Win32 foreground window; merely finding a window is insufficient.
+    """
+    if w.width < 780 or w.height < 350:
+        snapshot("invalid-target-window")
+        raise AssertionError("Unexpected AIWACK window geometry")
+    for attempt in range(4):
+        foreground=pygetwindow.getActiveWindow()
+        if foreground is not None and foreground._hWnd == w._hWnd:
+            return
+        if w.isMinimized:
+            w.restore()
+        try:
+            w.activate()
+        except Exception:
+            pass
+        time.sleep(.5)
+        foreground=pygetwindow.getActiveWindow()
+        if foreground is not None and foreground._hWnd == w._hWnd:
+            return
+        # A real title-bar click, never clicking the form underneath another window.
+        pyautogui.click(w.left+125,w.top+18)
+        time.sleep(.5)
+    snapshot("wrong-foreground-window")
+    raise AssertionError("AIWACK window is not foreground; refusing blind input")
+
+
 def click(w,x,y):
+    ensure_foreground(w)
     pyautogui.click(w.left+x,w.top+y)
     time.sleep(.35)
 
+
 def type_text(w,x,y,s):
     click(w,x,y)
+    ensure_foreground(w)
     pyautogui.hotkey("ctrl","a")
     pyautogui.write(s,.02)
 
