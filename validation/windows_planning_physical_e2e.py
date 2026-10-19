@@ -82,9 +82,29 @@ def run(exe):
         # the blue "업무로 승인" control occupies absolute x=140..230,
         # y=669..702. Prior x=266,y=653 missed the physical control.
         real.click(w,173,677)
-        approval_dialog = real.find_dialog("업무 생성 승인", timeout=15)
+        # Native Windows/Tk YES/NO messageboxes are about 250 px wide.
+        # The shared finder deliberately rejects windows narrower than 300,
+        # which made an actually visible confirmation look "not found".
+        # Assert the real foreground window title instead (no Tk invoke).
+        deadline = time.monotonic() + 18
+        approval_dialog = None
+        while time.monotonic() < deadline:
+            current = real.pygetwindow.getActiveWindow()
+            if (current is not None
+                    and "업무 생성 승인" in current.title
+                    and 170 <= current.width <= 560
+                    and current.height >= 110):
+                approval_dialog = current
+                break
+            time.sleep(.3)
+        if approval_dialog is None:
+            real.evidence("planning-native-confirmation-not-foreground")
+            raise AssertionError("Real small native owner approval dialog was not in foreground")
         real.evidence("planning-actual-owner-approval-dialog-visible")
-        real.confirm()
+        # The real YES button is already default-focused in both
+        # Windows 2022/2025 screenshots. A physical Enter authorizes it.
+        pyautogui.press("enter")
+        time.sleep(.8)
         real.wait_sql("SELECT status FROM company_task_proposals WHERE id=?", "approved",(proposal,))
         task=real.read("SELECT approved_task_id FROM company_task_proposals WHERE id=?",(proposal,))
         assert isinstance(task,int) and task>0
