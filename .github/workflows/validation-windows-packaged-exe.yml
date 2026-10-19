@@ -1,8 +1,12 @@
-name: AIWACK packaged Windows EXE user interaction (test branch only)
+name: AIWACK packaged Windows EXE owner and company persistence (main)
 on:
   push:
-    branches:
-      - validation/windows-user-e2e-20261015
+    branches: [main]
+    paths:
+      - 'windows-integrated-src/**'
+      - 'validation/windows_built_exe_gui.py'
+      - 'validation/windows_company_gui.py'
+      - '.github/workflows/validation-windows-packaged-exe.yml'
   workflow_dispatch:
 permissions:
   contents: read
@@ -19,16 +23,15 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.11'
-      - name: Verify and extract immutable source archive
+      - name: Confirm actual tested native Windows application source on main
         shell: pwsh
         run: |
-          $archive = Join-Path $env:GITHUB_WORKSPACE 'source-archives/AIWACK_Stage100_Robots_Compliant_Crawling_Plugin_Market_Integration_Source.zip'
-          if ((Get-FileHash -Algorithm SHA256 $archive).Hash.ToLowerInvariant() -ne 'f855f9ed9afada6a75f80011bf86f95cda053045d54e4445fbf399531626b020') { throw 'Source archive changed' }
-          Expand-Archive -LiteralPath $archive -DestinationPath (Join-Path $env:RUNNER_TEMP 'aiwack-built-exe')
-          python validation/patch_source.py (Join-Path $env:RUNNER_TEMP 'aiwack-built-exe/AIWACK-Stage54')
-          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          python validation/app_navigation_patch.py (Join-Path $env:RUNNER_TEMP 'aiwack-built-exe/AIWACK-Stage54')
-          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          $src = Join-Path $env:GITHUB_WORKSPACE 'windows-integrated-src'
+          if (!(Test-Path (Join-Path $src 'desktop/entry.py'))) { throw 'Main integrated app entrypoint missing' }
+          if (!(Test-Path (Join-Path $src 'desktop/company_office_gui.py'))) { throw 'Main integrated company office missing' }
+          if (!(Test-Path (Join-Path $src 'VERIFIED_SOURCE_MANIFEST.json'))) { throw 'Verified Windows application source manifest missing' }
+          python -m compileall -q (Join-Path $src 'desktop')
+          if ($LASTEXITCODE -ne 0) { throw 'Integrated Windows app Python compile failure' }
       - name: Install native Windows EXE and screen automation tools
         shell: pwsh
         run: |
@@ -37,15 +40,16 @@ jobs:
       - name: Build actual GUI application exe
         shell: pwsh
         run: |
-          Set-Location (Join-Path $env:RUNNER_TEMP 'aiwack-built-exe/AIWACK-Stage54')
-          python -m PyInstaller --noconfirm --clean --onefile --windowed --name AIWACK --paths . --add-data 'docs/roadmap_100.csv;docs' desktop/entry.py
+          $src = Join-Path $env:GITHUB_WORKSPACE 'windows-integrated-src'
+          Set-Location $src
+          python -m PyInstaller --noconfirm --clean --onefile --windowed --name AIWACK --paths . --hidden-import desktop.company_operations --hidden-import desktop.company_office_gui --hidden-import desktop.company_model_connect_ui --add-data 'docs/roadmap_100.csv;docs' desktop/entry.py
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
       - name: Launch EXE click type save close restart read logout
         shell: pwsh
         env:
           AIWACK_PACKAGED_GUI_ARTIFACTS: ${{ runner.temp }}/packaged-e2e
         run: |
-          $exe = Join-Path $env:RUNNER_TEMP 'aiwack-built-exe/AIWACK-Stage54/dist/AIWACK.exe'
+          $exe = Join-Path $env:GITHUB_WORKSPACE 'windows-integrated-src/dist/AIWACK.exe'
           python validation/windows_built_exe_gui.py $exe
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
       - name: Actually click company settings and goal through built EXE; close and reopen
@@ -53,7 +57,7 @@ jobs:
         env:
           AIWACK_PACKAGED_GUI_ARTIFACTS: ${{ runner.temp }}/packaged-company-e2e
         run: |
-          $exe = Join-Path $env:RUNNER_TEMP 'aiwack-built-exe/AIWACK-Stage54/dist/AIWACK.exe'
+          $exe = Join-Path $env:GITHUB_WORKSPACE 'windows-integrated-src/dist/AIWACK.exe'
           python validation/windows_company_gui.py $exe
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
       - name: Save company-form GUI screenshots and errors
