@@ -152,7 +152,7 @@ def exercise(exe):
         nav_y=gui.dashboard_nav_y(w)
         if nav_y is None:
             raise AssertionError("Cannot find native logout navigation")
-        gui.click(w,960,148 if nav_y==148 else 175)
+        gui.click(w,960,nav_y if nav_y < 153 else nav_y+12)
         time.sleep(.6)
         snapshot("logged-out")
         gui.shutdown(w,proc);proc=None
