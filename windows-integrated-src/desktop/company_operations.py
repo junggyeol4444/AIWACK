@@ -500,6 +500,33 @@ def list_interrupted_chief_reviews(store, *, limit: int = 100) -> list[dict]:
     return candidates
 
 
+def inspect_recovery_state(store, *, max_runs: int = 200) -> dict:
+    """Read-only operator status for both independent crash windows.
+
+    A 'running' row can be a LIVE subprocess or a crash remnant; this API
+    never assumes it is dead and never closes it. The existing native 'AI 업무
+    실행' tab requires an explicit owner confirmation and a live-process check
+    before invoking LocalStore.recover_interrupted_task_run().
+    """
+    store.require_permission('company:manage')
+    if type(max_runs) is not int or not 1 <= max_runs <= 200:
+        raise ValueError('실행 감사 조회는 1~200건이어야 합니다.')
+    runs = store.list_task_runs(limit=max_runs)
+    running = [{
+        'run_id': int(item['id']),
+        'task_id': int(item['task_id']),
+        'employee_id': int(item['employee_id']),
+        'status': item['status'],
+        'started_at': item['started_at'],
+    } for item in runs if item['status'] == 'running']
+    return {'running_worker_runs': running,
+            'pending_chief_reviews': list_interrupted_chief_reviews(store),
+            'run_scan_limit': max_runs,
+            'requires_owner_process_confirmation': True,
+            'changed_task_state': False,
+            'auto_reran_worker': False}
+
+
 def recover_interrupted_chief_review_queue(store, *, limit: int = 3,
                                            cancel: threading.Event | None = None) -> dict:
     """Explicit owner batch recovery: up to 3 saved worker results, chief ONLY.

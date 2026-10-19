@@ -328,3 +328,46 @@ def test_recovery_candidates_exclude_unexecuted_work(tmp_path,monkeypatch):
     for invalid in (0,True,-1,'3',101):
         with pytest.raises(ValueError):
             ops.list_interrupted_chief_reviews(store,limit=invalid)
+
+
+def test_recovery_status_reveals_running_audits_without_closing_live_process(tmp_path,monkeypatch):
+    """An unfinalized running row might be live. Never auto-terminate it."""
+    store,tasks=_recovery_queue_tasks(tmp_path,monkeypatch)
+    tid=ops.create_task(store,'Potentially still live model subprocess')
+    ops.assign_task(store,tid)
+    ops.approve_chief_order(store,tid,'Owner approved this pending worker')
+    run_id,model,prompt=store.begin_task_execution(tid)
+    before=store.list_task_runs(tid)
+    summary=ops.inspect_recovery_state(store)
+    assert [s['run_id'] for s in summary['running_worker_runs']]==[run_id]
+    assert len(summary['pending_chief_reviews'])==3
+    assert summary['requires_owner_process_confirmation'] is True
+    assert summary['changed_task_state'] is False
+    assert summary['auto_reran_worker'] is False
+    assert store.list_task_runs(tid)==before
+    assert store.read_task(tid)['status']=='in_progress'
+    store.logout()
+    with pytest.raises(AuthenticationError):
+        ops.inspect_recovery_state(store)
+    fresh=LocalStore(store.path)
+    fresh.login('batch_recovery_owner','test-batch-recovery-password-2026')
+    assert len(ops.inspect_recovery_state(fresh)['running_worker_runs'])==1
+    # Existing storage provides an explicit (not automated) recovery action.
+    fresh.recover_interrupted_task_run(run_id)
+    assert fresh.read_task(tid)['status']=='blocked'
+    assert ops.inspect_recovery_state(fresh)['running_worker_runs']==[]
+    for old_tid,aid in tasks:
+        assert fresh.read_task(old_tid)['status']=='in_progress'
+        assert fresh.find_chief_task_report(aid) is None
+
+
+def test_recovery_status_requires_owner_and_bounded_audit_window(tmp_path,monkeypatch):
+    store,tasks=_recovery_queue_tasks(tmp_path,monkeypatch)
+    for invalid in (0,True,-1,'3',201):
+        with pytest.raises(ValueError,match='1~200'):
+            ops.inspect_recovery_state(store,max_runs=invalid)
+    state=ops.inspect_recovery_state(store,max_runs=1)
+    assert state['run_scan_limit']==1
+    assert state['running_worker_runs']==[]
+    assert len(state['pending_chief_reviews'])==3
+    assert all(store.find_chief_task_report(aid) is None for _,aid in tasks)

@@ -290,6 +290,8 @@ class CompanyOffice:
         recoverybar.pack(fill='x', pady=(4, 0))
         self._action(recoverybar, '복구 대기 총괄 검토 최대 3건',
                      self.recover_interrupted_queue, compact=True)
+        self._action(recoverybar, '미완료 직원 실행 확인 ↗',
+                     lambda: self._goto_native('AI 업무 실행'), compact=True)
         self._label(card, '', size=9, color=AMBER, textvariable=self.review_summary).pack(anchor='w', pady=(5, 0))
         self._label(card, '실제 생성 결과가 없으면 표시하지 않습니다. 승인해도 업무가 자동 완료되지 않습니다.',
                     size=8, color=MUTED).pack(anchor='w', pady=(3, 0))
@@ -369,10 +371,12 @@ class CompanyOffice:
                             tags=('warn',) if art['review_status']=='pending' else ())
                 if selected and tree.exists(selected[0]):
                     tree.selection_set(selected[0])
-            interrupted=ops.list_interrupted_chief_reviews(self.store)
+            recover_state=ops.inspect_recovery_state(self.store)
             self.review_summary.set(
                 f"총 결과물 {data['artifacts']}건 · 검수 대기 {data['pending_reviews']}건"
-                f" · 총괄 검토 복구 후보 {len(interrupted)}건 (직원 재실행 없음)")
+                f" · 총괄 검토 복구 {len(recover_state['pending_chief_reviews'])}건"
+                f" · 실행 상태 확인 {len(recover_state['running_worker_runs'])}건 (최근 200건)"
+                " · 직원 자동 재실행 없음")
             self.proposal_summary.set(f"업무 제안 {len(proposals)}건 중 승인 대기 {data['pending_proposals']}건 · 소유자 승인 필수")
             self._say('실제 회사 데이터 연결됨 · 허위 AI 활동이나 매출을 표시하지 않습니다.')
         except (ValueError, PermissionError, RuntimeError) as exc:
