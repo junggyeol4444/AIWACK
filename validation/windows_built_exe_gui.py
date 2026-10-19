@@ -106,7 +106,7 @@ def dashboard_nav_y(w):
     The setup/login page has no such band in this top navigation region.
     """
     img=pyautogui.screenshot().convert("RGB")
-    pxs=(w.left+185,w.left+230)
+    pxs=(w.left+270,w.left+285)
     if any(px<0 or px>=img.width for px in pxs):
         return None
     hits=[]
