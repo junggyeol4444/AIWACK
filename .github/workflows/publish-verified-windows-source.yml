@@ -39,7 +39,7 @@ jobs:
       - name: Download known successful Windows 2025 tested integrated source
         shell: pwsh
         env:
-          GH_TOKEN: \${{ github.token }}
+          GH_TOKEN: ${{ github.token }}
         run: |
           $run = gh api "repos/$env:GITHUB_REPOSITORY/actions/runs/39184374421" | ConvertFrom-Json
           if ($run.conclusion -ne 'success' -or $run.head_sha -ne '9eb950adb30da7e694e0b698bbcd2bf849c15c53') { throw 'Source release verification does not match expected successful Windows Actions run' }
@@ -80,7 +80,7 @@ jobs:
       - name: Physically click packaged EXE through owner-company acceptance
         shell: pwsh
         env:
-          AIWACK_PACKAGED_GUI_ARTIFACTS: \${{ runner.temp }}/verified-source-gui-evidence
+          AIWACK_PACKAGED_GUI_ARTIFACTS: ${{ runner.temp }}/verified-source-gui-evidence
         run: |
           Set-Location $env:GITHUB_WORKSPACE
           python -m PyInstaller --noconfirm --clean --onefile --console --name AIWACK-ModelStub --distpath (Join-Path $env:RUNNER_TEMP 'verified-source-dist') --workpath (Join-Path $env:RUNNER_TEMP 'verified-stub-build') --specpath (Join-Path $env:RUNNER_TEMP 'verified-source-spec') validation/windows_fake_llm.py
@@ -113,6 +113,6 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: aiwack-integrated-source-physical-exe-evidence
-          path: \${{ runner.temp }}/verified-source-gui-evidence/
+          path: ${{ runner.temp }}/verified-source-gui-evidence/
           if-no-files-found: warn
           retention-days: 30
