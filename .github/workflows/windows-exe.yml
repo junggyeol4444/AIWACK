@@ -7,6 +7,7 @@ on:
       - '.github/workflows/windows-exe.yml'
       - 'validation/**'
       - 'source-archives/**'
+      - 'windows-integrated-src/**'
       - 'deployment/**'
   workflow_dispatch:
 
@@ -27,25 +28,22 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.11'
-      - name: Extract verified original and integrate latest native company source
+      - name: Verify latest fully integrated, original-preserving main source
         shell: pwsh
         run: |
-          $archive = Join-Path $env:GITHUB_WORKSPACE 'source-archives/AIWACK_Stage100_Robots_Compliant_Crawling_Plugin_Market_Integration_Source.zip'
-          if ((Get-FileHash $archive -Algorithm SHA256).Hash.ToLowerInvariant() -ne 'f855f9ed9afada6a75f80011bf86f95cda053045d54e4445fbf399531626b020') { throw 'Source archive SHA256 mismatch' }
-          $root = Join-Path $env:RUNNER_TEMP 'aiwack-release-source'
-          Expand-Archive -LiteralPath $archive -DestinationPath $root
-          $src = Join-Path $root 'AIWACK-Stage54'
-          python validation/patch_source.py $src
-          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          python validation/app_navigation_patch.py $src
-          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          python validation/install_company_office.py $src
-          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          $src = Join-Path $env:GITHUB_WORKSPACE 'windows-integrated-src'
+          $manifestPath = Join-Path $src 'VERIFIED_SOURCE_MANIFEST.json'
+          if (!(Test-Path -LiteralPath $manifestPath)) { throw 'Verified integrated app manifest missing' }
+          $manifest = Get-Content -LiteralPath $manifestPath -Raw | ConvertFrom-Json
+          if ($manifest.source_commit -ne '9eb950adb30da7e694e0b698bbcd2bf849c15c53' -or $manifest.files -ne 851) { throw 'Integrated source baseline manifest unexpectedly changed' }
+          foreach ($relative in @('desktop/entry.py','desktop/company_office_gui.py','desktop/company_operations.py','desktop/company_model_connect_ui.py','docs/original_project_spec.txt')) {
+            if (!(Test-Path -LiteralPath (Join-Path $src $relative))) { throw "Required app source missing: $relative" }
+          }
           python -m compileall -q (Join-Path $src 'desktop')
-          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          if ($LASTEXITCODE -ne 0) { throw 'Integrated source Python compilation failed' }
           $sourceZip = Join-Path $env:RUNNER_TEMP 'AIWACK_Integrated_Source.zip'
           Compress-Archive -LiteralPath $src -DestinationPath $sourceZip -Force
-          if (!(Test-Path $sourceZip)) { throw 'Integrated source ZIP missing' }
+          if (!(Test-Path -LiteralPath $sourceZip)) { throw 'Integrated source ZIP missing' }
           "AIWACK_RELEASE_SRC=$src" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
           "AIWACK_RELEASE_SOURCE_ZIP=$sourceZip" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
       - name: Install native Windows EXE builder and actual GUI drivers
