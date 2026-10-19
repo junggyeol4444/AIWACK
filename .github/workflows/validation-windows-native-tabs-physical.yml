@@ -1,0 +1,58 @@
+name: AIWACK real Windows EXE 59 native screen navigation (validation)
+on:
+  push:
+    branches:
+      - validation/windows-user-e2e-20261015
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  packaged-exe-real-gui:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-2022, windows-2025]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Verify and extract immutable source archive
+        shell: pwsh
+        run: |
+          $archive = Join-Path $env:GITHUB_WORKSPACE 'source-archives/AIWACK_Stage100_Robots_Compliant_Crawling_Plugin_Market_Integration_Source.zip'
+          if ((Get-FileHash -Algorithm SHA256 $archive).Hash.ToLowerInvariant() -ne 'f855f9ed9afada6a75f80011bf86f95cda053045d54e4445fbf399531626b020') { throw 'Source archive changed' }
+          Expand-Archive -LiteralPath $archive -DestinationPath (Join-Path $env:RUNNER_TEMP 'aiwack-built-exe')
+          python validation/patch_source.py (Join-Path $env:RUNNER_TEMP 'aiwack-built-exe/AIWACK-Stage54')
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          python validation/app_navigation_patch.py (Join-Path $env:RUNNER_TEMP 'aiwack-built-exe/AIWACK-Stage54')
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Install native Windows EXE and screen automation tools
+        shell: pwsh
+        run: |
+          python -m pip install pyinstaller pyautogui pygetwindow pyperclip pillow
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Build actual GUI application exe
+        shell: pwsh
+        run: |
+          Set-Location (Join-Path $env:RUNNER_TEMP 'aiwack-built-exe/AIWACK-Stage54')
+          python -m PyInstaller --noconfirm --clean --onefile --windowed --name AIWACK --paths . --add-data 'docs/roadmap_100.csv;docs' desktop/entry.py
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Physically navigate 59 native screens of fresh packaged Windows EXE
+        shell: pwsh
+        env:
+          AIWACK_NATIVE_TABS_EVIDENCE: ${{ runner.temp }}/aiwack-native-tabs-physical
+        run: |
+          $exe = Join-Path $env:RUNNER_TEMP 'aiwack-built-exe/AIWACK-Stage54/dist/AIWACK.exe'
+          python validation/windows_native_tabs_physical_e2e.py $exe
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Upload native Windows EXE 59 screen captures and run failures
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: aiwack-physical-59-tabs-${{ matrix.os }}
+          path: ${{ runner.temp }}/aiwack-native-tabs-physical/
+          if-no-files-found: warn
+          retention-days: 30
