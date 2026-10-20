@@ -233,7 +233,7 @@ class CompanyOffice:
         self._action(head, '목표·차단 업무 검색', self.scan_proposals, compact=True)
         self._action(head, '총괄 AI 구체화', self.refine_proposal, compact=True)
         self.proposal_list = self._table(card, [('id','번호',54),('title','제안 제목',300),
-                                                 ('origin','작성 출처',100),('state','승인 상태',105)],height=5)
+                                                 ('origin','작성 출처',100),('state','승인 상태',105)],height=3)
         self.proposal_list.bind('<Double-1>',lambda _event:self.open_proposal())
         controls=tk.Frame(card,bg=CARD)
         controls.pack(fill='x',pady=(7,0))

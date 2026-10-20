@@ -382,3 +382,9 @@
 
 - 0.5초 간격 실모델 취소 watcher가 기존 `approved_models_enabled`의 schema CREATE IF NOT EXISTS를 매번 실행하던 불필요한 SQLite 쓰기 잠금 위험을 개선. 테이블 초기화는 명시적 소유자 설정/실행 시작에서만, 장시간 추론 중에는 `_policy_active_read_only` SELECT와 비상정지 상태만 검사.
 - 다른 Windows 창의 모델 허용 해제와 호출 시작이 같은 순간 경쟁하더라도, 실행 감사 신규 INSERT 전 `BEGIN IMMEDIATE`에서 소유자 허용 상태/전체 자동 운영/비상정지 여부를 다시 확인해 시작을 차단. 모델 실행 중 철회 시 watcher가 공통 cancel event를 전달. 마지막 CI·Windows EXE 검증 PASS 전 완료라고 하지 않음.
+
+### 2026-10-20 Windows 2022/2025 배포 EXE GUI 가시성 회귀 수정 (다음 대화 필독)
+
+- 당시 `main` `e2d1b8aa0f2e89716eefcaa4bfab94d77c31971b`에서 CI #39385477161 SUCCESS, packaged 실제 GUI #39385477048 SUCCESS, 진짜 GGUF #39385477099 SUCCESS였으나 Windows EXE 빌드 검사 #39385477009는 **Windows 2022 및 2025 두 작업 모두 FAIL**.
+- 원인: 기획 화면에 새로 늘어난 `승인 AI 자동 실행 켜기` 버튼이 실제 1040×720 Windows GUI 창 아래로 밀려, `company_office_gui_smoke.py` 픽셀 검사 `button.winfo_viewable()` 실패. 일반 CI만 성공했다고 EXE 전체 정상이라고 주장 금지.
+- 기존 버튼 위치·실제 클릭·권한 기능은 변경하지 않고, 계획 제안 표 기본 표시행을 5→3으로 줄여 하단 승인 AI 자동 실행 버튼 공간을 확보하는 GUI 레이아웃 수정. 새 커밋에서 Windows EXE의 **실제 픽셀 가시성 및 기존 소유자 승인·모델 실행** 테스트를 모두 다시 확인해야 한다. 통과 여부는 해당 SHA Actions 종료 전에 단정 금지.
