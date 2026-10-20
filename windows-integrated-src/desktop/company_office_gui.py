@@ -276,6 +276,8 @@ class CompanyOffice:
         head.pack(fill='x', pady=(0, 6))
         self._label(head, 'AI 결과물  /  REVIEW QUEUE', size=12, bold=True).pack(side='left')
         self._action(head, '결과 열기', self.open_result, compact=True)
+        self._action(head, '결과물 품질 검사', self.quality_check_result, compact=True)
+        self._action(head, '승인 결과 파일 저장', self.export_result, compact=True)
         self._action(head, '승인', self.approve_selected, strong=True, compact=True)
         self._action(head, '수정 요청', self.request_changes, compact=True)
         self._action(head, '반려', self.reject_selected, danger=True, compact=True)
@@ -938,6 +940,33 @@ class CompanyOffice:
         except ValueError:
             text = self.latest_output
         self._text_dialog('실제 AI 결과 및 검수',text)
+
+    def quality_check_result(self):
+        from desktop import company_deliverables as deliver
+        try:
+            aid=self._selected_artifact()
+            report=deliver.check_quality(self.store,aid)
+            issues=('\n'.join(report['warnings']) if report['warnings'] else '기계적 무결성 검사 경고 없음')
+            self._text_dialog('결과물 기계적 품질 검사',
+                f"#{aid} / SHA256 일치: {report['integrity_ok']} / "
+                f"본문 길이 {report['body_chars']}자\n"
+                + issues + '\n내용 사실성·법적 적합성·상업적 품질은 관리자 직접 검토가 필요합니다.')
+        except (ValueError,PermissionError) as exc:
+            self._say('기계적 품질 검사 실패: '+str(exc))
+
+    def export_result(self):
+        from desktop import company_deliverables as deliver
+        try:
+            aid=self._selected_artifact()
+            if not messagebox.askyesno('승인 결과 파일로 저장',
+                    f'관리자가 검수 승인한 결과물 #{aid}만 컴퓨터 AIWACK 데이터 폴더에 '
+                    'Markdown 파일로 저장합니다.\n외부 게시·판매·덮어쓰기는 하지 않습니다. 진행할까요?',
+                    parent=self.root):
+                return
+            report=deliver.export_approved(self.store,aid)
+            self._say(f"승인 결과 #{aid} 저장 완료: {report['path']}")
+        except (ValueError,PermissionError,FileExistsError,OSError,RuntimeError) as exc:
+            self._say('파일 내보내기 오류: '+str(exc))
 
     def _review(self, decision):
         try:
