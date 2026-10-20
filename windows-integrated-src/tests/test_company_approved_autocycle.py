@@ -74,9 +74,9 @@ def test_cancel_after_staff_preserves_pending_draft_without_chief(session,monkey
     with pytest.raises(InterruptedError):
         ops.execute_approved_chief_cycle(store,tid,cancel=flag)
     assert events==['worker']
-    artifact=store.list_task_artifacts(tid)[0]
-    assert artifact['review_status']=='pending'
-    assert store.find_chief_task_report(artifact['id']) is None
+    assert store.list_task_artifacts(tid) == []
+    assert store.list_task_runs(tid)[0]['status'] == 'cancelled'
+    assert store.read_task(tid)['status'] == 'blocked'
 
 def test_emergency_stop_prevents_chief_after_worker(session,monkeypatch):
     store,tid,events=session
@@ -89,9 +89,9 @@ def test_emergency_stop_prevents_chief_after_worker(session,monkeypatch):
     with pytest.raises(PermissionError,match='비상'):
         ops.execute_approved_chief_cycle(store,tid)
     assert events==['worker']
-    aid=store.list_task_artifacts(tid)[0]['id']
-    assert store.find_chief_task_report(aid) is None
-    assert store.read_task(tid)['status']=='in_progress'
+    assert store.list_task_artifacts(tid) == []
+    assert store.list_task_runs(tid)[0]['status'] == 'failure'
+    assert store.read_task(tid)['status'] == 'blocked'
 
 def test_failed_staff_does_not_invoke_chief(session,monkeypatch):
     store,tid,events=session

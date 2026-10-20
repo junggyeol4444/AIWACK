@@ -131,6 +131,9 @@ def execute_task(store, task_id: int, *, timeout: int=60,
         raise InterruptedError('시작 전 취소되었습니다.')
     # begin_task_execution additionally checks the same persisted stop under BEGIN IMMEDIATE.
     text = invoke_task_execution(store, task_id, timeout=timeout, cancel=cancel)
+    if cancel is not None and cancel.is_set():
+        raise InterruptedError('소유자 취소 후 직원 결과물을 저장하지 않습니다.')
+    assert_running_allowed(store)
     runs = store.list_task_runs(task_id, limit=1)
     if not runs or runs[0]['status'] != 'success':
         raise RuntimeError('성공한 실제 직원 실행 감사 기록을 찾지 못했습니다.')

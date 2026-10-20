@@ -30,6 +30,13 @@ def invoke_task_execution(store: LocalStore, task_id: int, *, timeout: int = 60,
     status, error_kind, output_chars = 'failure', '', 0
     try:
         response = run_local_model(config, prompt, timeout=timeout, cancel=cancel)
+        # A late owner stop cannot become a successful audited task.
+        if cancel is not None and cancel.is_set():
+            raise InterruptedError('관리자가 직원 실행 중 취소했습니다. 응답은 폐기합니다.')
+        from desktop.stage87_90_management import stopped
+        with store._connect() as con:
+            if stopped(con):
+                raise PermissionError('비상 정지가 적용되어 직원 결과를 폐기합니다.')
         status = 'success'
         output_chars = len(response)
         return response

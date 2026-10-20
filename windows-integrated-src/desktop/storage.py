@@ -1538,6 +1538,10 @@ class LocalStore:
             if row is None:
                 raise ValueError("실행 기록이 없거나 이미 종료됐습니다.")
             task_id,call_id=row
+            from desktop.stage87_90_management import stopped as emergency_stopped
+            rejected_late_success = status == 'success' and emergency_stopped(con)
+            if rejected_late_success:
+                status, output_chars, error_kind = 'failure', 0, 'RuntimeError'
             model_status = 'failure' if status == 'interrupted' else status
             changed = con.execute("""UPDATE ai_model_call_history SET status=?,output_chars=?,duration_ms=?,
                 error_kind=?,completed_at=CURRENT_TIMESTAMP WHERE id=? AND status='running'""",
@@ -1554,6 +1558,8 @@ class LocalStore:
                     WHERE id=? AND status='in_progress'""", (task_id,))
                 con.execute("""INSERT INTO company_task_status_events(task_id,old_status,new_status)
                     VALUES(?,'in_progress','blocked')""", (task_id,))
+        if rejected_late_success:
+            raise PermissionError('비상 정지로 완료된 직원 실행 응답을 폐기했습니다.')
 
     def recover_interrupted_task_run(self, run_id: int) -> None:
         """Owner explicitly closes a stale running row after app/process crash.
@@ -1594,6 +1600,9 @@ class LocalStore:
         with self._connect() as con:
             con.execute('BEGIN IMMEDIATE')
             self._task_row(con, task_id)
+            from desktop.stage87_90_management import stopped as emergency_stopped
+            if emergency_stopped(con):
+                raise PermissionError('비상 정지 상태에서는 새 AI 결과물을 저장하지 않습니다.')
             row = con.execute('SELECT task_id,status FROM company_task_runs WHERE id=?', (run_id,)).fetchone()
             if row is None or row[0] != task_id or row[1] != 'success':
                 raise ValueError('선택한 업무에서 성공한 로컬 AI 실행 결과만 저장할 수 있습니다.')
@@ -2459,12 +2468,19 @@ class LocalStore:
         if error_kind not in {"","ValueError","RuntimeError","OSError","TimeoutError","InterruptedError"}:
             raise ValueError("오류 분류가 올바르지 않습니다.")
         with self._connect() as con:
+            con.execute('BEGIN IMMEDIATE')
+            from desktop.stage87_90_management import stopped as emergency_stopped
+            rejected_late_success = status == 'success' and emergency_stopped(con)
+            if rejected_late_success:
+                status, output_chars, error_kind = 'failure', 0, 'RuntimeError'
             changed=con.execute("""UPDATE ai_model_call_history SET
                 status=?,output_chars=?,duration_ms=?,error_kind=?,completed_at=CURRENT_TIMESTAMP
                 WHERE id=? AND status='running'""",
                 (status,output_chars,duration_ms,error_kind,call_id)).rowcount
             if changed != 1:
                 raise ValueError("기록이 존재하지 않거나 이미 완료됐습니다.")
+        if rejected_late_success:
+            raise PermissionError('비상 정지로 완료된 모델 응답을 폐기했습니다.')
 
     def list_employee_model_calls(self, employee_id: int | None = None, *,
                                   limit: int = 100) -> list[dict[str, object]]:

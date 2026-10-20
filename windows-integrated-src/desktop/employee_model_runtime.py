@@ -24,6 +24,12 @@ def invoke_employee_model(store: LocalStore, employee_id: int, prompt: str, *,
     error_kind=""
     try:
         result=run_local_model(config,prompt,timeout=timeout,cancel=cancel)
+        if cancel is not None and cancel.is_set():
+            raise InterruptedError('관리자가 AI 모델 실행 중 취소했습니다. 응답은 폐기합니다.')
+        from desktop.stage87_90_management import stopped
+        with store._connect() as con:
+            if stopped(con):
+                raise PermissionError('비상 정지가 적용되어 모델 응답을 폐기합니다.')
         status="success"
         output_chars=len(result)
         return result
@@ -34,6 +40,10 @@ def invoke_employee_model(store: LocalStore, employee_id: int, prompt: str, *,
     except TimeoutError:
         status="timeout"
         error_kind="TimeoutError"
+        raise
+    except PermissionError:
+        # PermissionError subclasses OSError. Persist a stable allowed audit tag.
+        error_kind='RuntimeError'
         raise
     except (ValueError,RuntimeError,OSError) as exc:
         error_kind=type(exc).__name__

@@ -175,3 +175,16 @@
 - 같은 `ffa8931b...`의 [Windows 회사 GUI #39357846337](https://github.com/junggyeol4444/AIWACK/actions/runs/39357846337)은 **Windows2022/2025 양쪽 SUCCESS**. [Windows EXE 배포 검증 #39357846331](https://github.com/junggyeol4444/AIWACK/actions/runs/39357846331) 및 [실제 GGUF 직원/총괄 추론 #39357846294](https://github.com/junggyeol4444/AIWACK/actions/runs/39357846294)는 이 기록 당시 **in_progress**, PASS 판정 금지. 실제 종료 여부 재조회할 것.
 - 재현 가능한 로컬 검증 결과는 `102 passed in 41.94s` (초기 101 passed/1 failed 병렬 절대시간 경계 오류를 **실제 subprocess 실행구간 중첩 검사로 수정 후**), GUI `COMPANY_OFFICE_LIVE_GUI_PASS`, `PHYSICAL_CHIEF_REVIEW_OWNER_ACCEPT_NO_AUTO_TASK_COMPLETION_PASS`, `REAL_MOUSE_CHIEF_ORDER_OWNER_APPROVAL_WITHOUT_EXECUTION_PASS`, `desktop.entry --self-test` 반환 0. **전체 네이티브 프로젝트 무제한 pytest**는 작업상 시간 초과로 완결하지 못함; 성공이라고 주장하지 않음.
 - 다음 작업 우선순위: 최신 `ffa8931b`의 Windows EXE·실제 GGUF 2플랫폼 최종 결과/아티팩트 확인→로그 기준 오류 수정 및 7개 묶음 재검사. 이후 Stage63 장시간 병렬 추론·강제 종료 복원 전체 흐름, 24h 자율 반복, 31명 실질 협업, 도구/사업 흐름, 원본 T01~T20 실제 통합검증을 기존 Windows EXE에서 완성. 사용자 직접 요청 없이 예약/다른 저장소/드라이브/브랜치 변경 금지.
+
+## 12. 2026-10-20 배치 구현: 비상정지/취소 후 모델 및 직원 결과 영속 저장 차단
+
+- 개발 시작 `main` HEAD `8e77045f1b9e033f918b1a21e9d2fa7b0e3a600d`. 이전 `ffa8931b...` Windows 2022/2025 EXE 빌드와 회사 GUI 테스트는 PASS, 실제 GGUF 새 검사 `39357846294`는 이 회차 조회 시 실행 중.
+- 이번에는 다섯 개 기존 런타임 소스(`task_runtime.py`, `employee_model_runtime.py`, `company_operations.py`, `storage.py`)에 하나의 연관된 안전 수정 묶음을 적용했다.
+- 실제 로컬 직원 추론/수동 직원 모델 진단은 하위 프로세스 정상 종료 직후에도 관리자 취소 플래그와 SQLite 비상정지 여부를 다시 확인한다. 취소/정지 후 응답은 실패/취소 감사 기록을 보존하고 결과를 반환하지 않는다.
+- `storage.py`의 `finish_task_execution` / `finish_employee_model_call`는 SQL `BEGIN IMMEDIATE` 경계에서 비상정지 발생 이후 성공 처리 및 출력 길이 저장을 막는다. 상태를 실패로 기록·기존 감사 보존 후 PermissionError로 caller에 전달한다. `save_task_artifact`에도 같은 SQLite 트랜잭션 내부 stop guard를 추가하여 late-result 저장 경합을 막는다.
+- `company_operations.py`의 execute_task는 진단 모델 호출이 끝났더라도 취소/비상정지가 뒤늦게 적용되면 결과물 저장을 하지 않는다.
+- 기존 테스트의 위험했던 가정(모델 추론 도중 취소나 비상정지를 해도 결과물을 저장한다)을 안전한 실패/차단 기대 결과로 수정함. 기존 `test_task_execution.py`에 4개, `test_company_model_onboarding.py`에 2개 새 안전 회귀 테스트를 추가.
+- **원본 전체 7개 통합 테스트 파일 재실행: 110 passed**. 처음 점검 중 `PermissionError`가 `OSError` 처리보다 뒤에 있어 감사 오류 레이블이 거부되는 FAIL을 실제로 발견, 처리 순서를 변경하여 재검사했다. Linux 테스트 subprocess 실행기 Python 시작 지연 때문에 한 차례 타임아웃이 발생하여 child PATH를 Python 기본 시스템 실행기로 고정 후 동일한 110개 검사를 다시 완료했다. 비상정지/취소와 하위 모델 프로세스의 트랜잭션 경합을 모의한 합성 검증이며 Windows Server EXE 실사용 성공 근거가 아님.
+- EXE 진입점 `python -m desktop.entry --self-test`: PASS. 회사 운영센터 Tkinter `xvfb-run -a python -m scripts.company_office_gui_smoke`: PASS.
+- 남은 의무: 동일한 새 커밋에서 루트/네이티브 통합 CI, Windows 2022/2025 실제 EXE·SQLite·직원·총괄 GGUF 실사용 액션 결과를 확인하고 FAIL이면 전체 배치 오류 수정 후 재검사. 사용자 개인 Windows 10/11 실기기 직접 검증은 불가/미검증. T01~T20 전체 인수, 장시간 자동 운영/다수 AI 협업/외부 도구 및 사업 거래는 미완료.
+- 사용자 요청 없이는 예약 상태와 다른 프로젝트/드라이브/브랜치를 변경하지 않는다.

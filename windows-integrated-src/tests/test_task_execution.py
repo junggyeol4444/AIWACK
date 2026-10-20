@@ -222,3 +222,61 @@ def test_real_offline_subprocess_once_and_no_output_storage(setup):
     assert 'LOCAL_RESULT' in response and '시장 조사' in response
     assert db.list_task_runs(task)[0]['status']=='success'
     assert response.encode() not in db.path.read_bytes()
+
+def test_worker_cancelled_after_native_reply_keeps_failed_audit_without_artifact(setup, monkeypatch):
+    from desktop import company_operations as office
+    db, employee, task = bind(setup)
+    cancel = threading.Event()
+    def respond(*args, **kwargs):
+        cancel.set()
+        return 'SYNTHETIC RESULTS NEVER ACCEPTED'
+    monkeypatch.setattr('desktop.task_runtime.run_local_model', respond)
+    with pytest.raises(InterruptedError):
+        office.execute_task(db, task, cancel=cancel)
+    assert db.list_task_artifacts(task) == []
+    assert db.list_task_runs(task)[0]['status'] == 'cancelled'
+    assert db.list_employee_model_calls(employee)[0]['status'] == 'cancelled'
+    assert db.read_task(task)['status'] == 'blocked'
+
+
+def test_worker_emergency_stop_after_native_reply_blocks_result_and_restart(setup, monkeypatch):
+    from desktop import company_operations as office
+    db, employee, task = bind(setup)
+    def respond(*args, **kwargs):
+        db.emergency_stop_local(True, 'Owner stopped worker execution')
+        return 'SYNTHETIC MODEL RESULT NEVER APPROVED'
+    monkeypatch.setattr('desktop.task_runtime.run_local_model', respond)
+    with pytest.raises(PermissionError, match='비상'):
+        office.execute_task(db, task)
+    assert db.list_task_artifacts(task) == []
+    assert db.list_task_runs(task)[0]['status'] == 'failure'
+    assert db.list_employee_model_calls(employee)[0]['status'] == 'failure'
+    assert db.read_task(task)['status'] == 'blocked'
+    db.logout()
+    reopened = LocalStore(db.path)
+    reopened.login('local_owner_27', 'long-safe-passphrase-2026')
+    assert reopened.list_task_artifacts(task) == []
+    assert reopened.list_task_runs(task)[0]['status'] == 'failure'
+    assert reopened.read_task(task)['status'] == 'blocked'
+
+
+def test_artifact_save_refuses_emergency_stop_in_same_sql_transaction(setup):
+    db, employee, task = bind(setup)
+    run_id, _, _ = db.begin_task_execution(task)
+    db.finish_task_execution(run_id, 'success', output_chars=4)
+    db.emergency_stop_local(True, 'Stop before artifact save')
+    with pytest.raises(PermissionError, match='비상'):
+        db.save_task_artifact(task, run_id, 'blocked title', 'blocked result')
+    assert db.list_task_artifacts(task) == []
+
+
+def test_late_stop_inside_audit_commit_never_records_success(setup, monkeypatch):
+    db, employee, task = bind(setup)
+    run_id, _, _ = db.begin_task_execution(task)
+    db.emergency_stop_local(True, 'Stop after reservation')
+    with pytest.raises(PermissionError, match='비상'):
+        db.finish_task_execution(run_id, 'success', output_chars=200)
+    assert db.list_task_runs(task)[0]['status'] == 'failure'
+    assert db.list_task_runs(task)[0]['output_chars'] == 0
+    assert db.list_employee_model_calls(employee)[0]['status'] == 'failure'
+    assert db.read_task(task)['status'] == 'blocked'

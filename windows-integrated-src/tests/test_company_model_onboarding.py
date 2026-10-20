@@ -146,3 +146,27 @@ def test_cannot_complete_unrelated_or_invalid_artifact(store):
     store.logout()
     with pytest.raises(AuthenticationError):
         office.finalize_approved_artifact(store,1)
+
+def test_emergency_stop_arriving_after_model_reply_refuses_probe_and_audits(store, tmp_path, monkeypatch):
+    employee = store.add_employee_draft('late_stop_worker', '직원')
+    office.connect_employee_model(store, employee, runnable_config(tmp_path))
+    def respond(*args, **kwargs):
+        store.emergency_stop_local(True, 'Owner clicked emergency stop mid-probe')
+        return 'SYNTHETIC REPLY NEVER DISPLAYED'
+    monkeypatch.setattr('desktop.employee_model_runtime.run_local_model', respond)
+    with pytest.raises(PermissionError, match='비상'):
+        office.probe_employee_model(store, employee)
+    assert store.list_employee_model_calls(employee)[0]['status'] == 'failure'
+    assert store.list_employee_model_calls(employee)[0]['output_chars'] == 0
+
+
+def test_model_audit_atomic_guard_refuses_success_post_emergency_stop(store, tmp_path):
+    employee = store.add_employee_draft('atomic_stop_worker', '직원')
+    office.connect_employee_model(store, employee, runnable_config(tmp_path))
+    call_id, _ = store.begin_employee_model_call(employee, 'SYNTHETIC prompt')
+    store.emergency_stop_local(True, 'Late stop while model still running')
+    with pytest.raises(PermissionError, match='비상'):
+        store.finish_employee_model_call(call_id, 'success', output_chars=200)
+    row = store.list_employee_model_calls(employee)[0]
+    assert row['id'] == call_id and row['status'] == 'failure'
+    assert row['output_chars'] == 0
