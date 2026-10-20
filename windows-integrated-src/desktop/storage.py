@@ -3010,6 +3010,8 @@ class LocalStore:
         self.require_permission('company:manage')
         from desktop.recurring_scheduler import dispatch
         with self._connect() as con:
+            # Serialize due selection and occurrence insertion across multiple EXE sessions.
+            con.execute('BEGIN IMMEDIATE')
             return dispatch(con, int(time.time()) if now is None else now)
 
     def list_recurring_occurrences(self) -> list[dict[str, object]]:
@@ -3066,6 +3068,7 @@ class LocalStore:
         self.require_permission('company:manage')
         from desktop.task_queue import claim
         with self._connect() as con:
+            con.execute('BEGIN IMMEDIATE')
             return claim(con,int(time.time()) if now is None else now)
 
     def resolve_queued_task(self, queue_id: int, success: bool, error: str = '', *, now: int | None = None) -> str:
@@ -3078,6 +3081,7 @@ class LocalStore:
             raise ValueError('실패 사유가 필요합니다.')
         from desktop.task_queue import resolve
         with self._connect() as con:
+            con.execute('BEGIN IMMEDIATE')
             return resolve(con,queue_id,success,detail,int(time.time()) if now is None else now)
 
     def recover_queued_task(self, queue_id: int, *, now: int | None = None) -> str:
@@ -3086,6 +3090,7 @@ class LocalStore:
         queue_id = self._plan_id(queue_id, '대기열')
         from desktop.task_queue import recover_claimed
         with self._connect() as con:
+            con.execute('BEGIN IMMEDIATE')
             return recover_claimed(con, queue_id, int(time.time()) if now is None else now)
 
     def list_queued_tasks(self) -> list[dict[str,object]]:

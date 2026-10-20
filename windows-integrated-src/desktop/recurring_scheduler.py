@@ -21,7 +21,7 @@ def initialize(con):
 
 def dispatch(con, now: int, limit: int = 20) -> list[int]:
     """One occurrence per enabled schedule per tick; skip missed slots, no backlog storm."""
-    if not isinstance(now, int) or now < 0 or not 1 <= limit <= 100:
+    if type(now) is not int or now < 0 or type(limit) is not int or not 1 <= limit <= 100:
         raise ValueError('invalid scheduler arguments')
     from desktop.stage87_90_management import stopped
     if stopped(con):return []

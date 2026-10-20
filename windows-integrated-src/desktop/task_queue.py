@@ -37,7 +37,10 @@ def claim(con, now):
     if row is None:
         return None
     queue_id, task_id = row
-    con.execute("UPDATE local_task_queue SET state='claimed',attempts=attempts+1,updated_at=CURRENT_TIMESTAMP WHERE id=? AND state='pending'", (queue_id,))
+    changed = con.execute("UPDATE local_task_queue SET state='claimed',attempts=attempts+1,updated_at=CURRENT_TIMESTAMP WHERE id=? AND state='pending'", (queue_id,)).rowcount
+    if changed != 1:
+        # Never report another owner's already-claimed task as ours.
+        return None
     log(con,queue_id,'claimed')
     return {'id':queue_id,'task_id':task_id}
 

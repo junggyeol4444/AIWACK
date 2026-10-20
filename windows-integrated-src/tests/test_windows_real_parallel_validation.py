@@ -5,6 +5,9 @@ from pathlib import Path
 import sqlite3
 import pytest
 
+import sys
+# The validator lives at repository root; desktop must stay the native app.
+sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 from validation.windows_real_parallel_company_e2e import (
     verify_sqlite_integrity, actual_overlap_seconds,
 )

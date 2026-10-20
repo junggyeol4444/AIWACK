@@ -240,3 +240,11 @@
 - validation/windows_real_parallel_company_e2e.py의 SQLite 무결성 확인 함수를 명시적 try/finally + con.close로 분리. 테스트 완료 표시를 임시 DB가 실제 닫히고 정리된 다음에만 출력하도록 변경. PermissionError를 무시하거나 Windows 검증을 건너뛰지 않음.
 - 실제 GGUF 병렬 증거를 강화: 모델 응답을 대체하지 않고 기존 task_runtime.run_local_model 호출 시간을 두 직원별로 기록, 실제 모델 추론 구간에 양의 중첩 시간이 있는지 확인. 없으면 FAIL. 모의 직원 모델은 사용하지 않는다.
 - 루트 tests/test_windows_real_parallel_validation.py에 SQL 무결성 정상/오류 종료 후 DB 파일 삭제, 두 실제 실행구간 중첩 판정, 구간 측정 누락 거부 테스트 6개 추가. 새로운 Windows 2022/2025 실제 GGUF 결과는 동일 SHA Actions 종료 후 별도로 확정할 것.
+
+## 15. 2026-10-20 반복 일정·대기열 동시 창 안정화 및 네이티브 테스트 경로 복구
+
+- 기존 main `fda3bc24...` CI #39369215255 FAIL은 실제 모델이나 회사 앱 코드 실패가 아닌 신규 루트 검증 테스트 파일에서 두 `desktop` 패키지의 경로가 충돌해 발생했다. 루트 `tests/test_windows_real_parallel_validation.py`를 없애고 기존 Windows 네이티브 프로젝트의 `windows-integrated-src/tests/` 아래로 이동, 해당 테스트에서 루트 validation 경로만 직접 등록한다.
+- 기존 여러 Windows EXE 창/다중 소유자 로그인 세션에서 `recurring_scheduler.dispatch` 및 `task_queue.claim`, resolve, recover 간 SQL SELECT→UPDATE 경합을 막기 위해 `LocalStore` 기존 wrapper에 `BEGIN IMMEDIATE` 사용. SQLite 트랜잭션 내에서 업무/일정·감사 기록을 일관되게 commit/rollback한다. 정지/승인·로그인 흐름 변경이나 새로운 자동 외부 실행 없음.
+- 기존 task_queue.claim에서 상태가 이미 바뀌어 SQL UPDATE 변경 건수가 0건인 경우, 성공 로그를 추가하거나 해당 작업을 내 작업으로 반환하지 않도록 rowcount guard를 추가. 기존 반복 일정 validator의 `bool` 타입을 정수로 착각하는 입력도 차단.
+- 새 네이티브 `tests/test_concurrent_scheduler_and_queue.py`: 같은 SQLite DB를 소유자 두 세션이 동시에 열어 같은 시각 반복 일정 생성 1회, 대기열 작업 claim 1회, 완료 결과 처리 1회만 기록되는지 검사; 비정상 bool 인자 거부. 로컬 기존 일정·대기열·복구 테스트와 합쳐 **12 passed**.
+- 네이티브 CI와 Windows 2022/2025 EXE 빌드 테스트에 동시 창 검사·파일 잠금 검증 및 기존 회귀를 포함. 새 GitHub main SHA 동일 기준으로 CI/EXE/실제 GGUF 결과 확인 후에만 통과 판정.
