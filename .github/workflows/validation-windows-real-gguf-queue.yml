@@ -71,30 +71,17 @@ jobs:
           Write-Host "Model SHA256: $((Get-FileHash $gguf -Algorithm SHA256).Hash)"
           "AIWACK_REAL_LLAMA_CLI=$($engine.FullName)" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
           "AIWACK_REAL_GGUF_FILE=$gguf" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
-      - name: Diagnose official GGUF CPU runner directly before application testing
+      - name: Diagnose both official real-GGUF CPU runners; require a clean inference
         shell: pwsh
         run: |
           $probe = Join-Path $env:RUNNER_TEMP 'aiwack-llama-preflight.txt'
-          $program = @'
-          import os, subprocess, sys
-          engine, gguf, path = sys.argv[1:]
-          args = [engine, "-m", gguf, "-p", "Respond with one safe word.", "-n", "16", "--single-turn"]
-          try:
-              result = subprocess.run(args, capture_output=True, text=True, errors="replace", timeout=70)
-          except Exception as exc:
-              with open(path, "w", encoding="utf-8") as f:
-                  f.write("Real llama GGUF preflight failed: " + repr(exc))
-              raise
-          with open(path, "w", encoding="utf-8") as f:
-              f.write("Return code: " + str(result.returncode) + "\n")
-              f.write("STDOUT tail: " + result.stdout[-1200:] + "\n")
-              f.write("STDERR tail: " + result.stderr[-1200:] + "\n")
-          if result.returncode != 0 or not result.stdout.strip():
-              raise RuntimeError("Real GGUF CLI preflight failed; see saved diagnostics")
-          print("REAL_GGUF_CPU_PREFLIGHT_PASS")
-          '@
-          $program | python - $env:AIWACK_REAL_LLAMA_CLI $env:AIWACK_REAL_GGUF_FILE $probe
-          if ($LASTEXITCODE -ne 0) { throw 'Actual GGUF runner failed outside the AIWACK GUI; no retries or fake pass' }
+          $chosen = Join-Path $env:RUNNER_TEMP 'aiwack-llama-verified-cli.txt'
+          python validation/real_gguf_preflight.py $env:AIWACK_REAL_LLAMA_CLI $env:AIWACK_REAL_GGUF_FILE $probe $chosen
+          if ($LASTEXITCODE -ne 0) { throw 'No official GGUF runner exited cleanly; real Windows EXE E2E remains FAILED' }
+          $selected = (Get-Content -LiteralPath $chosen -Raw).Trim()
+          if (-not (Test-Path -LiteralPath $selected)) { throw 'Selected verified GGUF runner is missing' }
+          "AIWACK_REAL_LLAMA_CLI=$selected" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+          Write-Host "Real GGUF runner verified by model inference: $([System.IO.Path]::GetFileName($selected))"
       - name: PHYSICALLY click packaged AIWACK.exe real GGUF two-task queue and reopen
         shell: pwsh
         env:

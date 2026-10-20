@@ -188,3 +188,9 @@
 - EXE 진입점 `python -m desktop.entry --self-test`: PASS. 회사 운영센터 Tkinter `xvfb-run -a python -m scripts.company_office_gui_smoke`: PASS.
 - 남은 의무: 동일한 새 커밋에서 루트/네이티브 통합 CI, Windows 2022/2025 실제 EXE·SQLite·직원·총괄 GGUF 실사용 액션 결과를 확인하고 FAIL이면 전체 배치 오류 수정 후 재검사. 사용자 개인 Windows 10/11 실기기 직접 검증은 불가/미검증. T01~T20 전체 인수, 장시간 자동 운영/다수 AI 협업/외부 도구 및 사업 거래는 미완료.
 - 사용자 요청 없이는 예약 상태와 다른 프로젝트/드라이브/브랜치를 변경하지 않는다.
+
+### 12절 Windows 2022 실제 GGUF 네이티브 종료 오류의 검증 경로 보강
+- 실제 Windows Server 2022 [GGUF Actions #39360004947](https://github.com/junggyeol4444/AIWACK/actions/runs/39360004947)는 공식 `llama-completion.exe`의 사전 진단 단계에서 FAIL. 성공한 텍스트가 stdout으로 생성됐지만 종료 코드 `3221226356 / 0xC0000374` (Windows heap corruption)를 반환함. artifact `12236818257`의 `aiwack-llama-preflight.txt` 직접 확인. **AIWACK GUI는 해당 실패 회차에서 실제로 실행되지 않았으므로 E2E PASS가 아님.**
+- 기존에 실제로 다운로드·SHA256 확인하는 **동일한 공식 llama.cpp CPU 배포 ZIP** 내의 `llama-cli.exe`를 다른 후보로 엄격히 검증할 수 있는 `validation/real_gguf_preflight.py` 추가. 우선 `llama-completion.exe`로 진짜 GGUF를 추론하고 정상 종료/비어있지 않은 응답일 때만 허용. 힙 손상 등 비정상 종료이면 해당 실패를 증거에 남기고 같은 검증 배포본의 `llama-cli.exe`를 1회 진짜 추론. 대체 실행기가 정상 종료/출력한 경우에만 실제 GUI/E2E 단계로 진행하고 선택한 경로를 GitHub 환경변수로 넘김. 두 실행기가 모두 실패/출력 공백이면 **FAIL을 유지**하며 모델 응답 텍스트만으로 성공을 위조하지 않음.
+- 기존 `validation/windows_packaged_real_gguf_queue_e2e.py`는 위 사전 진단에서 선택한 공식 `llama-completion.exe` 또는 `llama-cli.exe`를 허용. 31명 실 GGUF 호출, 두 승인 업무, 실제 GUI 마우스 클릭, SQLite 결과 감사 등 **기존 강제 검증 조건은 완화하지 않음**.
+- `tests/test_real_gguf_preflight.py`에 모의 subprocess 기반 5개 안전/호환성 테스트 추가. **로컬 5 passed**. 이는 실제 Windows 2022 대체 실행기 성공을 증명하지 않는다. 최종 Windows Server 2022/2025 액션에서 결과 확인 필요.

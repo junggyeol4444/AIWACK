@@ -235,7 +235,7 @@ def perform(exe, model_cli, gguf):
     global DATA, DB
     assert os.name == "nt", "Actual Windows executable and desktop required"
     assert exe.is_file() and exe.name.lower() == "aiwack.exe"
-    assert model_cli.is_file() and model_cli.name.lower() == "llama-completion.exe"
+    assert model_cli.is_file() and model_cli.name.lower() in {"llama-completion.exe", "llama-cli.exe"}
     assert gguf.is_file() and gguf.stat().st_size > 80000000
     with gguf.open("rb") as handle:
         assert handle.read(4) == b"GGUF", "A genuine GGUF binary must be connected"
