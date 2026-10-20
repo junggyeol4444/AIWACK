@@ -247,6 +247,8 @@ class CompanyOffice:
         self._action(head, '담당 AI 자동 배정', self.assign, compact=True)
         self._action(head, '선택 업무 실행', self.run_selected, strong=True, compact=True)
         self._action(head, '승인 AI 2명 병렬', self.run_approved_parallel, compact=True)
+        self._action(head, '31명 승인 연속 운영', self.run_campaign, compact=True)
+        self._action(head, '운영 기록 확인', self.campaign_report, compact=True)
         self.work_jobs = self._table(main, [('job', '업무', 290), ('owner', '담당 AI', 150),
                                             ('state', '진행', 95)], height=4)
         self.work_jobs.bind('<<TreeviewSelect>>', self._sync_work_selection)
@@ -483,6 +485,9 @@ class CompanyOffice:
                 self._say('실제 직원 AI 2명 병렬 업무·총괄 AI 검토 완료 · 모두 관리자 승인 대기')
                 if result['reports']:
                     self.open_chief_report(int(result['reports'][-1]['artifact_id']))
+            elif self.after_action == 'company_campaign':
+                self.set_view('results')
+                self._say(f"승인된 AI 공동업무 #{result['id']}: 검토 대기 {result['review_pending']}건 · 자동 최종 승인 없음")
             elif self.after_action == 'chief_recovery_queue':
                 self.set_view('results')
                 count=int(result['recovered_reviews'])
@@ -516,6 +521,69 @@ class CompanyOffice:
 
     def run_batch(self):
         self._start(lambda: ops.execute_batch(self.store, max_tasks=3, cancel=self.cancel))
+
+    def campaign_report(self):
+        from desktop import company_campaign as campaigns
+        try:
+            all_campaigns=campaigns.list_campaigns(self.store,limit=5)
+            if not all_campaigns:
+                self._say('아직 생성된 사내 AI 연속 운영 기록이 없습니다.')
+                return
+            lines=[]
+            for row in all_campaigns:
+                lines.append(f"#{row['id']} {row['state']} | 전체 {row['total']} / "
+                             f"검토 대기 {row['review_pending']} / 확인 필요 {row['needs_review']} / "
+                             f"실행 대기 {row['pending']} | {row['last_error'][:120]}")
+            self._text_dialog('기존 AI 공동업무 실행 기록', '\n'.join(lines))
+        except (PermissionError,ValueError) as exc:
+            self._say('운영 기록 조회 오류: '+str(exc))
+
+    def run_campaign(self):
+        """One owner-confirmed manifest can run 31 existing approved AI tasks."""
+        from desktop import company_campaign as campaigns
+        if self.worker and self.worker.is_alive():
+            self._say('이미 실행 중인 AI 작업이 있습니다.')
+            return
+        try:
+            existing=campaigns.list_campaigns(self.store,limit=1)
+            if existing and existing[0]['state'] in ('running','paused','draft'):
+                item=existing[0]
+                if item['state']=='running':
+                    if not messagebox.askyesno('중단 운영 기록 확인',
+                            '이전 운영이 여전히 진행 중일 수 있습니다. '
+                            '임의 재실행 없이 중단 기록만 확인하시겠습니까?',parent=self.root):
+                        return
+                    item=campaigns.inspect_interrupted_campaign(self.store,item['id'])
+                if item['needs_review'] or item['running']:
+                    self._say(f"운영 작업 #{item['id']}에 중단·실행 중 기록이 있습니다. "
+                              '운영 기록을 확인하고 기존 결과를 먼저 검토하세요. 자동 재실행하지 않습니다.')
+                    self.campaign_report()
+                    return
+                cid=item['id']
+                if not messagebox.askyesno('승인된 사내 AI 연속 운영 재개',
+                        f'기존 운영 작업 #{cid}의 승인된 나머지 {item["pending"]}건만 처리합니다. '
+                        '자동 재승인·재실행 없이 진행할까요?',parent=self.root):
+                    return
+            else:
+                choices=campaigns.candidate_tasks(self.store,limit=31)
+                if not choices:
+                    self._say('승인된 총괄 AI 지시·담당 직원 모델이 모두 연결된 업무가 없습니다.')
+                    return
+                ids=tuple(x['task_id'] for x in choices)
+                preview='\n'.join(
+                    f"#{x['task_id']} / 직원 #{x['employee_id']} / {x['title'][:35]}"
+                    for x in choices)
+                if not messagebox.askyesno('31명 승인 업무 공동 운영',
+                        f'다음 {len(ids)}건을 한 번 확인하고 2명씩 실제 모델을 실행합니다.\n'
+                        + preview + '\n총괄 AI 검토 뒤에도 모든 결과는 소유자 승인 대기입니다. '
+                        '개별 업무 자동 재실행·자동 결제·자동 외부 게시 없음. 시작할까요?',
+                        parent=self.root):
+                    return
+                cid=campaigns.create_campaign(self.store,expected_task_ids=ids)
+            self._start(lambda:campaigns.execute_campaign(
+                self.store,cid,cancel=self.cancel,max_parallel=2),after='company_campaign')
+        except (PermissionError,ValueError,RuntimeError) as exc:
+            self._say('AI 연속 운영 시작 오류: '+str(exc))
 
     def run_approved_parallel(self):
         """Physical owner confirmation and exact pinned two-task preview."""
