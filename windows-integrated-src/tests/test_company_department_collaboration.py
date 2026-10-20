@@ -44,6 +44,10 @@ def test_chief_plan_requires_owner_then_real_staff_chain(tmp_path,monkeypatch):
     first=ops.execute_approved_chief_cycle(db,ids[0])
     assert db.read_task_artifact(first['artifact_id'])['review_status']=='pending'
     db.review_task_artifact(first['artifact_id'],'approved')
+    # Approval safety: worker artifact review alone cannot bypass chief owner acceptance.
+    with pytest.raises(ValueError,match='총괄 보고서'):
+        ops.finalize_approved_artifact(db,first['artifact_id'])
+    db.review_chief_task_report(first['report_id'],'accepted')
     ops.finalize_approved_artifact(db,first['artifact_id'])
     assert db.task_dependency_readiness(ids[1])['ready'] is True
     second=ops.execute_approved_chief_cycle(db,ids[1])
