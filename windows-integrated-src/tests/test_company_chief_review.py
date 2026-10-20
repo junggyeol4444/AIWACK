@@ -371,3 +371,58 @@ def test_recovery_status_requires_owner_and_bounded_audit_window(tmp_path,monkey
     assert state['running_worker_runs']==[]
     assert len(state['pending_chief_reviews'])==3
     assert all(store.find_chief_task_report(aid) is None for _,aid in tasks)
+
+
+def test_owner_confirmed_recovery_queue_rejects_changed_candidates(tmp_path, monkeypatch):
+    store, tasks = _recovery_queue_tasks(tmp_path, monkeypatch)
+    approved = tuple(tid for tid, _ in tasks)
+    calls = []
+    monkeypatch.setattr('desktop.chief_task_runtime.collect_chief_task_result',
+                        lambda *args, **kwargs: calls.append(args) or 'SYNTHETIC CHIEF')
+    for invalid in ((), (True,), ('1',), (approved[0], approved[0]),
+                    (approved[0], approved[1], approved[2], 999), [approved[0]]):
+        with pytest.raises(ValueError, match='복구 업무 번호'):
+            ops.recover_interrupted_chief_review_queue(
+                store, limit=3, expected_task_ids=invalid)
+    with pytest.raises(ValueError, match='복구 대상이 변경'):
+        ops.recover_interrupted_chief_review_queue(
+            store, limit=3, expected_task_ids=tuple(reversed(approved)))
+    store.save_chief_task_report(tasks[0][1], 'SYNTHETIC REPORT FROM ANOTHER WINDOW')
+    with pytest.raises(ValueError, match='복구 대상이 변경'):
+        ops.recover_interrupted_chief_review_queue(
+            store, limit=3, expected_task_ids=approved)
+    assert calls == []
+    assert all(store.find_chief_task_report(aid) is None for _, aid in tasks[1:])
+
+
+def test_running_audit_survives_more_than_200_newer_successes(tmp_path, monkeypatch):
+    store, tasks = _recovery_queue_tasks(tmp_path, monkeypatch)
+    tid = ops.create_task(store, 'Old running worker needs explicit owner inspection')
+    ops.assign_task(store, tid)
+    ops.approve_chief_order(store, tid, 'Owner-approved task for crash recovery inspection')
+    run_id, _, _ = store.begin_task_execution(tid)
+    current = store.list_task_runs(tid)[0]
+    with store._connect() as con:
+        for _ in range(205):
+            call_id = con.execute(
+                """INSERT INTO ai_model_call_history
+                   (employee_id,model_id,model_name,prompt_chars,status)
+                   VALUES(?,?,?,?,?)""",
+                (current['employee_id'], current['model_id'], 'SYNTHETIC', 10, 'success')
+            ).lastrowid
+            con.execute(
+                """INSERT INTO company_task_runs
+                   (task_id,employee_id,model_id,model_name,model_call_id,status,prompt_chars)
+                   VALUES(?,?,?,?,?,?,?)""",
+                (tid, current['employee_id'], current['model_id'],
+                 'SYNTHETIC', call_id, 'success', 10))
+    assert not any(r['id'] == run_id for r in store.list_task_runs(limit=200))
+    state = ops.inspect_recovery_state(store, max_runs=1)
+    assert [row['run_id'] for row in state['running_worker_runs']] == [run_id]
+    assert state['running_worker_runs_truncated'] is False
+    assert store.read_task(tid)['status'] == 'in_progress'
+    store.logout()
+    reopened = LocalStore(store.path)
+    reopened.login('batch_recovery_owner', 'test-batch-recovery-password-2026')
+    assert [row['run_id'] for row in ops.inspect_recovery_state(reopened)['running_worker_runs']] == [run_id]
+    assert reopened.read_task(tid)['status'] == 'in_progress'
