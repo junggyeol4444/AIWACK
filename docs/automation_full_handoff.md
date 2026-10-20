@@ -363,3 +363,7 @@
 - 실제 AI 모델 실행 감사 `aiwack_autopilot_model_runs`에서 선정 업무 번호·실행 중/성공/실패 상태·오류 유형을 SQLite에 영속 기록. 앱 프로세스 중단은 running 기록으로 남고 기존 직원 실행 예약이 중복 모델 호출을 차단. 사용자 자동 운영/AI 자동 실행 해제는 현재 같은 창에서 실행 중인 모델에 cancel 요청. 기존 비상정지 별도 유지.
 - 실제 승인 업무 후보 조회에서도 선행 업무가 미완료된 항목은 제외하도록 기존 실행 안전성 강화. 사용자의 두 번째 명시적 허용 없이는 절대 GGUF 자동 호출하지 않는지, 미승인 지시는 절대 실행하지 않는지, 기존 승인 업무만 직원·총괄 두 모델 감사 생성 후 소유자 pending인지, 비상정지 후 전부 차단되는지 회귀검사 포함. Windows GUI 픽셀 가시성 검사에도 추가 2개 버튼 포함.
 - EXE가 종료된 환경에서 백그라운드 서버처럼 작동한다고 주장하지 않으며 이 커밋 전체 CI/Windows/GGUF 성공 확인 전에는 전체 통과라고 하지 말 것.
+
+### 19절 신규 자율운영/직원 성과 모듈 Windows EXE 누락 방지
+
+- Windows 2022·2025 EXE, 실제 GGUF E2E, packaged GUI 검증 및 사용자가 실행하는 원본 build_windows_exe.bat의 PyInstaller 설정을 함께 갱신하여 동적 로드하는 `company_autopilot`과 `company_staff_metrics`를 반드시 포함. 신규 사내 자율 운영 켜기/끄기/실제 승인 직원 호출, 실제 성과 기록 버튼의 EXE 실행 시 ModuleNotFoundError 방지. 새 SHA Windows 검사 종료 후 실제 확인 필요.
