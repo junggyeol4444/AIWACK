@@ -303,3 +303,9 @@
 - `company_office_gui_smoke.py`의 실제 Tk 윈도우에서 업무 화면·결과 검수 화면·회사 개요 화면의 새로 추가한 실제 버튼들을 탐색하고 `winfo_viewable`, 픽셀 기준 루트 창 안에 완전히 보이는지 검사. 윈도우 그림만 만들고 기능은 생략하는 mock가 아님.
 - Windows EXE 빌드 Actions에 위 실제 Tk GUI 검사를 빌드 이전 추가. PyInstaller `--hidden-import`에 신규 campaign/deliverables/backup 세 모듈을 기본 로컬 `.bat`, Windows 2022/2025 EXE, 실제 GGUF E2E, 회사 SQLite GUI E2E 모든 빌드 설정에 동시 반영해, GUI에서 동적으로 import하는 신규 기능이 실제 EXE에 누락되지 않도록 함.
 - 최신 동일 커밋 Windows EXE·마우스 클릭·실제 GGUF 검증 완료 전 전체 성공 판정 금지.
+
+### 17절 장기 업무 운영 두 Windows EXE 창의 활성 작업 보호·기본 GUI 검사 경로 오류 수정
+
+- Windows Server 2025 실행 빌드 run 39373643207의 신규 실 GUI 검사는 desktop 모듈 import 경로 오류로 FAIL. CLI를 python -m scripts.company_office_gui_smoke로 수정하고 스크립트 자체에도 프로젝트 루트 경로를 부여해 버튼 가시성 검사 본문을 유지.
+- 장기 업무 운영 중 다른 EXE 창에서 아직 진행 중인 작업을 강제 종료된 것으로 오인하지 않도록 SQLite owner-token+heartbeat 임대 기록 테이블 추가. 동시 업무 진행 중 5초 간격 heartbeat, 마지막 기록 90초 이내이면 두 번째 창의 강제 중단 복구 거부; 임대 사라진 진짜 강제 종료만 소유자 확인 후 확인 필요로 변경. 정상 종료/실패 시 자신의 lease만 해제.
+- 회귀 테스트 2개: 다른 로그인 창이 실제로 실행 중인 작업의 중단 감사·중복 실행 불가 확인, 오래된 heartbeat 복구 시 직원 자동 재호출 없는 중단 상태 유지. 새 결과의 CI/Windows EXE 통과는 종료 후 별도 확인.

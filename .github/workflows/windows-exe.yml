@@ -61,7 +61,7 @@ jobs:
         shell: pwsh
         run: |
           cd windows-integrated-src
-          python scripts/company_office_gui_smoke.py
+          python -m scripts.company_office_gui_smoke
           if ($LASTEXITCODE -ne 0) { throw 'Native AIWACK company GUI controls are clipped or non-functional' }
       - name: Build verified native Windows desktop application
         shell: pwsh

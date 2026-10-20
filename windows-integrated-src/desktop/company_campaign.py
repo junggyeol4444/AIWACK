@@ -8,6 +8,8 @@ from __future__ import annotations
 
 from concurrent.futures import ThreadPoolExecutor, as_completed
 import threading
+import time
+from uuid import uuid4
 
 from desktop import company_operations as ops
 
@@ -35,6 +37,10 @@ def initialize(store) -> None:
             UNIQUE(campaign_id,ordinal))""")
         con.execute("""CREATE INDEX IF NOT EXISTS aiwack_campaign_by_state
                        ON aiwack_work_campaigns(state,id)""")
+        con.execute("""CREATE TABLE IF NOT EXISTS aiwack_work_campaign_leases(
+            campaign_id INTEGER PRIMARY KEY REFERENCES aiwack_work_campaigns(id),
+            owner_token TEXT NOT NULL CHECK(length(owner_token)=32),
+            heartbeat_epoch INTEGER NOT NULL)""")
 
 
 def candidate_tasks(store, *, limit: int = 31) -> list[dict]:
@@ -149,6 +155,11 @@ def inspect_interrupted_campaign(store, campaign_id: int) -> dict:
         if not row:
             raise ValueError('운영 작업이 존재하지 않습니다.')
         if row[0]=='running':
+            lease=con.execute('SELECT heartbeat_epoch FROM aiwack_work_campaign_leases WHERE campaign_id=?',
+                              (campaign_id,)).fetchone()
+            if lease is not None and int(time.time())-int(lease[0]) < 90:
+                raise ValueError('다른 AIWACK 창에서 실행 중인 운영 작업입니다. 살아 있는 실행을 중단 처리하지 않습니다.')
+            con.execute('DELETE FROM aiwack_work_campaign_leases WHERE campaign_id=?',(campaign_id,))
             con.execute("""UPDATE aiwack_work_campaign_items
                 SET state='needs_review',note='종료된 실행 여부를 관리자 확인 필요'
                 WHERE campaign_id=? AND state='running'""",(campaign_id,))
@@ -239,9 +250,36 @@ def execute_campaign(store, campaign_id: int, *,
             raise ValueError('재실행 전에 중단 업무 감사를 확인하세요.')
         con.execute("""UPDATE aiwack_work_campaigns SET state='running',
             last_error='',updated_at=CURRENT_TIMESTAMP WHERE id=?""",(campaign_id,))
+        lease_token=uuid4().hex
+        con.execute("""INSERT INTO aiwack_work_campaign_leases(campaign_id,owner_token,heartbeat_epoch)
+            VALUES(?,?,?) ON CONFLICT(campaign_id) DO UPDATE SET
+            owner_token=excluded.owner_token,heartbeat_epoch=excluded.heartbeat_epoch""",
+            (campaign_id,lease_token,int(time.time())))
     token=cancel if cancel is not None else threading.Event()
+    keepalive_stop=threading.Event()
+    keepalive_errors=[]
+    def heartbeat():
+        while not keepalive_stop.wait(5):
+            try:
+                with store._connect() as con:
+                    con.execute('BEGIN IMMEDIATE')
+                    affected=con.execute("""UPDATE aiwack_work_campaign_leases SET heartbeat_epoch=?
+                        WHERE campaign_id=? AND owner_token=? AND
+                        EXISTS(SELECT 1 FROM aiwack_work_campaigns
+                               WHERE id=? AND state='running')""",
+                        (int(time.time()),campaign_id,lease_token,campaign_id)).rowcount
+                    if affected!=1:
+                        raise RuntimeError('다른 세션이 운영 실행 소유권을 변경했습니다.')
+            except Exception as exc:
+                keepalive_errors.append(exc)
+                token.set()
+                break
+    keeper=threading.Thread(target=heartbeat,name='AIWACK-campaign-heartbeat',daemon=True)
+    keeper.start()
     try:
         while True:
+            if keepalive_errors:
+                raise RuntimeError('운영 작업 실행 소유권이 유지되지 않았습니다.') from keepalive_errors[0]
             if token.is_set():
                 raise InterruptedError('소유자가 사내 AI 운영을 중단했습니다.')
             ops.assert_running_allowed(store)
@@ -319,3 +357,10 @@ def execute_campaign(store, campaign_id: int, *,
     except Exception as exc:
         _pause(store,campaign_id,exc)
         raise
+    finally:
+        keepalive_stop.set()
+        keeper.join(timeout=12)
+        with store._connect() as con:
+            con.execute('BEGIN IMMEDIATE')
+            con.execute('DELETE FROM aiwack_work_campaign_leases WHERE campaign_id=? AND owner_token=?',
+                        (campaign_id,lease_token))

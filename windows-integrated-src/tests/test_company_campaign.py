@@ -124,3 +124,60 @@ def test_manually_recovered_chief_report_reconciles_without_replaying_worker(tea
     assert resumed['state']=='review_pending' and resumed['review_pending']==3
     assert events.count('worker')==3 and events.count('chief')==3
     assert len(store.list_task_runs(ids[0]))==1
+
+
+def test_live_second_exe_cannot_force_interrupt_running_campaign(team,monkeypatch):
+    store,ids,employees,events=team
+    cid=camp.create_campaign(store,expected_task_ids=ids)
+    started=threading.Event()
+    release=threading.Event()
+    results=[]
+    def slow_model(*args,**kwargs):
+        started.set()
+        assert release.wait(timeout=20)
+        return 'SYNTHETIC STAFF'
+    monkeypatch.setattr('desktop.task_runtime.run_local_model',slow_model)
+    def run():
+        try: results.append(camp.execute_campaign(store,cid))
+        except Exception as exc: results.append(exc)
+    worker=threading.Thread(target=run)
+    worker.start()
+    try:
+        assert started.wait(timeout=12)
+        second=LocalStore(store.path)
+        second.login('campaign_owner','campaign-owner-password-2026')
+        with pytest.raises(ValueError,match='실행 중인 운영 작업'):
+            camp.inspect_interrupted_campaign(second,cid)
+        with pytest.raises(ValueError):
+            camp.execute_campaign(second,cid)
+        assert camp.campaign_status(second,cid)['state']=='running'
+    finally:
+        release.set()
+        worker.join(timeout=25)
+    assert not worker.is_alive() and len(results)==1
+    assert isinstance(results[0],dict),results
+    assert results[0]['state']=='review_pending'
+    assert events.count('chief')==3
+    with store._connect() as con:
+        assert con.execute('SELECT COUNT(*) FROM aiwack_work_campaign_leases WHERE campaign_id=?',
+                           (cid,)).fetchone()[0]==0
+
+
+def test_stale_campaign_lease_requires_owner_audit_no_auto_retry(team):
+    import time
+    store,ids,employees,events=team
+    cid=camp.create_campaign(store,expected_task_ids=ids)
+    with store._connect() as con:
+        con.execute("UPDATE aiwack_work_campaigns SET state='running' WHERE id=?",(cid,))
+        con.execute("""INSERT INTO aiwack_work_campaign_leases(campaign_id,owner_token,heartbeat_epoch)
+                       VALUES(?,?,?)""",(cid,'a'*32,int(time.time())-3600))
+        con.execute("""UPDATE aiwack_work_campaign_items SET state='running'
+                       WHERE campaign_id=? AND task_id=?""",(cid,ids[0]))
+    inspected=camp.inspect_interrupted_campaign(store,cid)
+    assert inspected['state']=='paused' and inspected['needs_review']==1
+    assert inspected['pending']==2
+    with store._connect() as con:
+        assert con.execute('SELECT 1 FROM aiwack_work_campaign_leases WHERE campaign_id=?',
+                           (cid,)).fetchone() is None
+    with pytest.raises(ValueError): camp.execute_campaign(store,cid)
+    assert events==[]
