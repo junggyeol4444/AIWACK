@@ -202,3 +202,22 @@ def test_llama_completion_and_cli_force_one_shot_without_changing_other_executab
         assert text=='SYNTHETIC ONE TURN MODEL OUTPUT'
         assert ('--single-turn' in emitted[-1]) is expected
         assert emitted[-1][-2:] == (['8','--single-turn'] if expected else ['-n','8'])
+
+
+def test_rejects_empty_or_truncated_model_responses(tmp_path, monkeypatch):
+    from desktop import model_runtime
+    exe, gguf = sample_files(tmp_path)
+    class FakeProcess:
+        returncode = 0
+        def __init__(self, body):
+            self.body = body
+        def communicate(self, timeout=None):
+            return self.body, b''
+    for body in (b'', b'   ', b'X' * (model_runtime.MAX_OUTPUT + 1)):
+        monkeypatch.setattr(model_runtime.subprocess, 'Popen',
+                            lambda *args, body=body, **kwargs: FakeProcess(body))
+        with pytest.raises(ValueError, match='응답'):
+            run_local_model(make_config(exe, gguf), 'bounded reply', timeout=5)
+    monkeypatch.setattr(model_runtime.subprocess, 'Popen',
+                        lambda *args, **kwargs: FakeProcess(b'Z' * model_runtime.MAX_OUTPUT))
+    assert len(run_local_model(make_config(exe, gguf), 'bounded reply', timeout=5)) == model_runtime.MAX_OUTPUT
