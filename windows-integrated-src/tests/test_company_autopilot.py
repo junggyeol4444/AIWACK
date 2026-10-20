@@ -19,6 +19,7 @@ def test_default_off_and_no_implicit_activity(owners):
     a,b=owners
     assert auto.run_once(a,now=100)=={'executed':False,'reason':'disabled'}
     assert auto.history(a)==[] and a.list_tasks()==[]
+    assert auto.approved_models_enabled(a) is False
 
 
 def test_goal_schedule_and_event_create_real_drafts_once(owners):
@@ -95,3 +96,60 @@ def test_invalid_configuration_or_clock_rejected(owners):
         with pytest.raises(ValueError):auto.configure(a,enabled,interval_minutes=interval)
     for time in (True,-1,'100'):
         with pytest.raises(ValueError):auto.run_once(a,now=time)
+
+
+def test_separate_owner_optin_only_allows_preapproved_real_model_cycle(tmp_path,monkeypatch):
+    import sys
+    from desktop.model_runtime import ModelConfig
+    from desktop import company_operations as ops
+    db=LocalStore(tmp_path/'real_approved.sqlite3')
+    db.setup_owner('owner','very-long-model-password-2026')
+    chief=db.add_employee_draft('chief','Chief')
+    staff=db.add_employee_draft('staff','Staff')
+    db.assign_reporting_line(chief,'ceo')
+    model=db.add_local_model(ModelConfig('MODEL','llamafile',sys.executable,'',32))
+    for employee in (chief,staff):db.set_employee_model(employee,model)
+    tid=ops.create_task(db,'Preapproved actual model')
+    ops.assign_task(db,tid)
+    with pytest.raises(PermissionError):auto.configure_approved_models(db,True)
+    auto.configure(db,True,now=100)
+    assert auto.approved_models_enabled(db) is False
+    with pytest.raises(PermissionError):auto.run_one_approved_model(db,(tid,))
+    auto.configure_approved_models(db,True)
+    assert auto.approved_models_enabled(db)
+    with pytest.raises(ValueError,match='실행 가능한'):
+        auto.run_one_approved_model(db,(tid,))
+    assert db.list_task_runs(tid)==[]
+    ops.approve_chief_order(db,tid,'Owner approved this task')
+    called=[]
+    monkeypatch.setattr('desktop.task_runtime.run_local_model',
+                        lambda *a,**k:called.append('staff') or 'SYNTHETIC STAFF')
+    monkeypatch.setattr('desktop.chief_task_runtime.collect_chief_task_result',
+                        lambda *a,**k:called.append('chief') or 'SYNTHETIC CHIEF')
+    result=auto.run_one_approved_model(db,(tid,))
+    assert result['completed_cycles']==1 and called==['staff','chief']
+    aid=db.list_task_artifacts(tid)[0]['id']
+    assert db.read_task_artifact(aid)['review_status']=='pending'
+    assert db.find_chief_task_report(aid)['owner_decision']=='pending'
+    assert db.read_task(tid)['status']=='in_progress'
+    assert auto.approved_model_history(db)[0]['state']=='success'
+    with pytest.raises(ValueError):
+        auto.run_one_approved_model(db,(tid,))
+    assert called==['staff','chief']
+    auto.configure(db,False)
+    assert not auto.approved_models_enabled(db)
+
+
+def test_model_policy_emergency_stop_and_unapproved_selection(owners):
+    a,b=owners
+    auto.configure(a,True,now=10)
+    auto.configure_approved_models(a,True)
+    assert auto.approved_models_enabled(b)
+    a.emergency_stop_local(True,'Stop real models')
+    assert auto.approved_models_enabled(b) is False
+    with pytest.raises(PermissionError):auto.run_one_approved_model(b,(1,))
+    a.emergency_stop_local(False,'Resume')
+    auto.configure_approved_models(b,False)
+    assert not auto.approved_models_enabled(a)
+    for wrong in (True,'1',0):
+        with pytest.raises(ValueError):auto.configure_approved_models(a,wrong)

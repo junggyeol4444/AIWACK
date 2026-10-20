@@ -245,6 +245,10 @@ class CompanyOffice:
         self._action(monitor,'사내 자율 운영 켜기',self.enable_autopilot,compact=True)
         self._action(monitor,'사내 자율 운영 끄기',self.disable_autopilot,compact=True)
         self._action(monitor,'자율 운영 실행 감사',self.show_autopilot_history,compact=True)
+        model_monitor=tk.Frame(card,bg=CARD)
+        model_monitor.pack(fill='x',pady=(2,0))
+        self._action(model_monitor,'승인 AI 자동 실행 켜기',self.enable_approved_autorun,compact=True)
+        self._action(model_monitor,'승인 AI 자동 실행 끄기',self.disable_approved_autorun,compact=True)
         self._label(card,'',size=9,color=MUTED,textvariable=self.monitor_status).pack(anchor='w')
         self._label(card,'',size=9,color=AMBER,textvariable=self.proposal_summary).pack(anchor='w',pady=(6,0))
         self._label(card,'규칙 검색은 AI 모델을 호출하지 않습니다. 총괄 AI 모델이 없으면 구체화 불가 · 승인 전엔 업무 미생성',
@@ -549,6 +553,8 @@ class CompanyOffice:
                     dialog.feedback.set('실제 모델 응답 수신 및 호출 감사 기록 저장 완료 · 결과는 관리자 검수 전입니다.')
                 self._say('로컬 직원 모델이 실제 응답했습니다. 진단 감사 기록만 저장했습니다.')
                 self._text_dialog('로컬 AI 직원 모델 호출 진단', str(result))
+            elif self.after_action == 'chief_queue_auto':
+                self._say('소유자가 미리 승인한 직원 업무 1건·총괄 AI 검토 완료 · 결과물 승인/완료는 관리자 대기')
             elif self.after_action == 'chief_queue':
                 self.set_view('results')
                 n=int(result['completed_cycles'])
@@ -857,6 +863,15 @@ class CompanyOffice:
                 self.refresh()
                 self._say(f"자율 운영 제안 {result['proposal_created']}·일정 "
                           f"{result['schedule_created']}·이벤트 {result['event_created']}건 생성 (승인 대기)")
+                # A separate owner opt-in enables REAL GGUF staff+chief calls.
+                # The existing safe worker thread prevents Tk freezing.
+                if (company_autopilot.approved_models_enabled(self.store)
+                        and not (self.worker and self.worker.is_alive())):
+                    selection=ops.list_approved_chief_queue_candidates(self.store,limit=1)
+                    if selection:
+                        pinned=(int(selection[0]['task_id']),)
+                        self._start(lambda:company_autopilot.run_one_approved_model(
+                            self.store,pinned,cancel=self.cancel),after='chief_queue_auto')
             state=company_autopilot.settings(self.store)
             self.monitor_status.set(f"사내 자율 운영 {'켜짐' if state['enabled'] else '꺼짐'} · "
                                     f"{state['interval_seconds']//60}분 주기 · 실행 감사 {state['runs']}건")
@@ -885,9 +900,35 @@ class CompanyOffice:
         try:
             company_autopilot.configure(self.store,False)
             self.monitor_status.set('사내 자율 운영 사용 안 함')
+            if self.after_action=='chief_queue_auto' and self.worker and self.worker.is_alive():
+                self.cancel.set()
             self._say('자동 운영 해제 · 기존 감사 보존')
         except (ValueError,PermissionError) as exc:
             self._say('자동 운영 중단 실패: '+str(exc))
+
+    def enable_approved_autorun(self):
+        from desktop import company_autopilot
+        if not messagebox.askyesno('실제 로컬 AI 자동 실행 별도 허용',
+                '이 회사의 기존 소유자 승인 총괄 지시가 있는 업무만 5분 운영 주기당 최대 1건 '
+                '직원 AI 실제 모델과 총괄 AI 모델로 실행합니다. '
+                '결과물 승인, 완료, 결제, 외부 게시 또는 실패 자동 재시도는 하지 않습니다. '
+                '실제 GGUF 실행을 별도로 허용합니까?',parent=self.root):
+            return
+        try:
+            company_autopilot.configure_approved_models(self.store,True)
+            self._say('기존 승인 지시에 한정된 실제 직원 AI 자동 실행 허용')
+        except (ValueError,PermissionError) as exc:
+            self._say('AI 자동 실행 허용 실패: '+str(exc))
+
+    def disable_approved_autorun(self):
+        from desktop import company_autopilot
+        try:
+            company_autopilot.configure_approved_models(self.store,False)
+            if self.after_action=='chief_queue_auto' and self.worker and self.worker.is_alive():
+                self.cancel.set()
+            self._say('실제 직원 AI 자동 실행 해제, 진행 중 모델에 취소 요청')
+        except (ValueError,PermissionError) as exc:
+            self._say('실제 AI 자동 실행 해제 실패: '+str(exc))
 
     def show_autopilot_history(self):
         from desktop import company_autopilot

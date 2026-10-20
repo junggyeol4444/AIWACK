@@ -27,6 +27,17 @@ def initialize(store):
            started_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
            finished_at TEXT)""")
         con.execute("INSERT OR IGNORE INTO aiwack_autopilot_settings(id) VALUES(1)")
+        con.execute("""CREATE TABLE IF NOT EXISTS aiwack_autopilot_model_policy(
+           id INTEGER PRIMARY KEY CHECK(id=1),
+           enabled INTEGER NOT NULL DEFAULT 0 CHECK(enabled IN (0,1)))""")
+        con.execute("INSERT OR IGNORE INTO aiwack_autopilot_model_policy(id) VALUES(1)")
+        con.execute("""CREATE TABLE IF NOT EXISTS aiwack_autopilot_model_runs(
+           id INTEGER PRIMARY KEY AUTOINCREMENT,
+           task_id INTEGER NOT NULL REFERENCES company_tasks(id),
+           state TEXT NOT NULL CHECK(state IN ('running','success','failed')),
+           error_kind TEXT NOT NULL DEFAULT '',
+           created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+           finished_at TEXT)""")
 
 
 def settings(store):
@@ -50,6 +61,8 @@ def configure(store, enabled: bool, *, interval_minutes: int=5, now=None):
         con.execute('BEGIN IMMEDIATE')
         con.execute("UPDATE aiwack_autopilot_settings SET enabled=?,interval_seconds=?,next_due=? WHERE id=1",
                     (int(enabled),interval_minutes*60,stamp if enabled else 0))
+        if not enabled:
+            con.execute("UPDATE aiwack_autopilot_model_policy SET enabled=0 WHERE id=1")
     return settings(store)
 
 
@@ -102,6 +115,77 @@ def _finish(store,run_id,state,counts,error):
             WHERE id=? AND state='running'""",
             (state,counts['proposal_created'],counts['schedule_created'],
              counts['event_created'],error[:60],run_id))
+
+
+
+def configure_approved_models(store, enabled: bool) -> bool:
+    """A SECOND explicit owner consent is mandatory before real model calls."""
+    store.require_permission('company:manage')
+    if type(enabled) is not bool:
+        raise ValueError('실제 AI 승인 업무 자동 실행 선택이 잘못되었습니다.')
+    initialize(store)
+    with store._connect() as con:
+        con.execute('BEGIN IMMEDIATE')
+        state=con.execute('SELECT enabled FROM aiwack_autopilot_settings WHERE id=1').fetchone()
+        if enabled and (not state or not state[0] or stopped(con)):
+            raise PermissionError('자동 운영 활성화 및 비상정지 해제가 필요합니다.')
+        con.execute('UPDATE aiwack_autopilot_model_policy SET enabled=? WHERE id=1',(int(enabled),))
+    return enabled
+
+
+def approved_models_enabled(store) -> bool:
+    initialize(store)
+    with store._connect() as con:
+        state=con.execute("""SELECT a.enabled,b.enabled FROM aiwack_autopilot_settings a
+            CROSS JOIN aiwack_autopilot_model_policy b WHERE a.id=1 AND b.id=1""").fetchone()
+        return bool(state and state[0] and state[1] and not stopped(con))
+
+
+def run_one_approved_model(store, task_ids: tuple[int, ...], *, cancel=None) -> dict:
+    """One already owner-approved staff inference + real chief review per tick.
+
+    Never auto-approves an unapproved order or retries a previous failed call.
+    """
+    from desktop import company_operations as ops
+    if (type(task_ids) is not tuple or len(task_ids)!=1
+            or type(task_ids[0]) is not int or task_ids[0]<=0):
+        raise ValueError('관리자가 승인한 정확한 업무 번호 하나가 필요합니다.')
+    if not approved_models_enabled(store):
+        raise PermissionError('별도 승인된 AI 자동 실행 정책이 비활성화됐습니다.')
+    tid=task_ids[0]
+    with store._connect() as con:
+        con.execute('BEGIN IMMEDIATE')
+        audit_id=int(con.execute("""INSERT INTO aiwack_autopilot_model_runs(task_id,state)
+                               VALUES(?,'running')""",(tid,)).lastrowid)
+    try:
+        if cancel is not None and cancel.is_set():
+            raise InterruptedError('승인된 직원 자동 실행이 취소됐습니다.')
+        result=ops.execute_approved_chief_queue(
+            store,limit=1,expected_task_ids=task_ids,cancel=cancel)
+        if result['completed_cycles']!=1 or result['auto_approved']:
+            raise RuntimeError('승인 업무의 실제 직원·총괄 검토 기록이 불완전합니다.')
+    except Exception as exc:
+        with store._connect() as con:
+            con.execute("""UPDATE aiwack_autopilot_model_runs
+                SET state='failed',error_kind=?,finished_at=CURRENT_TIMESTAMP
+                WHERE id=? AND state='running'""",(type(exc).__name__[:60],audit_id))
+        raise
+    with store._connect() as con:
+        con.execute("""UPDATE aiwack_autopilot_model_runs
+            SET state='success',finished_at=CURRENT_TIMESTAMP
+            WHERE id=? AND state='running'""",(audit_id,))
+    return {**result,'autopilot_model_audit_id':audit_id,
+            'automatic_result_approval':False}
+
+
+def approved_model_history(store, limit: int=30) -> list[dict]:
+    initialize(store)
+    if type(limit) is not int or not 1<=limit<=100:
+        raise ValueError('실제 AI 자동 실행 감사 조회 제한 초과')
+    with store._connect() as con:
+        return [dict(zip(('id','task_id','state','error_kind'),row))
+            for row in con.execute("""SELECT id,task_id,state,error_kind
+               FROM aiwack_autopilot_model_runs ORDER BY id DESC LIMIT ?""",(limit,))]
 
 
 def history(store,limit=30):

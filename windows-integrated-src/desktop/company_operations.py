@@ -204,6 +204,11 @@ def list_approved_chief_queue_candidates(store, *, limit: int = 3) -> list[dict]
             continue
         if store.list_task_runs(task_id) or store.list_task_artifacts(task_id):
             continue
+        # An approved chief instruction is NOT permission to run a task
+        # while its prerequisites are still unfinished.
+        with store._connect() as con:
+            if store._pending_prerequisites(con,task_id):
+                continue
         route = store.read_task_routing(task_id)
         employee_id = route['employee_id']
         if not employee_id or store.read_employee_model(int(employee_id)) is None:
