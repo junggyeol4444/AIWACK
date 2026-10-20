@@ -39,6 +39,34 @@ with tempfile.TemporaryDirectory() as directory:
         office.set_view('results')
         root.update()
         assert office.cards['pending'].get() == '0'
+
+        # Verify ALL owner controls remain visible inside the actual GUI, not
+        # merely present in the Tk object tree. A moved approval button broke
+        # the physical Windows mouse E2E even though headless tests passed.
+        def find_button(widget, title):
+            for child in widget.winfo_children():
+                if isinstance(child, tk.Button) and child.cget('text') == title:
+                    return child
+                found=find_button(child,title)
+                if found is not None:
+                    return found
+            return None
+        for view,labels in [
+            ('work',['비상 정지','31명 승인 연속 운영','운영 기록 확인']),
+            ('results',['승인','수정 요청','반려','결과물 품질 검사','승인 결과 파일 저장']),
+            ('overview',['회사 DB 백업','백업 무결성 확인']),
+        ]:
+            office.set_view(view)
+            root.update()
+            for label in labels:
+                button=find_button(root,label)
+                assert button is not None, f'Missing real GUI button: {label}'
+                assert button.winfo_viewable(), f'Invisible real GUI button: {label}'
+                assert button.winfo_rootx() >= root.winfo_rootx()
+                assert button.winfo_rooty() >= root.winfo_rooty()
+                assert button.winfo_rootx()+button.winfo_width() <= root.winfo_rootx()+root.winfo_width(), label
+                assert button.winfo_rooty()+button.winfo_height() <= root.winfo_rooty()+root.winfo_height(), label
+        print('AIWACK_NEW_OWNER_CONTROLS_ACTUALLY_VISIBLE_PASS')
         print('COMPANY_OFFICE_LIVE_GUI_PASS')
     finally:
         root.destroy()

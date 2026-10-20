@@ -57,11 +57,17 @@ jobs:
           Set-Location $env:AIWACK_RELEASE_SRC
           python -m pytest -q tests/test_company_backup.py tests/test_company_deliverables.py tests/test_company_campaign.py tests/test_windows_real_parallel_validation.py tests/test_concurrent_scheduler_and_queue.py tests/test_recurring_scheduler.py tests/test_task_queue.py tests/test_queue_recovery.py tests/test_company_parallel_approved_cycle.py tests/test_company_chief_review.py tests/test_company_approved_autocycle.py tests/test_local_models.py
           if ($LASTEXITCODE -ne 0) { throw 'Native Windows T17 recovery and approval regression failed' }
+      - name: Verify actual native company GUI controls visible before EXE packaging
+        shell: pwsh
+        run: |
+          cd windows-integrated-src
+          python scripts/company_office_gui_smoke.py
+          if ($LASTEXITCODE -ne 0) { throw 'Native AIWACK company GUI controls are clipped or non-functional' }
       - name: Build verified native Windows desktop application
         shell: pwsh
         run: |
           Set-Location $env:AIWACK_RELEASE_SRC
-          python -m PyInstaller --noconfirm --clean --onefile --windowed --name AIWACK --paths . --hidden-import desktop.company_operations --hidden-import desktop.company_office_gui --hidden-import desktop.company_model_connect_ui --add-data 'docs/roadmap_100.csv;docs' desktop/entry.py
+          python -m PyInstaller --noconfirm --clean --onefile --windowed --name AIWACK --paths . --hidden-import desktop.company_operations --hidden-import desktop.company_office_gui --hidden-import desktop.company_model_connect_ui --hidden-import desktop.company_campaign --hidden-import desktop.company_deliverables --hidden-import desktop.company_backup --add-data 'docs/roadmap_100.csv;docs' desktop/entry.py
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           $exe = Join-Path $env:AIWACK_RELEASE_SRC 'dist/AIWACK.exe'
           if (!(Test-Path $exe)) { throw 'Native release AIWACK.exe missing' }

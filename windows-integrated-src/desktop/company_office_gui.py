@@ -249,8 +249,6 @@ class CompanyOffice:
         self._action(head, '담당 AI 자동 배정', self.assign, compact=True)
         self._action(head, '선택 업무 실행', self.run_selected, strong=True, compact=True)
         self._action(head, '승인 AI 2명 병렬', self.run_approved_parallel, compact=True)
-        self._action(head, '31명 승인 연속 운영', self.run_campaign, compact=True)
-        self._action(head, '운영 기록 확인', self.campaign_report, compact=True)
         self.work_jobs = self._table(main, [('job', '업무', 290), ('owner', '담당 AI', 150),
                                             ('state', '진행', 95)], height=4)
         self.work_jobs.bind('<<TreeviewSelect>>', self._sync_work_selection)
@@ -268,6 +266,10 @@ class CompanyOffice:
         self._action(controls, '승인 업무 자동 회수 ≤3', self.run_approved_queue, compact=True)
         self._action(controls, '실행 결과', lambda: self.set_view('results'), compact=True)
         self._action(controls, '비상 정지', self.stop, danger=True, compact=True)
+        campaign_controls = tk.Frame(main, bg=CARD)
+        campaign_controls.pack(fill='x', pady=(4, 0))
+        self._action(campaign_controls, '31명 승인 연속 운영', self.run_campaign, compact=True)
+        self._action(campaign_controls, '운영 기록 확인', self.campaign_report, compact=True)
         self._label(main, '업무를 선택 → 담당 AI 배정 → 모델 실행.  모델이 없으면 실패 사유를 표시합니다.',
                     size=8, color=MUTED).pack(anchor='w', pady=(7, 0))
 
