@@ -45,7 +45,10 @@ def _local_file(value: str, *, label: str, required: bool = True) -> Path | None
     path = Path(path_text).expanduser()
     if not path.is_absolute() or not path.is_file():
         raise ValueError(f"{label}: PC에 존재하는 절대 파일 경로를 입력하세요.")
-    return path.resolve(strict=True)
+    resolved = path.resolve(strict=True)
+    if os.name == 'nt' and str(resolved).startswith(('\\\\', '//')):
+        raise ValueError(f'{label}: 네트워크 공유 파일은 사용할 수 없습니다.')
+    return resolved
 
 
 def validate_config(config: ModelConfig) -> ModelConfig:
@@ -148,4 +151,8 @@ def run_local_model(config: ModelConfig, prompt: str, *, timeout: int = 60,
     stderr = err.decode("utf-8", errors="replace")
     if process.returncode != 0:
         raise RuntimeError(f"로컬 모델 실행 종료 코드 {process.returncode}: {stderr.strip()[-500:]}")
-    return output[:MAX_OUTPUT].strip()
+    if len(output) > MAX_OUTPUT:
+        raise ValueError('로컬 모델 응답이 20000자를 초과했습니다. 잘린 결과를 저장하지 않습니다.')
+    if not output.strip():
+        raise ValueError('로컬 모델이 빈 응답을 반환했습니다.')
+    return output.strip()
