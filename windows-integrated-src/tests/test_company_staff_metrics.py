@@ -62,3 +62,28 @@ def test_metrics_failure_is_not_success(tmp_path,monkeypatch):
     row=next(x for x in metrics.snapshot(db)['staff'] if x['employee_id']==staff)
     assert row['failed']==1 and row['successful']==0
     assert metrics.snapshot(db)['recorded_successful_model_calls']==0
+
+
+
+def test_metrics_aggregate_runs_separately_from_reviewed_artifacts(tmp_path):
+    """결과물 검수 감사 행이 증가해도 실제 모델 실행 횟수는 부풀리지 않는다."""
+    import hashlib
+    db=LocalStore(tmp_path/'aggregate.sqlite3')
+    db.setup_owner('owner','metrics-aggregate-password-2026')
+    emp=db.add_employee_draft('worker','Worker')
+    with db._connect() as con:
+        con.execute("INSERT INTO company_tasks(title,description,status) VALUES('Saved run','', 'todo')")
+        task_id=con.execute('SELECT MAX(id) FROM company_tasks').fetchone()[0]
+        call=con.execute("INSERT INTO ai_model_call_history(employee_id,model_id,model_name,status,prompt_chars) VALUES(?,?,?,?,?)",
+                         (emp,1,'audit','success',1)).lastrowid
+        run=con.execute("INSERT INTO company_task_runs(task_id,employee_id,model_id,model_name,model_call_id,status,prompt_chars,output_chars,duration_ms) VALUES(?,?,?,?,?,?,?,?,?)",
+                        (task_id,emp,1,'audit',call,'success',1,4,1)).lastrowid
+        body='실제로 저장된 결과'
+        con.execute("INSERT INTO company_task_artifacts(task_id,run_id,title,body,sha256,review_status) VALUES(?,?,?,?,?,'approved')",
+                    (task_id,run,'결과',body,hashlib.sha256(body.encode()).hexdigest()))
+        for _ in range(3):
+            con.execute("INSERT INTO company_task_artifact_reviews(artifact_id,old_status,new_status,note) VALUES((SELECT MAX(id) FROM company_task_artifacts),'pending','approved','검수')")
+    row=next(x for x in metrics.snapshot(db)['staff'] if x['employee_id']==emp)
+    assert row['actual_attempts']==1 and row['successful']==1
+    assert row['owner_approved_artifacts']==1
+    assert row['observed_success_rate']==100.0
