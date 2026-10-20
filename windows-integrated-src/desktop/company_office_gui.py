@@ -118,6 +118,8 @@ class CompanyOffice:
         self._label(right, '', size=9, color=AMBER, bg=BG,
                     textvariable=self.live_badge).pack(anchor='e', pady=(2, 4))
         self._action(right, '↻  새로고침', self.refresh, compact=True)
+        self._action(right, '회사 DB 백업', self.backup_company, compact=True)
+        self._action(right, '백업 무결성 확인', self.verify_company_backup, compact=True)
 
         navigation = tk.Frame(self.parent, bg=BG)
         navigation.pack(fill='x', padx=12, pady=(0, 8))
@@ -332,6 +334,35 @@ class CompanyOffice:
 
     def _show_output(self, text):
         self.latest_output = str(text)[:20000]
+
+    def backup_company(self):
+        from desktop import company_backup
+        try:
+            if not messagebox.askyesno('회사 SQLite 안전 백업',
+                    '현재 회사 데이터를 별도의 검증 가능한 SQLite 백업으로 생성합니다. '
+                    '기존 프로그램 DB는 변경하거나 복원하지 않습니다. 진행하시겠습니까?',
+                    parent=self.root):
+                return
+            info=company_backup.create_snapshot(self.store)
+            self._say('회사 DB 안전 백업 완료: '+info['path'])
+        except (ValueError,PermissionError,RuntimeError,OSError) as exc:
+            self._say('회사 백업 실패: '+str(exc))
+
+    def verify_company_backup(self):
+        from desktop import company_backup
+        from desktop.storage import user_data_dir
+        from pathlib import Path
+        try:
+            folder=user_data_dir()/'verified_backups'
+            backups=sorted(folder.glob('aiwack_backup_*.sqlite3'),
+                           key=lambda p:p.stat().st_mtime,reverse=True) if folder.is_dir() else []
+            if not backups:
+                self._say('검증할 AIWACK 회사 백업이 없습니다.')
+                return
+            verified=company_backup.verify_snapshot(self.store,backups[0])
+            self._say('가장 최근 회사 SQLite 백업의 무결성 확인 완료: '+verified['path'])
+        except (ValueError,PermissionError,RuntimeError,OSError) as exc:
+            self._say('회사 백업 검증 실패: '+str(exc))
 
     def refresh(self):
         try:
