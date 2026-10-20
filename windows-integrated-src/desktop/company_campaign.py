@@ -64,6 +64,12 @@ def candidate_tasks(store, *, limit: int = 31) -> list[dict]:
         with store._connect() as con:
             if store._pending_prerequisites(con,tid):
                 continue
+            # 후속 부서 업무는 선행 직원 성공·결과 승인·총괄 소유자 수락이 모두 필요.
+            from desktop.company_department_progress import assert_collaboration_prerequisites
+            try:
+                assert_collaboration_prerequisites(con,tid)
+            except ValueError:
+                continue
         route = store.read_task_routing(tid)
         eid = route['employee_id']
         if not eid or store.read_employee_model(int(eid)) is None:
@@ -123,9 +129,25 @@ def campaign_status(store, campaign_id: int) -> dict:
              (campaign_id,)).fetchall()
     entries=[dict(zip(('task_id','employee_id','ordinal','state','artifact_id','note'),x))
              for x in items]
+    unique_staff=len({int(x['employee_id']) for x in entries})
+    with store._connect() as con:
+        observed=con.execute('''SELECT COUNT(DISTINCT r.employee_id) FROM company_task_runs r
+             JOIN aiwack_work_campaign_items i ON i.task_id=r.task_id
+             WHERE i.campaign_id=? AND r.status='success' AND r.employee_id=i.employee_id''',
+             (campaign_id,)).fetchone()[0]
+        reviewed=con.execute('''SELECT COUNT(DISTINCT r.employee_id) FROM company_task_runs r
+             JOIN aiwack_work_campaign_items i ON i.task_id=r.task_id
+             JOIN company_task_artifacts a ON a.run_id=r.id AND a.task_id=r.task_id
+             WHERE i.campaign_id=? AND r.status='success'
+               AND r.employee_id=i.employee_id AND a.review_status='approved' ''',
+             (campaign_id,)).fetchone()[0]
     return {'id':int(row[0]),'label':row[1],'state':row[2],
             'last_error':row[3],'created_at':row[4],'items':entries,
-            'total':len(entries),
+            'total':len(entries),'distinct_employee_count':unique_staff,
+            'actual_successful_employee_count':int(observed),
+            'actual_approved_employee_count':int(reviewed),
+            'all_31_distinct_employees':unique_staff==31 and len(entries)==31,
+            'all_31_actual_successes':int(observed)==31 and len(entries)==31,
             'pending':sum(x['state']=='pending' for x in entries),
             'review_pending':sum(x['state']=='review_pending' for x in entries),
             'needs_review':sum(x['state']=='needs_review' for x in entries),
@@ -154,13 +176,19 @@ def audit_campaign(store, campaign_id: int) -> dict:
             matched=[x for x in artifacts if x['id']==aid]
             report=store.find_chief_task_report(aid) if matched else None
             if (len(matched)!=1 or report is None or
-                    not any(row['status']=='success' for row in runs)):
-                findings.append({'task_id':task_id,'reason':'완료된 직원 실행/결과물/총괄 보고서 연결이 불완전합니다.'})
+                    not any(row['id']==matched[0]['run_id']
+                            and row['employee_id']==item['employee_id']
+                            and row['status']=='success' for row in runs)):
+                findings.append({'task_id':task_id,'reason':'직원·실제 실행·결과물·총괄 보고서 연결이 불완전합니다.'})
         if state in ('running','needs_review') and not runs:
             # An interrupted process may die before begin_task_execution and
             # still needs human inspection; it is not silently retried.
             findings.append({'task_id':task_id,'reason':'중단된 실행 상태이나 감사 기록이 없습니다.'})
     return {'campaign_id':campaign_id,'total':ledger['total'],
+            'distinct_employee_count':ledger['distinct_employee_count'],
+            'actual_successful_employee_count':ledger['actual_successful_employee_count'],
+            'actual_approved_employee_count':ledger['actual_approved_employee_count'],
+            'all_31_distinct_employees':ledger['all_31_distinct_employees'],
             'review_pending':ledger['review_pending'],
             'pending':ledger['pending'],'needs_review':ledger['needs_review'],
             'findings':findings,'audit_ok':not findings,

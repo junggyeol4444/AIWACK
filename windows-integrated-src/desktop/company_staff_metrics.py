@@ -24,7 +24,8 @@ def snapshot(store) -> dict:
         pending=con.execute("SELECT COUNT(*) FROM company_task_artifacts WHERE review_status='pending'").fetchone()[0]
     employees=[]
     for rid,name,dept,total,success,fail,cancel,running,approved in employee_rows:
-        completed=success+fail+cancel
+        # Cancelled attempts are neither success nor failed completed inference.
+        completed=success+fail
         employees.append(dict(employee_id=int(rid),name=str(name),
              department=str(dept),actual_attempts=int(total),
              successful=int(success),failed=int(fail),cancelled=int(cancel),

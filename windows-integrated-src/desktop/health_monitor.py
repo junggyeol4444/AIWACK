@@ -15,9 +15,10 @@ HEALTH_LABELS = {
     'pending_artifacts': '검수 대기 결과물',
     'pending_chief_reports': '관리자 검토 대기 총괄 보고서',
     'stale_runs': '1시간 넘게 실행 중으로 남은 기록',
+    'stale_chief_review_leases': '3분 넘은 총괄 검토 잠금(프로세스 생존 여부 수동 확인)',
     'recent_failures': '최근 24시간 실패·시간초과·중단 실행',
 }
-CRITICAL_CODES = frozenset({'stale_runs'})
+CRITICAL_CODES = frozenset({'stale_runs', 'stale_chief_review_leases'})
 
 
 def evaluate_company_health(con: sqlite3.Connection) -> dict[str, object]:
@@ -55,6 +56,12 @@ def evaluate_company_health(con: sqlite3.Connection) -> dict[str, object]:
               AND started_at >= datetime('now','-24 hours')
         """).fetchone()[0],
     }
+    lease_table_exists=con.execute("SELECT 1 FROM sqlite_master WHERE type='table' "
+                                   "AND name='aiwack_chief_review_leases'").fetchone()
+    metrics['stale_chief_review_leases']=(con.execute(
+        "SELECT COUNT(*) FROM aiwack_chief_review_leases "
+        "WHERE started_epoch < CAST(strftime('%s','now') AS INTEGER)-180"
+    ).fetchone()[0] if lease_table_exists else 0)
     issues = [{'code': code, 'count': int(metrics[code]), 'label': label}
               for code, label in HEALTH_LABELS.items() if metrics[code] > 0]
     severity = ('critical' if any(x['code'] in CRITICAL_CODES for x in issues)

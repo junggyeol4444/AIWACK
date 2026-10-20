@@ -8,8 +8,13 @@ from __future__ import annotations
 
 import threading
 
-from desktop.chief_runtime import invoke_chief_model
+from desktop import chief_runtime
 from desktop.storage import LocalStore
+
+
+def invoke_chief_model(*args, **kwargs):
+    """현재 총괄 모델 실행 함수를 호출한다(모듈 최초 import 시점에 고정하지 않음)."""
+    return chief_runtime.invoke_chief_model(*args, **kwargs)
 
 
 def propose_chief_task_order(store: LocalStore, task_id: int, objective: str,

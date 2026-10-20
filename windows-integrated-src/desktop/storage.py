@@ -1232,6 +1232,10 @@ class LocalStore:
                 raise ValueError("로컬 AI 실행 중에는 업무 상태를 변경할 수 없습니다.")
             if new_status not in self.TASK_TRANSITIONS[old_status]:
                 raise ValueError(f"허용되지 않은 상태 변경: {old_status} → {new_status}")
+            if new_status == 'done':
+                # GUI·일반 API를 통한 수동 완료도 동일한 협업 증빙을 검사.
+                from desktop.company_department_progress import assert_collaboration_completion
+                assert_collaboration_completion(con, task_id)
             if new_status in ("in_progress", "done"):
                 pending = self._pending_prerequisites(con, task_id)
                 if pending:
@@ -1447,6 +1451,9 @@ class LocalStore:
             task = self._task_row(con, task_id)
             if task[4] != "todo":
                 raise ValueError("할 일(todo) 상태의 업무만 AI 실행을 시작할 수 있습니다.")
+            # 모든 직원 실행 진입점에서 부서 협업의 실제 승인 선행 실증 확인.
+            from desktop.company_department_progress import assert_collaboration_prerequisites
+            assert_collaboration_prerequisites(con, task_id)
             pending = self._pending_prerequisites(con, task_id)
             if pending:
                 raise ValueError(f"미완료 선행 업무: {', '.join(map(str, pending))}")

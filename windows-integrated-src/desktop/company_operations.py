@@ -549,20 +549,26 @@ def collect_chief_review(store, artifact_id: int, *,
         raise InterruptedError('총괄 AI 회수 검토 시작 전에 취소됐습니다.')
     if store.find_chief_task_report(artifact_id) is not None:
         raise ValueError('이미 회수 보고서가 저장된 결과물입니다.')
-    # The core runtime verifies provenance, chief assignment, full text size
-    # and owner permission BEFORE constructing the model prompt.
-    response = collect_chief_task_result(store, artifact_id, timeout=60, cancel=cancel)
-    if cancel is not None and cancel.is_set():
-        raise InterruptedError('회수 검토 도중 취소되어 AI 응답을 저장하지 않았습니다.')
-    # An emergency stop requested during the subprocess must also prevent
-    # acceptance of its late result into the owner's review queue.
-    assert_running_allowed(store)
-    if type(response) is not str or not response.strip() or len(response) > 10000 or '\x00' in response:
-        raise ValueError('총괄 AI 회수 의견이 비었거나 저장 제한을 초과했습니다.')
-    report_id = store.save_chief_task_report(artifact_id, response.strip())
-    return {'artifact_id': artifact_id, 'report_id': report_id,
-            'status': 'awaiting_owner_review', 'chief_model_called': True,
-            'worker_result_auto_approved': False, 'task_completed': False}
+    # A durable BEGIN IMMEDIATE lease excludes a second Windows session from
+    # starting the same expensive chief subprocess before the report is saved.
+    from desktop import company_chief_review_leases as review_leases
+    lease_token = review_leases.reserve(store, artifact_id)
+    try:
+        # The core runtime verifies provenance, chief assignment, full text size
+        # and owner permission BEFORE constructing the model prompt.
+        response = collect_chief_task_result(store, artifact_id, timeout=60, cancel=cancel)
+        if cancel is not None and cancel.is_set():
+            raise InterruptedError('회수 검토 도중 취소되어 AI 응답을 저장하지 않았습니다.')
+        assert_running_allowed(store)
+        if type(response) is not str or not response.strip() or len(response) > 10000 or '\x00' in response:
+            raise ValueError('총괄 AI 회수 의견이 비었거나 저장 제한을 초과했습니다.')
+        report_id = store.save_chief_task_report(artifact_id, response.strip())
+        return {'artifact_id': artifact_id, 'report_id': report_id,
+                'status': 'awaiting_owner_review', 'chief_model_called': True,
+                'worker_result_auto_approved': False, 'task_completed': False}
+    finally:
+        review_leases.release(store, artifact_id, lease_token)
+
 
 
 def recover_interrupted_chief_review(store, task_id: int, *,
@@ -611,6 +617,8 @@ def list_interrupted_chief_reviews(store, *, limit: int = 100) -> list[dict]:
     store.require_permission('company:manage')
     if type(limit) is not int or not 1 <= limit <= 100:
         raise ValueError('검토 복구 후보 조회는 1~100건입니다.')
+    from desktop import company_chief_review_leases as review_leases
+    locked_artifacts={item['artifact_id'] for item in review_leases.snapshot(store)}
     candidates = []
     for task in sorted(store.list_tasks(), key=lambda row: int(row['id'])):
         tid = int(task['id'])
@@ -621,6 +629,8 @@ def list_interrupted_chief_reviews(store, *, limit: int = 100) -> list[dict]:
             continue
         artifact_id = int(artifacts[0]['id'])
         if store.find_chief_task_report(artifact_id) is not None:
+            continue
+        if artifact_id in locked_artifacts:
             continue
         try:
             provenance = store.chief_task_report_context(artifact_id)
@@ -672,11 +682,13 @@ def inspect_recovery_state(store, *, max_runs: int = 200) -> dict:
     running_models = [dict(call_id=int(row[0]), employee_id=int(row[1]),
                            model_id=int(row[2]), started_at=str(row[3]))
                       for row in model_rows[:max_runs]]
+    from desktop import company_chief_review_leases as review_leases
     return {'running_worker_runs': running,
             'running_worker_runs_truncated': len(rows) > max_runs,
             'running_model_calls': running_models,
             'running_model_calls_truncated': len(model_rows) > max_runs,
             'pending_chief_reviews': list_interrupted_chief_reviews(store),
+            'chief_review_leases': review_leases.snapshot(store),
             'run_scan_limit': max_runs,
             'requires_owner_process_confirmation': True,
             'changed_task_state': False,
@@ -759,6 +771,20 @@ def finalize_approved_artifact(store, artifact_id: int) -> int:
             JOIN company_task_runs r ON r.id=a.run_id AND r.task_id=a.task_id
             JOIN company_tasks t ON t.id=a.task_id
             WHERE a.id=?""",(artifact_id,)).fetchone()
+        if row is not None and con.execute("""SELECT 1 FROM sqlite_master
+            WHERE type='table' AND name='aiwack_department_plan_steps'""").fetchone():
+            step=con.execute("""SELECT s.plan_id,p.state,s.worker_employee_id
+                FROM aiwack_department_plan_steps s
+                JOIN aiwack_department_plans p ON p.id=s.plan_id
+                WHERE s.task_id=?""",(row[0],)).fetchone()
+            if step is not None:
+                evidence=con.execute("""SELECT c.owner_decision FROM company_chief_task_reports c
+                    JOIN company_task_artifacts a ON a.id=c.artifact_id
+                    JOIN company_task_runs r ON r.id=a.run_id
+                    WHERE a.id=? AND r.employee_id=? AND r.status='success'""",
+                    (artifact_id,step[2])).fetchone()
+                if step[1]!='approved' or evidence is None or evidence[0]!='accepted':
+                    raise ValueError('부서 협업 총괄 보고서를 소유자가 수락하기 전에는 업무 완료 불가합니다.')
     if row is None:
         raise ValueError('업무에 연결된 실제 AI 실행 결과물을 찾지 못했습니다.')
     task_id,review_state,run_state,task_state = row

@@ -264,7 +264,7 @@ class CompanyOffice:
         self._action(head, '선택 업무 실행', self.run_selected, strong=True, compact=True)
         self._action(head, '승인 AI 2명 병렬', self.run_approved_parallel, compact=True)
         self.work_jobs = self._table(main, [('job', '업무', 290), ('owner', '담당 AI', 150),
-                                            ('state', '진행', 95)], height=4)
+                                            ('state', '진행', 95)], height=3)
         self.work_jobs.bind('<<TreeviewSelect>>', self._sync_work_selection)
         editor = tk.Frame(main, bg=CARD)
         editor.pack(fill='x', pady=(8, 0))
@@ -285,10 +285,14 @@ class CompanyOffice:
         self._action(campaign_controls, '31명 승인 연속 운영', self.run_campaign, compact=True)
         self._action(campaign_controls, '운영 기록 확인', self.campaign_report, compact=True)
         self._action(campaign_controls, '직원 실제 업무 성과', self.staff_metrics_report, compact=True)
-        self._action(campaign_controls, '부서 협업 AI 초안', self.propose_department_plan, compact=True)
-        self._action(campaign_controls, '부서 협업 승인', self.approve_department_plan, compact=True)
-        self._action(campaign_controls, '협업 현황', self.show_department_plans, compact=True)
-        self._action(campaign_controls, '협업 초안 기각', self.reject_department_plan, compact=True)
+        # 1040x720 실제 Windows 화면에서 업무 제어 버튼이 가로로 잘리지 않도록 분리.
+        collaboration_controls = tk.Frame(main, bg=CARD)
+        collaboration_controls.pack(fill='x', pady=(3, 0))
+        self._action(collaboration_controls, '부서 협업 AI 초안', self.propose_department_plan, compact=True)
+        self._action(collaboration_controls, '부서 협업 승인', self.approve_department_plan, compact=True)
+        self._action(collaboration_controls, '협업 다음 단계 실행', self.run_department_next_step, compact=True)
+        self._action(collaboration_controls, '협업 현황', self.show_department_plans, compact=True)
+        self._action(collaboration_controls, '협업 초안 기각', self.reject_department_plan, compact=True)
         self._label(main, '업무를 선택 → 담당 AI 배정 → 모델 실행.  모델이 없으면 실패 사유를 표시합니다.',
                     size=8, color=MUTED).pack(anchor='w', pady=(7, 0))
 
@@ -304,7 +308,7 @@ class CompanyOffice:
         self._action(head, '반려', self.reject_selected, danger=True, compact=True)
         self.artifact_list = self._table(card, [('name', '실제 AI 생성 결과', 300),
                                                ('task', '업무 #', 72),
-                                               ('review', '검수 상태', 112)], height=5)
+                                               ('review', '검수 상태', 112)], height=3)
         self.artifact_list.bind('<Double-1>', lambda _event: self.open_result())
         actionbar=tk.Frame(card,bg=CARD)
         actionbar.pack(fill='x',pady=(5,0))
@@ -326,6 +330,8 @@ class CompanyOffice:
                      self.promote_knowledge, compact=True)
         self._action(knowledgebar, '회사 공유 지식 등록 기록',
                      self.show_knowledge_links, compact=True)
+        self._action(knowledgebar, '총괄 검토 잠금 확인·복구',
+                     self.inspect_chief_review_lease, compact=True)
         self._label(card, '', size=9, color=AMBER, textvariable=self.review_summary).pack(anchor='w', pady=(5, 0))
         self._label(card, '실제 생성 결과가 없으면 표시하지 않습니다. 승인해도 업무가 자동 완료되지 않습니다.',
                     size=8, color=MUTED).pack(anchor='w', pady=(3, 0))
@@ -583,6 +589,12 @@ class CompanyOffice:
                 self.set_view('results')
                 self._say('총괄 AI 회수 보고서 저장됨 · 관리자 수락/반려 전에는 업무 상태 변경 없음')
                 self.open_chief_report(int(result['artifact_id']))
+            elif self.after_action == 'department_step':
+                self.set_view('results')
+                self._say(f"협업 #{result['collaboration_plan_id']} "
+                          f"{result['collaboration_ordinal']}단계 직원·총괄 AI 실행 기록 저장, "
+                          '소유자 결과 승인·업무 완료 전 후속 실행 차단')
+                self.open_chief_report(int(result['artifact_id']))
             elif self.after_action == 'department_draft':
                 from desktop.company_department_collaboration import report_text
                 self.set_view('work')
@@ -673,6 +685,41 @@ class CompanyOffice:
         except (ValueError,PermissionError) as exc:
             self._say('부서 협업 초안 기각 실패: '+str(exc))
 
+    def _selected_approved_department_plan(self):
+        from desktop import company_department_collaboration as chain
+        selected=self.selected_task()
+        matches=[p for p in chain.list_plans(self.store,limit=100)
+                 if p['state']=='approved' and
+                 (p['source_task_id']==selected or
+                  any(step['task_id']==selected for step in p['steps']))]
+        if not matches:
+            raise ValueError('선택한 업무에 승인된 부서 협업 계획이 없습니다.')
+        return matches[0]
+
+    def run_department_next_step(self):
+        from desktop import company_department_progress as progress
+        if self.worker and self.worker.is_alive():
+            self._say('이미 실행 중인 AI 작업이 있습니다.')
+            return
+        try:
+            plan=self._selected_approved_department_plan()
+            state=progress.next_step(self.store,plan['id'])
+            if not state['ready']:
+                self._say('협업 단계 대기: '+state['reason'])
+                return
+            if not messagebox.askyesno('실제 부서 협업 직원·총괄 AI 호출',
+                    f"협업 #{plan['id']} / {state['ordinal']}단계 {state['department']}\n"
+                    f"업무 #{state['task_id']} {state['title']}\n"
+                    f"직원 #{state['employee_id']} 및 총괄 AI 모델을 실제 호출합니다.\n"
+                    '모든 결과는 소유자 검수 대기이며 외부 거래/자동 승인은 하지 않습니다. 시작할까요?',
+                    parent=self.root):
+                return
+            self._start(lambda:progress.execute_next_step(
+                self.store,plan['id'],state['task_id'],state['employee_id'],
+                cancel=self.cancel),after='department_step')
+        except (ValueError,PermissionError,RuntimeError) as exc:
+            self._say('부서 협업 단계 실행 실패: '+str(exc))
+
     def show_department_plans(self):
         from desktop import company_department_collaboration as chain
         try:
@@ -680,8 +727,9 @@ class CompanyOffice:
             if not plans:
                 self._say('저장된 부서 협업 초안과 승인 계획이 없습니다.')
                 return
+            from desktop import company_department_progress as progress
             self._text_dialog('실제 부서 협업·직원 배정·업무 현황',
-                              '\n\n'.join(chain.report_text(p) for p in plans)[:15000])
+                              '\n\n'.join(progress.report(self.store,p['id']) for p in plans)[:15000])
         except (ValueError,PermissionError,RuntimeError) as exc:
             self._say('부서 협업 현황 조회 실패: '+str(exc))
 
@@ -689,7 +737,10 @@ class CompanyOffice:
         from desktop import company_staff_metrics
         try:
             self._text_dialog('사내 AI 직원 실제 실행·검수 기록',
-                              company_staff_metrics.text_report(self.store))
+                              company_staff_metrics.text_report(self.store)
+                              + '\n\n' + __import__(
+                                  'desktop.company_collaboration_coverage',
+                                  fromlist=['text_report']).text_report(self.store))
         except (ValueError,PermissionError,RuntimeError) as exc:
             self._say('실제 직원 기록 분석 실패: '+str(exc))
 
@@ -703,7 +754,10 @@ class CompanyOffice:
             lines=[]
             for row in all_campaigns:
                 audit=campaigns.audit_campaign(self.store,row['id'])
-                lines.append(f"#{row['id']} {row['state']} | 전체 {row['total']} / "
+                lines.append(f"#{row['id']} {row['state']} | 전체 업무 {row['total']} / "
+                             f"배정 직원 {row['distinct_employee_count']}명 / "
+                             f"실제 성공 직원 {row['actual_successful_employee_count']}명 / "
+                             f"실제 승인 직원 {row['actual_approved_employee_count']}명 / "
                              f"검토 대기 {row['review_pending']} / 확인 필요 {row['needs_review']} / "
                              f"실행 대기 {row['pending']} | {row['last_error'][:120]}")
                 for entry in row['items']:
@@ -760,8 +814,10 @@ class CompanyOffice:
                 preview='\n'.join(
                     f"#{x['task_id']} / 직원 #{x['employee_id']} / {x['title'][:35]}"
                     for x in choices)
-                if not messagebox.askyesno('31명 승인 업무 공동 운영',
-                        f'다음 {len(ids)}건을 한 번 확인하고 2명씩 실제 모델을 실행합니다.\n'
+                distinct=len({int(x['employee_id']) for x in choices})
+                if not messagebox.askyesno('최대 31건 승인 업무 공동 운영',
+                        f'다음 {len(ids)}건 / 서로 다른 AI 직원 {distinct}명을 확인하고 '
+                        '동시에 최대 2개씩 실제 모델을 실행합니다.\n'
                         + preview + '\n총괄 AI 검토 뒤에도 모든 결과는 소유자 승인 대기입니다. '
                         '개별 업무 자동 재실행·자동 결제·자동 외부 게시 없음. 시작할까요?',
                         parent=self.root):
@@ -1093,6 +1149,35 @@ class CompanyOffice:
                         after='chief_report')
         except (ValueError,PermissionError) as exc:
             self._say('총괄 회수 검토 시작 실패: '+str(exc))
+
+    def inspect_chief_review_lease(self):
+        """Owner-only inspection and explicit orphaned-chief-lease reset."""
+        from desktop import company_chief_review_leases as leases
+        try:
+            rows=leases.snapshot(self.store)
+            if not rows:
+                self._say('총괄 AI 검토 잠금 기록이 없습니다.')
+                return
+            details='\n'.join(
+                f"결과물 #{row['artifact_id']} / 업무 #{row['task_id']} / "
+                f"잠금 {row['age_seconds']}초 / 보고서 존재: {row['report_exists']}"
+                for row in rows)
+            self._text_dialog('총괄 AI 검토 잠금 현황(실제 프로세스 상태 미확인)',details)
+            selected=self._selected_artifact()
+            if not any(row['artifact_id']==selected for row in rows):
+                return
+            if not messagebox.askyesno('총괄 AI 검토 잠금 수동 해제',
+                    f'결과물 #{selected}의 검토 잠금을 해제하시겠습니까?\n'
+                    '다른 Windows 창 및 실제 GGUF 모델 프로세스가 실행 중이지 않음을 '
+                    '관리자가 직접 확인한 경우에만 예를 누르세요.\n'
+                    '실행 중인 프로세스가 있다면 잠금을 해제하지 마세요.\n'
+                    '기존 결과물과 감사 기록은 삭제되지 않습니다.',parent=self.root):
+                return
+            leases.clear_after_owner_inspection(
+                self.store,selected,owner_confirmed=True)
+            self._say('관리자 확인에 따라 총괄 검토 잠금을 해제했습니다. 자동 재실행은 하지 않습니다.')
+        except (ValueError,PermissionError,RuntimeError) as exc:
+            self._say('총괄 검토 잠금 확인 실패: '+str(exc))
 
     def recover_interrupted_queue(self):
         """Only an explicit owner click may launch bounded chief-only recovery."""
