@@ -1500,7 +1500,10 @@ class LocalStore:
                     raise ValueError('승인된 지시가 로컬 모델 입력 한도를 초과했습니다.')
             # An earlier worker's result is context, never a new instruction.
             from desktop.company_handoffs import dependency_context
-            prompt+=dependency_context(con,task_id,budget=min(850,max(0,3000-len(prompt))))
+            prompt+=dependency_context(con,task_id,budget=min(700,max(0,3000-len(prompt))))
+            from desktop.company_handoffs import curated_company_context
+            prompt+=curated_company_context(con,str(task[2]),
+                                             budget=min(450,max(0,3000-len(prompt))))
             config = ModelConfig(str(name),str(backend),str(exe),str(model_path),int(tokens))
             # Record the same local invocation in the existing model call audit.
             call_id = int(con.execute("""INSERT INTO ai_model_call_history

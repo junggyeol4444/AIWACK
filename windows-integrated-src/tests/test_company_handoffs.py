@@ -103,3 +103,39 @@ def test_logged_out_owner_cannot_access_promotion(team):
     db,(first,second),prompts=team
     db.logout()
     with pytest.raises(AuthenticationError):h.list_promotions(db)
+
+
+def test_only_relevant_owner_promoted_knowledge_used_for_future_employee(team):
+    db,(first,second),prompts=team
+    aid=ops.execute_task(db,first)['artifact_id']
+    db.review_task_artifact(aid,'approved')
+    promoted=h.promote_approved(db,aid)
+    assert promoted['knowledge_id']>0
+    independent=ops.create_task(db,'Handoff task future','Owner-approved followup')
+    # Both original workers are still registered; reuse staff 2, not running.
+    staff_ids=[x['id'] for x in db.list_employee_records()
+               if x['display_name']=='Staff 1']
+    assert len(staff_ids)==1
+    assigned=ops.assign_task(db,independent)
+    assert assigned['employee_id']==staff_ids[0]
+    ops.execute_task(db,independent)
+    assert '공동 지식' in prompts[-1]
+    assert 'FIRST APPROVED WORK CONTENT' in prompts[-1]
+    assert len(prompts[-1])<=3000
+    assert db.list_task_runs(independent)[0]['prompt_chars']==len(prompts[-1])
+
+
+def test_irrelevant_or_non_promoted_knowledge_not_injected(team):
+    db,(first,second),prompts=team
+    aid=ops.execute_task(db,first)['artifact_id']
+    db.review_task_artifact(aid,'approved')
+    with db._connect() as con:
+        assert h.curated_company_context(con,'Handoff task unrelated')==''
+    h.promote_approved(db,aid)
+    with db._connect() as con:
+        assert h.curated_company_context(con,'Something completely unrelated')==''
+        assert 0<len(h.curated_company_context(con,'Handoff task 2',budget=350))<=350
+    for bad in (True,-1,999):
+        with db._connect() as con:
+            with pytest.raises(ValueError):
+                h.curated_company_context(con,'Handoff task 2',budget=bad)

@@ -307,6 +307,8 @@ class CompanyOffice:
         knowledgebar.pack(fill='x',pady=(2,0))
         self._action(knowledgebar, '승인 결과 회사 지식 등록',
                      self.promote_knowledge, compact=True)
+        self._action(knowledgebar, '회사 공유 지식 등록 기록',
+                     self.show_knowledge_links, compact=True)
         self._label(card, '', size=9, color=AMBER, textvariable=self.review_summary).pack(anchor='w', pady=(5, 0))
         self._label(card, '실제 생성 결과가 없으면 표시하지 않습니다. 승인해도 업무가 자동 완료되지 않습니다.',
                     size=8, color=MUTED).pack(anchor='w', pady=(3, 0))
@@ -1031,6 +1033,17 @@ class CompanyOffice:
                 + issues + '\n내용 사실성·법적 적합성·상업적 품질은 관리자 직접 검토가 필요합니다.')
         except (ValueError,PermissionError) as exc:
             self._say('기계적 품질 검사 실패: '+str(exc))
+
+    def show_knowledge_links(self):
+        from desktop import company_handoffs
+        try:
+            links=company_handoffs.list_promotions(self.store)
+            lines=[f"결과물 #{x['artifact_id']} → 회사 지식 #{x['knowledge_id']}"
+                   for x in links[:70]]
+            self._text_dialog('승인된 회사 공동 지식 감사',
+                              '\n'.join(lines) if lines else '사용자가 승인하고 등록한 공동 지식이 없습니다.')
+        except (PermissionError,ValueError) as exc:
+            self._say('공유 지식 기록 조회 오류: '+str(exc))
 
     def promote_knowledge(self):
         from desktop import company_handoffs
