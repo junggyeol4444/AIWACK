@@ -214,3 +214,9 @@
 - 로컬 검증: 새 4 tests PASS, 기존 approved cycle+신규 합계 16 PASS, 병렬 하위 프로세스·모델 연결 포함 선별 25 PASS, Tkinter `COMPANY_OFFICE_LIVE_GUI_PASS`. Python compileall desktop PASS. 로컬의 전체 8개 테스트 파일 pytest는 느린 리소스로 제한시간 내 완료되지 않아 통과 주장 금지.
 - `.github/workflows/ci.yml`와 `.github/workflows/windows-exe.yml` 모두 새 병렬 회귀 테스트를 기존 통합 테스트들과 함께 실행하도록 수정. Windows EXE 자체 및 실제 GGUF GUI 워크플로는 새 동일 SHA의 최종 Actions로 확인 후 성과 구분.
 - 계속 남음: 한 화면에서 다수 직원의 장시간 협업과 실제 다중 업무 반복 자율 운영, 부서 간 의존 업무, 외부 서비스·거래, 원본 T01~T20의 전 항목 최종 인수; Windows 10/11 사용자 PC에서 EXE 물리 테스트.
+
+### 13절 병렬 비상정지 경합 결함 발견·수정
+
+- 병렬 기능 최초 통합 main 1588e48c... CI 39366115900 FAIL. 네이티브 회귀 114개 중 113 PASS, 1 FAIL. 관리자 비상정지에서 첫 직원은 failure, 동료는 취소를 받아 cancelled가 될 수 있는데 테스트가 둘 모두 failure를 잘못 강제했다.
+- 반복 실행에서 동일 비상정지 상황이 예외 수집 순서에 따라 InterruptedError를 먼저 표시하는 실제 문제도 발견. 병렬 실행 예외를 비상정지 PermissionError 우선으로 결정하게 수정했다.
+- 결과물 저장 금지 유지, 오류 감사 failure/cancelled만 허용, 실제 비상정지 UI 오류는 PermissionError로 전달. 로컬 신규 테스트 4개를 다섯 번 반복 실행해 매회 모두 PASS. 동일 SHA 전체 Windows EXE/GUI/GGUF 검사 통과 전에는 최종 성공 표기 금지.

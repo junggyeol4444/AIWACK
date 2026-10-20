@@ -328,7 +328,11 @@ def execute_approved_parallel_cycle(store, *, expected_task_ids: tuple[int, int]
                 errors[tid] = exc
                 shared_cancel.set()
     if errors:
-        first = next((errors[t] for t in expected_task_ids if t in errors))
+        # Report the owner emergency stop deterministically even if a peer
+        # happened to record a cancellation first in task-ID order.
+        first = next((err for err in errors.values() if isinstance(err, PermissionError)), None)
+        if first is None:
+            first = next(errors[t] for t in expected_task_ids if t in errors)
         # Preserve the exact original error type and all saved run audits.
         raise type(first)('병렬 업무 일부가 실패하여 후속 총괄 AI를 실행하지 않았습니다. '
                           f'실패 업무: {sorted(errors)} · {str(first)[:250]}')

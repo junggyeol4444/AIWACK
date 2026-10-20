@@ -126,7 +126,11 @@ def test_emergency_stop_during_parallel_workers_never_saves_any_artifact(paralle
     monkeypatch.setattr('desktop.task_runtime.run_local_model', worker)
     monkeypatch.setattr('desktop.chief_task_runtime.collect_chief_task_result',
                         lambda *a, **kw: (_ for _ in ()).throw(AssertionError('chief ran after stop')))
-    with pytest.raises(PermissionError):
+    with pytest.raises(PermissionError, match='비상'):
         ops.execute_approved_parallel_cycle(store, expected_task_ids=ids, expected_employee_ids=staff)
     assert all(store.list_task_artifacts(tid) == [] for tid in ids)
-    assert all(store.list_task_runs(tid)[0]['status'] == 'failure' for tid in ids)
+    statuses = [store.list_task_runs(tid)[0]['status'] for tid in ids]
+    # The peer may see shared cancellation before it tries to commit its result.
+    # Both statuses are safe, but neither may be marked successful.
+    assert set(statuses) <= {'failure', 'cancelled'}
+    assert 'failure' in statuses
