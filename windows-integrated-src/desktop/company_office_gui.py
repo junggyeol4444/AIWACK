@@ -566,9 +566,18 @@ class CompanyOffice:
                 return
             lines=[]
             for row in all_campaigns:
+                audit=campaigns.audit_campaign(self.store,row['id'])
                 lines.append(f"#{row['id']} {row['state']} | 전체 {row['total']} / "
                              f"검토 대기 {row['review_pending']} / 확인 필요 {row['needs_review']} / "
                              f"실행 대기 {row['pending']} | {row['last_error'][:120]}")
+                for entry in row['items']:
+                    lines.append(f"  업무 #{entry['task_id']} / 직원 #{entry['employee_id']} "
+                                 f"/ {entry['state']} / 결과 #{entry['artifact_id'] or '-'}")
+                if audit['findings']:
+                    lines.extend(f"  확인 필요 #{issue['task_id']}: {issue['reason']}"
+                                 for issue in audit['findings'])
+                else:
+                    lines.append('  저장된 업무·결과물 감사 기록 교차 확인: 경고 없음')
             self._text_dialog('기존 AI 공동업무 실행 기록', '\n'.join(lines))
         except (PermissionError,ValueError) as exc:
             self._say('운영 기록 조회 오류: '+str(exc))

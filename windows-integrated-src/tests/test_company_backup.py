@@ -62,3 +62,41 @@ def test_backup_during_emergency_stop_is_read_only(company):
     result=bk.create_snapshot(s,root=folder)
     assert bk.verify_snapshot(s,Path(result['path']),root=folder)['verified']
     assert s.read_company()['name']=='AIWACK test company'
+
+
+def test_snapshot_during_active_owner_writes_has_consistent_foreign_keys(company):
+    from threading import Event, Thread
+    s,folder=company
+    ready=Event()
+    done=Event()
+    errors=[]
+    def writer():
+        try:
+            ready.set()
+            for n in range(12):
+                with s._connect() as con:
+                    con.execute('BEGIN IMMEDIATE')
+                    con.execute("UPDATE company_profile SET description=? WHERE id=1",
+                                (f'concurrent-writer-{n}',))
+        except Exception as exc:
+            errors.append(exc)
+        finally:
+            done.set()
+    thread=Thread(target=writer)
+    thread.start()
+    try:
+        assert ready.wait(10)
+        info=bk.create_snapshot(s,root=folder)
+        assert bk.verify_snapshot(s,Path(info['path']),root=folder)['verified']
+        assert done.wait(12)
+        assert errors==[]
+    finally:
+        thread.join(timeout=15)
+    assert not thread.is_alive()
+    original=s.read_company()
+    with sqlite3.connect(info['path']) as con:
+        assert con.execute('PRAGMA integrity_check').fetchone()[0]=='ok'
+        assert con.execute('PRAGMA foreign_key_check').fetchall()==[]
+        assert con.execute('SELECT description FROM company_profile WHERE id=1').fetchone()[0].startswith(
+            'concurrent-writer-') or con.execute('SELECT description FROM company_profile WHERE id=1').fetchone()[0]=='Preserved state'
+    assert original['name']=='AIWACK test company'

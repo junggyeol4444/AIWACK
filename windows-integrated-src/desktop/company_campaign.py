@@ -133,6 +133,41 @@ def campaign_status(store, campaign_id: int) -> dict:
             'auto_approved':False}
 
 
+def audit_campaign(store, campaign_id: int) -> dict:
+    """Read-only cross-check of the durable campaign ledger against real audits.
+
+    The report does not call a model, approve a result, recover, update SQL or
+    assume success when the real worker/chief evidence is incomplete.
+    """
+    ledger=campaign_status(store,campaign_id)
+    findings=[]
+    for item in ledger['items']:
+        task_id=int(item['task_id'])
+        task=store.read_task(task_id)
+        runs=store.list_task_runs(task_id)
+        artifacts=store.list_task_artifacts(task_id)
+        state=item['state']
+        if state=='pending' and (runs or artifacts or task['status']!='todo'):
+            findings.append({'task_id':task_id,'reason':'대기 상태와 업무 실행 기록이 일치하지 않습니다.'})
+        if state=='review_pending':
+            aid=item['artifact_id']
+            matched=[x for x in artifacts if x['id']==aid]
+            report=store.find_chief_task_report(aid) if matched else None
+            if (len(matched)!=1 or report is None or
+                    not any(row['status']=='success' for row in runs)):
+                findings.append({'task_id':task_id,'reason':'완료된 직원 실행/결과물/총괄 보고서 연결이 불완전합니다.'})
+        if state in ('running','needs_review') and not runs:
+            # An interrupted process may die before begin_task_execution and
+            # still needs human inspection; it is not silently retried.
+            findings.append({'task_id':task_id,'reason':'중단된 실행 상태이나 감사 기록이 없습니다.'})
+    return {'campaign_id':campaign_id,'total':ledger['total'],
+            'review_pending':ledger['review_pending'],
+            'pending':ledger['pending'],'needs_review':ledger['needs_review'],
+            'findings':findings,'audit_ok':not findings,
+            'read_only':True,'models_reexecuted':False,
+            'automatically_approved':False}
+
+
 def list_campaigns(store, limit: int = 20) -> list[dict]:
     store.require_permission('company:manage')
     initialize(store)

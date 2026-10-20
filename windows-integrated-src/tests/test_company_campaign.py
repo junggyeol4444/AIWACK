@@ -181,3 +181,23 @@ def test_stale_campaign_lease_requires_owner_audit_no_auto_retry(team):
                            (cid,)).fetchone() is None
     with pytest.raises(ValueError): camp.execute_campaign(store,cid)
     assert events==[]
+
+
+def test_campaign_audit_reads_real_sql_consistency_without_modifying_data(team):
+    store,ids,employees,events=team
+    cid=camp.create_campaign(store,expected_task_ids=ids)
+    before=camp.campaign_status(store,cid)
+    report=camp.audit_campaign(store,cid)
+    assert report['audit_ok'] and report['read_only']
+    assert report['models_reexecuted'] is False
+    assert camp.campaign_status(store,cid)==before and events==[]
+    result=camp.execute_campaign(store,cid)
+    assert result['review_pending']==3
+    assert camp.audit_campaign(store,cid)['audit_ok']
+    with store._connect() as con:
+        con.execute("""UPDATE aiwack_work_campaign_items SET artifact_id=NULL
+                       WHERE campaign_id=? AND task_id=?""",(cid,ids[0]))
+    inconsistent=camp.audit_campaign(store,cid)
+    assert not inconsistent['audit_ok']
+    assert inconsistent['findings'][0]['task_id']==ids[0]
+    assert events.count('worker')==events.count('chief')==3
