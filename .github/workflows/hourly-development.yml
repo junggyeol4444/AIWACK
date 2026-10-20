@@ -64,7 +64,7 @@ jobs:
       - name: Verify integrated native application tests
         if: steps.gate.outputs.enabled == 'true'
         run: |
-          python -m pip install -r windows-integrated-src/requirements.txt
+          python -m pip install -e './windows-integrated-src[dev]'
           PYTHONPATH=windows-integrated-src python -m pytest -q windows-integrated-src/tests
       - name: Commit checked native changes to main only (fast-forward)
         if: steps.gate.outputs.enabled == 'true'
