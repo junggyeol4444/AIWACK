@@ -511,15 +511,22 @@ def inspect_recovery_state(store, *, max_runs: int = 200) -> dict:
     store.require_permission('company:manage')
     if type(max_runs) is not int or not 1 <= max_runs <= 200:
         raise ValueError('실행 감사 조회는 1~200건이어야 합니다.')
-    runs = store.list_task_runs(limit=max_runs)
+    # Filter unfinished rows at the database before imposing audit bounds.
+    # Otherwise >200 recently completed runs hide older running workers.
+    with store._connect() as con:
+        rows = con.execute(
+            """SELECT id, task_id, employee_id, status, started_at
+               FROM company_task_runs WHERE status='running'
+               ORDER BY id DESC LIMIT ?""", (max_runs + 1,)).fetchall()
     running = [{
-        'run_id': int(item['id']),
-        'task_id': int(item['task_id']),
-        'employee_id': int(item['employee_id']),
-        'status': item['status'],
-        'started_at': item['started_at'],
-    } for item in runs if item['status'] == 'running']
+        'run_id': int(item[0]),
+        'task_id': int(item[1]),
+        'employee_id': int(item[2]),
+        'status': item[3],
+        'started_at': item[4],
+    } for item in rows[:max_runs]]
     return {'running_worker_runs': running,
+            'running_worker_runs_truncated': len(rows) > max_runs,
             'pending_chief_reviews': list_interrupted_chief_reviews(store),
             'run_scan_limit': max_runs,
             'requires_owner_process_confirmation': True,
@@ -528,7 +535,8 @@ def inspect_recovery_state(store, *, max_runs: int = 200) -> dict:
 
 
 def recover_interrupted_chief_review_queue(store, *, limit: int = 3,
-                                           cancel: threading.Event | None = None) -> dict:
+                                           cancel: threading.Event | None = None,
+                                           expected_task_ids: tuple[int, ...] | None = None) -> dict:
     """Explicit owner batch recovery: up to 3 saved worker results, chief ONLY.
 
     No unattended schedule, implicit approval, worker subprocess rerun,
@@ -539,9 +547,18 @@ def recover_interrupted_chief_review_queue(store, *, limit: int = 3,
         raise ValueError('한 번에 복구할 총괄 검토는 1~3건입니다.')
     if cancel is not None and cancel.is_set():
         raise InterruptedError('검토 복구 대기열 시작 전에 관리자가 취소했습니다.')
+    if expected_task_ids is not None:
+        if (type(expected_task_ids) is not tuple or not expected_task_ids
+                or len(expected_task_ids) > limit
+                or any(type(tid) is not int or tid <= 0 for tid in expected_task_ids)
+                or len(set(expected_task_ids)) != len(expected_task_ids)):
+            raise ValueError('관리자가 확인한 복구 업무 번호 목록이 올바르지 않습니다.')
     candidates = list_interrupted_chief_reviews(store, limit=limit)
     if not candidates:
         raise ValueError('관리자가 재개할 수 있는 중단 총괄 검토가 없습니다.')
+    if expected_task_ids is not None and tuple(
+            item['task_id'] for item in candidates) != expected_task_ids:
+        raise ValueError('관리자가 확인한 복구 대상이 변경되었습니다. 목록을 다시 확인하고 승인하세요.')
     reports = []
     for candidate in candidates:
         if cancel is not None and cancel.is_set():
