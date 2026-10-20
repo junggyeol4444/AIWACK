@@ -375,7 +375,8 @@ class CompanyOffice:
             self.review_summary.set(
                 f"총 결과물 {data['artifacts']}건 · 검수 대기 {data['pending_reviews']}건"
                 f" · 총괄 검토 복구 {len(recover_state['pending_chief_reviews'])}건"
-                f" · 실행 상태 확인 {len(recover_state['running_worker_runs'])}건 (최근 200건)"
+                f" · 실행 중 감사 {len(recover_state['running_worker_runs'])}건"
+                f"{' 이상 (조회 200건 초과)' if recover_state['running_worker_runs_truncated'] else ''}"
                 " · 직원 자동 재실행 없음")
             self.proposal_summary.set(f"업무 제안 {len(proposals)}건 중 승인 대기 {data['pending_proposals']}건 · 소유자 승인 필수")
             self._say('실제 회사 데이터 연결됨 · 허위 AI 활동이나 매출을 표시하지 않습니다.')
@@ -714,8 +715,11 @@ class CompanyOffice:
                     + '실패 시 다음 업무는 시작하지 않습니다. 진행합니까?',
                     parent=self.root):
                 return
+            # Pass exactly the IDs the owner confirmed on the GUI.
+            approved_ids=tuple(int(item['task_id']) for item in candidates)
             self._start(lambda:ops.recover_interrupted_chief_review_queue(
-                self.store,limit=3,cancel=self.cancel),after='chief_recovery_queue')
+                self.store,limit=3,cancel=self.cancel,
+                expected_task_ids=approved_ids),after='chief_recovery_queue')
         except (ValueError,PermissionError) as exc:
             self._say('총괄 검토 일괄 복구 실패: '+str(exc))
 
