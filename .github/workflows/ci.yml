@@ -22,7 +22,7 @@ jobs:
       - name: Native company recovery, approved queue, GUI-state and parallel execution regressions
         run: |
           cd windows-integrated-src
-          python -m pytest -q tests/test_company_handoffs.py tests/test_company_backup.py tests/test_company_deliverables.py tests/test_company_campaign.py tests/test_windows_real_parallel_validation.py tests/test_concurrent_scheduler_and_queue.py tests/test_recurring_scheduler.py tests/test_task_queue.py tests/test_queue_recovery.py tests/test_company_parallel_approved_cycle.py tests/test_company_approved_autocycle.py tests/test_company_chief_review.py tests/test_local_models.py tests/test_company_operations_center.py tests/test_company_model_onboarding.py tests/test_task_execution.py tests/test_task_parallel.py
+          python -m pytest -q tests/test_company_autopilot.py tests/test_company_handoffs.py tests/test_company_backup.py tests/test_company_deliverables.py tests/test_company_campaign.py tests/test_windows_real_parallel_validation.py tests/test_concurrent_scheduler_and_queue.py tests/test_recurring_scheduler.py tests/test_task_queue.py tests/test_queue_recovery.py tests/test_company_parallel_approved_cycle.py tests/test_company_approved_autocycle.py tests/test_company_chief_review.py tests/test_local_models.py tests/test_company_operations_center.py tests/test_company_model_onboarding.py tests/test_task_execution.py tests/test_task_parallel.py
       - name: Native app data self-test
         run: python -m desktop.entry --self-test
       - name: Start and click actual GUI under Xvfb

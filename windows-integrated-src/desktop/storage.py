@@ -3044,6 +3044,7 @@ class LocalStore:
         self.require_permission('company:manage')
         from desktop.event_task_engine import dispatch
         with self._connect() as con:
+            con.execute('BEGIN IMMEDIATE')
             return dispatch(con, limit)
 
     def list_local_events(self) -> list[dict[str, object]]:

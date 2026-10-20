@@ -46,10 +46,12 @@ class CompanyOffice:
         self.team_summary = tk.StringVar(value='직원 모델을 확인하고 있습니다.')
         self.review_summary = tk.StringVar(value='저장된 결과물 없음')
         self.proposal_summary = tk.StringVar(value='총괄 AI 제안 없음')
+        self.monitor_status = tk.StringVar(value='사내 자율 운영 사용 안 함')
         self.after_action = 'results'
         self.view_name = 'overview'
         self._draw()
         self.refresh()
+        self.root.after(30000,self._autopilot_poll)
 
     def _label(self, parent, text='', *, size=10, bold=False, color=INK, bg=CARD, **kwargs):
         return tk.Label(parent, text=text, bg=bg, fg=color,
@@ -238,6 +240,12 @@ class CompanyOffice:
         self._action(controls,'제안 상세',self.open_proposal,compact=True)
         self._action(controls,'업무로 승인',self.approve_proposal,strong=True,compact=True)
         self._action(controls,'제안 기각',self.reject_proposal,danger=True,compact=True)
+        monitor=tk.Frame(card,bg=CARD)
+        monitor.pack(fill='x',pady=(4,0))
+        self._action(monitor,'사내 자율 운영 켜기',self.enable_autopilot,compact=True)
+        self._action(monitor,'사내 자율 운영 끄기',self.disable_autopilot,compact=True)
+        self._action(monitor,'자율 운영 실행 감사',self.show_autopilot_history,compact=True)
+        self._label(card,'',size=9,color=MUTED,textvariable=self.monitor_status).pack(anchor='w')
         self._label(card,'',size=9,color=AMBER,textvariable=self.proposal_summary).pack(anchor='w',pady=(6,0))
         self._label(card,'규칙 검색은 AI 모델을 호출하지 않습니다. 총괄 AI 모델이 없으면 구체화 불가 · 승인 전엔 업무 미생성',
                     size=8,color=MUTED,wraplength=870).pack(anchor='w',pady=(4,0))
@@ -829,6 +837,60 @@ class CompanyOffice:
             self._say(f'회사 목표 #{goal_id} 활성화됨 · 제안 검색으로 실제 업무 초안을 생성할 수 있습니다.')
         except (ValueError,PermissionError) as exc:
             self._say('회사 목표 등록 실패: '+str(exc))
+
+    def _autopilot_poll(self):
+        if self.generation != self.app._session_generation or self.app.main_frame is None:
+            return
+        from desktop import company_autopilot
+        try:
+            result=company_autopilot.run_once(self.store)
+            if result.get('executed'):
+                self.refresh()
+                self._say(f"자율 운영 제안 {result['proposal_created']}·일정 "
+                          f"{result['schedule_created']}·이벤트 {result['event_created']}건 생성 (승인 대기)")
+            state=company_autopilot.settings(self.store)
+            self.monitor_status.set(f"사내 자율 운영 {'켜짐' if state['enabled'] else '꺼짐'} · "
+                                    f"{state['interval_seconds']//60}분 주기 · 실행 감사 {state['runs']}건")
+        except (PermissionError,ValueError,RuntimeError,OSError,InterruptedError) as exc:
+            self._say('자율 운영 검사 실패: '+str(exc)[:170])
+        if self.generation == self.app._session_generation:
+            self.root.after(30000,self._autopilot_poll)
+
+    def enable_autopilot(self):
+        from desktop import company_autopilot
+        if not messagebox.askyesno('사내 로컬 자율 운영 시작',
+                '소유자가 로그인하고 Windows 프로그램을 켜둔 동안 5분마다 목표·차단 업무를 '
+                '검색하고, 반복 일정·로컬 이벤트를 미배정 업무로 생성합니다. '
+                'AI 모델·외부 판매·결제·게시·결과물 자동 승인은 실행하지 않습니다. 켤까요?',
+                parent=self.root):
+            return
+        try:
+            company_autopilot.configure(self.store,True,interval_minutes=5)
+            self._autopilot_poll()
+            self._say('사내 로컬 자율 운영이 활성화됐습니다.')
+        except (ValueError,PermissionError) as exc:
+            self._say('자동 운영 설정 실패: '+str(exc))
+
+    def disable_autopilot(self):
+        from desktop import company_autopilot
+        try:
+            company_autopilot.configure(self.store,False)
+            self.monitor_status.set('사내 자율 운영 사용 안 함')
+            self._say('자동 운영 해제 · 기존 감사 보존')
+        except (ValueError,PermissionError) as exc:
+            self._say('자동 운영 중단 실패: '+str(exc))
+
+    def show_autopilot_history(self):
+        from desktop import company_autopilot
+        try:
+            rows=company_autopilot.history(self.store,limit=20)
+            detail=[f"#{r['id']} {r['state']}: 제안 {r['proposal_created']}, "
+                    f"일정 {r['schedule_created']}, 이벤트 {r['event_created']}, 오류 {r['error_kind'] or '-'}"
+                    for r in rows]
+            self._text_dialog('사내 자율 운영 감사',
+                              '\n'.join(detail) if detail else '실행 기록이 없습니다.')
+        except (ValueError,PermissionError) as exc:
+            self._say('자율 운영 기록 조회 오류: '+str(exc))
 
     def scan_proposals(self):
         try:
