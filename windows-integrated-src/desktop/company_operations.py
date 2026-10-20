@@ -560,10 +560,18 @@ def recover_interrupted_chief_review_queue(store, *, limit: int = 3,
             item['task_id'] for item in candidates) != expected_task_ids:
         raise ValueError('관리자가 확인한 복구 대상이 변경되었습니다. 목록을 다시 확인하고 승인하세요.')
     reports = []
-    for candidate in candidates:
+    for index, candidate in enumerate(candidates):
         if cancel is not None and cancel.is_set():
             raise InterruptedError('중단 검토 복구 대기열이 관리자에 의해 취소됐습니다.')
         assert_running_allowed(store)
+        if expected_task_ids is not None:
+            # A different window may have changed the saved review queue
+            # after the first chief model call. Never execute a newly queued
+            # item that was absent from the owner's original confirmation.
+            remaining = tuple(row['task_id'] for row in
+                list_interrupted_chief_reviews(store, limit=len(expected_task_ids)-index))
+            if remaining != expected_task_ids[index:]:
+                raise ValueError('관리자가 확인한 복구 대상이 실행 중 변경됐습니다. 다시 확인하고 승인하세요.')
         # Re-evaluate persisted order, run and report on EACH iteration.
         # Existing saved worker artifact is never regenerated.
         reports.append(recover_interrupted_chief_review(

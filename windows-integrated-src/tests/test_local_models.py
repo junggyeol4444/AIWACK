@@ -221,3 +221,21 @@ def test_rejects_empty_or_truncated_model_responses(tmp_path, monkeypatch):
     monkeypatch.setattr(model_runtime.subprocess, 'Popen',
                         lambda *args, **kwargs: FakeProcess(b'Z' * model_runtime.MAX_OUTPUT))
     assert len(run_local_model(make_config(exe, gguf), 'bounded reply', timeout=5)) == model_runtime.MAX_OUTPUT
+
+
+def test_windows_heap_corruption_fails_without_returning_or_retrying(tmp_path, monkeypatch):
+    """Synthetic termination simulates Windows 0xC0000374; not real GGUF."""
+    from desktop import model_runtime
+    exe, gguf = sample_files(tmp_path)
+    invocations = []
+    class FailedProcess:
+        returncode = 0xC0000374
+        def communicate(self, timeout=None):
+            return b'This output must not be accepted', b'windows runtime failure'
+    def spawn(*args, **kwargs):
+        invocations.append(args)
+        return FailedProcess()
+    monkeypatch.setattr(model_runtime.subprocess, 'Popen', spawn)
+    with pytest.raises(RuntimeError, match='0xC0000374'):
+        run_local_model(make_config(exe, gguf), 'read-only diagnostics', timeout=5)
+    assert len(invocations) == 1

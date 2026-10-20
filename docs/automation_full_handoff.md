@@ -103,3 +103,16 @@
 - 본 대화에서 사용자 직접 지시로 **ChatGPT AIWACK 매시간 예약이 비활성화**된 상태. 사용자가 명령하지 않으면 예약 활성화/비활성화 등의 설정을 다시 변경하지 않는다. GitHub Actions의 자체 cron과 ChatGPT 예약은 별개다.
 - 외부 드라이브와 다른 프로젝트 예약/저장소는 사용하지 않음.
 - **다음 작업:** 이번 신규 main의 CI, Windows 2022/2025 실제 EXE GUI/SQLite/실제 GGUF 두 업무 승인/재시작 결과를 run SHA별로 재조회. 실패 시 코드를 고치고 main에 커밋. T01~T20 최종 검증 매트릭스를 각각 실제 검증/미검증으로 갱신. 사용자 Windows11 물리 PC 확인은 실제로 접속/실행할 수 없으므로 미검증 유지. 다음 인수인계는 본문을 삭제하지 않고 누적한다.
+
+## 8. 2026-10-20 추가 개발·검증: 실제 Windows EXE 호환성 강화 (누적)
+- 이번 회차 시작 main HEAD: `ca9f9f99f434b7bd48e0a04c57ff464f12a5146b`. 실제 Windows EXE 검증 로그 재조회.
+- `d3bc4d1dc...` SHA Windows 2022/2025 EXE 빌드·시작 양쪽 PASS: https://github.com/junggyeol4444/AIWACK/actions/runs/39346604596
+- 같은 SHA 회사 GUI·저장·재시작 양쪽 PASS: https://github.com/junggyeol4444/AIWACK/actions/runs/39346604543
+- 같은 SHA 실제 GGUF 승인 업무 2건: **Windows 2025 PASS, Windows 2022 FAIL**: https://github.com/junggyeol4444/AIWACK/actions/runs/39346604586
+- 실패는 Windows 2022 실제 GGUF GUI 테스트 이전, 공식 `llama-completion.exe` 직접 실행 단계에서 `0xC0000374 / STATUS_HEAP_CORRUPTION` 발생. 해당 액션 artifact `12230849965`의 `aiwack-llama-preflight.txt`로 비정상 종료 코드와 출력을 확인. **앱 자체 결함으로 아직 단정할 수 없고, 실행기 호환성 또는 네이티브 런타임 문제로 분리 조사 필요. 재시도해 성공한 것처럼 꾸미지 말 것.**
+- 기존 `model_runtime.py`에 0xC0000374 진단 오류 메시지를 추가하고, 비정상 종료를 성공·자동 재시도 처리하지 않는다. 실제 윈도우 2022 실행기 충돌의 근본 원인을 해결했다고 주장하지 않는다.
+- 기존 `company_operations.py`에 관리자 승인된 총괄 복구 대기열 ID를 **매 업무 시작 전 다시 비교**하여 다른 세션이 후보를 변경하면 다음 업무 실행을 중단하는 검사를 추가.
+- 기존 `company_office_gui.py`의 소유자 업무 승인 확인창에서 리터럴 백슬래시+n이 출력되던 잘못된 줄바꿈 두 군데를 수정.
+- 기존 테스트 `test_local_models.py`에 Windows 힙 손상 종료·중복 추론 금지 테스트(합성), `test_company_chief_review.py`에 배치 진행 중 다른 창의 후보 변경을 감지해 다음 업무를 실행하지 않는 테스트(합성)를 추가.
+- 사용자 Windows 11 실제 장치 테스트는 미검증. 이번 추가 패치에 대한 Windows 2022/2025 실행 검사 결과는 다음 Actions 실행 후만 확정. 기존 PASS를 새 수정 코드 PASS로 대체해서는 안 됨.
+- 다음 과제: 이 커밋의 native CI와 Windows EXE/GGUF 워크플로 결과 확인, 실패라면 구체적 로그와 스크린샷·모델 프리플라이트 진단을 기반으로 기존 소스 수정. T01~T20 실제 사용자 흐름 전체 미완료. 사용자 요청 없이는 ChatGPT 예약 설정을 변경하지 않는다. 다른 프로젝트나 외부 드라이브 사용 금지.

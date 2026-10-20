@@ -426,3 +426,27 @@ def test_running_audit_survives_more_than_200_newer_successes(tmp_path, monkeypa
     reopened.login('batch_recovery_owner', 'test-batch-recovery-password-2026')
     assert [row['run_id'] for row in ops.inspect_recovery_state(reopened)['running_worker_runs']] == [run_id]
     assert reopened.read_task(tid)['status'] == 'in_progress'
+
+
+def test_owner_queue_does_not_continue_if_candidate_changes_mid_batch(tmp_path, monkeypatch):
+    """Stop after the first persisted review if another session alters the queue."""
+    store, tasks = _recovery_queue_tasks(tmp_path, monkeypatch)
+    approved = tuple(tid for tid, _ in tasks)
+    monkeypatch.setattr('desktop.chief_task_runtime.collect_chief_task_result',
+                        lambda *args, **kwargs: 'SYNTHETIC CHIEF REPORT ONLY')
+    original = ops.recover_interrupted_chief_review
+    called = []
+    def change_queue(current_store, task_id, **kwargs):
+        result = original(current_store, task_id, **kwargs)
+        called.append(task_id)
+        if len(called) == 1:
+            current_store.save_chief_task_report(
+                tasks[1][1], 'SYNTHETIC OTHER WINDOW STORED A REPORT')
+        return result
+    monkeypatch.setattr(ops, 'recover_interrupted_chief_review', change_queue)
+    with pytest.raises(ValueError, match='복구 대상이 실행 중 변경'):
+        ops.recover_interrupted_chief_review_queue(
+            store, limit=3, expected_task_ids=approved)
+    assert called == [approved[0]]
+    assert store.find_chief_task_report(tasks[0][1]) is not None
+    assert store.find_chief_task_report(tasks[2][1]) is None

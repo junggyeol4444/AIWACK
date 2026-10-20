@@ -150,6 +150,11 @@ def run_local_model(config: ModelConfig, prompt: str, *, timeout: int = 60,
     output = out.decode("utf-8", errors="replace")
     stderr = err.decode("utf-8", errors="replace")
     if process.returncode != 0:
+        if (process.returncode & 0xFFFFFFFF) == 0xC0000374:
+            raise RuntimeError(
+                "로컬 GGUF 실행기가 Windows 힙 손상 오류(0xC0000374)로 종료됐습니다. "
+                "결과를 저장하지 않았습니다. 실행파일의 Windows 호환성을 확인하세요. "
+                "안전을 위해 자동으로 재시도하지 않습니다.")
         raise RuntimeError(f"로컬 모델 실행 종료 코드 {process.returncode}: {stderr.strip()[-500:]}")
     if len(output) > MAX_OUTPUT:
         raise ValueError('로컬 모델 응답이 20000자를 초과했습니다. 잘린 결과를 저장하지 않습니다.')
