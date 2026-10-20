@@ -248,3 +248,10 @@
 - 기존 task_queue.claim에서 상태가 이미 바뀌어 SQL UPDATE 변경 건수가 0건인 경우, 성공 로그를 추가하거나 해당 작업을 내 작업으로 반환하지 않도록 rowcount guard를 추가. 기존 반복 일정 validator의 `bool` 타입을 정수로 착각하는 입력도 차단.
 - 새 네이티브 `tests/test_concurrent_scheduler_and_queue.py`: 같은 SQLite DB를 소유자 두 세션이 동시에 열어 같은 시각 반복 일정 생성 1회, 대기열 작업 claim 1회, 완료 결과 처리 1회만 기록되는지 검사; 비정상 bool 인자 거부. 로컬 기존 일정·대기열·복구 테스트와 합쳐 **12 passed**.
 - 네이티브 CI와 Windows 2022/2025 EXE 빌드 테스트에 동시 창 검사·파일 잠금 검증 및 기존 회귀를 포함. 새 GitHub main SHA 동일 기준으로 CI/EXE/실제 GGUF 결과 확인 후에만 통과 판정.
+
+### 15절 Windows 2025 공식 GGUF 실행기 힙 손상에 대한 추가 검증
+
+- main 917bc65d... Windows 2025 실제 GGUF run 39369750285 FAIL은 AIWACK EXE 실행 전, 공식 llama.cpp b11433의 `llama-completion.exe`와 `llama-cli.exe` 두 프로세스가 모두 종료 코드 `3221226356 (0xC0000374)`를 반환한 원인으로 확인. 증빙 artifact 12240333540 내용: completion returncode=3221226356 has_output=True, cli returncode=3221226356 has_output=True. 출력이 있어도 실제 추론 성공으로 처리하지 않는다.
+- 동일 GitHub 공식 저장소의 2026-10-20 발행 b11748 Windows CPU zip SHA-256 `59083a1df768be176d851ddbab6bbde2d8a67a1ea7f1d42f770753d13dc74f60`을 조회해 고정. Windows Actions는 기존 SHA 고정 b11433 실제 추론이 실패한 때에만 새 b11748 공식 배포 ZIP을 다운로드/검증하고, 두 실행기 중 하나가 실제 GGUF를 정상 반환·정상 종료하는지 다시 확인한다. 정상 추론이 아니면 FAIL이며 어떤 테스트도 생략하지 않는다.
+- 기존 실패 진단과 신규 배포본 진단을 모두 같은 Windows artifact에 보관, 성공한 모델 실행기 경로를 앱의 실제 물리 GUI 및 병렬 업무 검사에 그대로 전달. 사용자 배포용 model setup 스크립트는 검증 결과 없이 임의로 변경하지 않음.
+- 현재 이 새 검사 커밋은 Windows 2022/2025 실행 결과를 기다리는 상태. 성공 확정 전까지 GGUF 검증 성공으로 보고하지 않는다.

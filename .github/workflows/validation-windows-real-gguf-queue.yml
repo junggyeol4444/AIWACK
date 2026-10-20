@@ -79,7 +79,28 @@ jobs:
           $probe = Join-Path $env:RUNNER_TEMP 'aiwack-llama-preflight.txt'
           $chosen = Join-Path $env:RUNNER_TEMP 'aiwack-llama-verified-cli.txt'
           python validation/real_gguf_preflight.py $env:AIWACK_REAL_LLAMA_CLI $env:AIWACK_REAL_GGUF_FILE $probe $chosen
-          if ($LASTEXITCODE -ne 0) { throw 'No official GGUF runner exited cleanly; real Windows EXE E2E remains FAILED' }
+          $originalOk = $LASTEXITCODE -eq 0
+          if (-not $originalOk) {
+            # The official b11433 Windows CPU executables can exit with
+            # STATUS_HEAP_CORRUPTION. Record that FAIL; test a different
+            # OFFICIAL SHA256-pinned release instead of treating stdout as PASS.
+            $dir = Join-Path $env:RUNNER_TEMP 'real-gguf-files'
+            $zip = Join-Path $dir 'llama-b11748-bin-win-cpu-x64.zip'
+            Invoke-WebRequest -Uri 'https://github.com/ggml-org/llama.cpp/releases/download/b11748/llama-b11748-bin-win-cpu-x64.zip' -OutFile $zip -MaximumRedirection 10
+            $digest = (Get-FileHash -LiteralPath $zip -Algorithm SHA256).Hash.ToLowerInvariant()
+            if ($digest -ne '59083a1df768be176d851ddbab6bbde2d8a67a1ea7f1d42f770753d13dc74f60') {
+              throw 'Official newer llama.cpp release SHA256 mismatch; no executable will run'
+            }
+            $extract = Join-Path $dir 'cpu-b11748'
+            Expand-Archive -LiteralPath $zip -DestinationPath $extract -Force
+            $primary = Get-ChildItem -LiteralPath $extract -File -Recurse -Filter 'llama-completion.exe' | Select-Object -First 1
+            if (-not $primary) { throw 'Official SHA256-verified newer CPU release has no llama-completion.exe' }
+            $recentProbe = Join-Path $env:RUNNER_TEMP 'aiwack-llama-preflight-b11748.txt'
+            python validation/real_gguf_preflight.py $primary.FullName $env:AIWACK_REAL_GGUF_FILE $recentProbe $chosen
+            if ($LASTEXITCODE -ne 0) {
+              throw 'Both independently SHA256-verified official GGUF CPU releases failed genuine inference'
+            }
+          }
           $selected = (Get-Content -LiteralPath $chosen -Raw).Trim()
           if (-not (Test-Path -LiteralPath $selected)) { throw 'Selected verified GGUF runner is missing' }
           "AIWACK_REAL_LLAMA_CLI=$selected" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
@@ -107,5 +128,6 @@ jobs:
             ${{ runner.temp }}/aiwack-real-gguf-queue-evidence/
             ${{ runner.temp }}/aiwack-native-parallel-evidence/
             ${{ runner.temp }}/aiwack-llama-preflight.txt
+            ${{ runner.temp }}/aiwack-llama-preflight-b11748.txt
           if-no-files-found: warn
           retention-days: 14
