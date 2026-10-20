@@ -226,3 +226,10 @@
 - 승인 병렬 2명 실행의 읽기 전용 후보 조회가 선행 업무 완료 여부를 확인하지 않아 미완료 의존 업무를 사용자 확인창에 올릴 수 있었음. 실제 SQL 실행 트랜잭션에서는 차단됐지만 혼동 및 배치 실패를 초래하는 후보 검증 버그로 확인.
 - 기존 LocalStore._pending_prerequisites를 읽기 전용 트랜잭션으로 재사용해 미완료 선행 업무 제외. 최종 실행의 원래 트랜잭션 차단은 유지. 다른 독립 직원 업무로 정상 후보를 대체하는 회귀 테스트 추가.
 - 수정 후 신규 병렬 테스트 5개 PASS. 동일 SHA Windows EXE/CI 검증 결과 확인 필요.
+
+## 14. Windows 실 GGUF 직원 2명 병렬 실행·총괄 회수 통합 검증 추가
+
+- 최초 병렬 구현 코드의 로컬 합성 모델 병렬 테스트만으로 실제 Windows GGUF 동시 실행 성공을 주장하지 않음. 새 검증 스크립트 validation/windows_real_parallel_company_e2e.py는 Windows 전용으로, 사전 SHA256 검증한 공식 llama.cpp CPU 실행기와 실제 GGUF를 이용해 기존 AIWACK native 저장소에서 소유자 계정·총괄 AI·직원 2명을 설정한다.
+- 정확한 소유자 승인 업무 ID·직원 ID를 전달해 실제 GGUF 직원 2명 동시 실행, 진짜 총괄 AI 모델 순차 검토 2건, 총 4회 실제 모델 감사, 결과물/회수 보고서 모두 관리자 승인 대기, SQLite 무결성·재시작 후 상태를 확인한다. 자동 승인·외부 거래·더미 모델 통과 불허.
+- 기존 Windows 2022/2025 workflow validation-windows-real-gguf-queue.yml에서 기존 packaged AIWACK.exe 실제 물리 GUI 마우스·키보드 E2E가 성공한 후 위 native 병렬 실 GGUF 검사를 추가. 두 검사는 분리되어 있으며 새로운 native 병렬 검사를 EXE 버튼의 물리 클릭 성공으로 과장하지 않는다.
+- 실패 시 job FAILURE, 모델/시스템 오류 감춰서 성공하지 않음. 검증 메타데이터 JSON을 기존 증빙 artifact에 포함. 동일 SHA Windows 2022/2025 job 결과 검증 완료 전 해당 실제 병렬 GGUF 통과로 기록하지 말 것.

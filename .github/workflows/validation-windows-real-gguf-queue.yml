@@ -90,6 +90,12 @@ jobs:
           $exe = Join-Path $env:GITHUB_WORKSPACE 'windows-integrated-src/dist/AIWACK.exe'
           python validation/windows_packaged_real_gguf_queue_e2e.py $exe $env:AIWACK_REAL_LLAMA_CLI $env:AIWACK_REAL_GGUF_FILE
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Verify real GGUF dual-worker concurrent execution, chief review and SQLite restart
+        shell: pwsh
+        run: |
+          $evidence = Join-Path $env:RUNNER_TEMP 'aiwack-native-parallel-evidence'
+          python validation/windows_real_parallel_company_e2e.py $env:AIWACK_REAL_LLAMA_CLI $env:AIWACK_REAL_GGUF_FILE $evidence
+          if ($LASTEXITCODE -ne 0) { throw 'Real concurrent GGUF workers/chief/persistence validation failed' }
       - name: Save real EXE screen captures and errors
         if: always()
         uses: actions/upload-artifact@v4
@@ -97,6 +103,7 @@ jobs:
           name: aiwack-real-gguf-queue-windows-evidence-${{ matrix.os }}
           path: |
             ${{ runner.temp }}/aiwack-real-gguf-queue-evidence/
+            ${{ runner.temp }}/aiwack-native-parallel-evidence/
             ${{ runner.temp }}/aiwack-llama-preflight.txt
           if-no-files-found: warn
           retention-days: 14
