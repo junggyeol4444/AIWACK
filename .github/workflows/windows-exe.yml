@@ -67,7 +67,7 @@ jobs:
         shell: pwsh
         run: |
           Set-Location $env:AIWACK_RELEASE_SRC
-          python -m PyInstaller --noconfirm --clean --onefile --windowed --name AIWACK --paths . --hidden-import desktop.company_operations --hidden-import desktop.company_office_gui --hidden-import desktop.company_model_connect_ui --hidden-import desktop.company_campaign --hidden-import desktop.company_deliverables --hidden-import desktop.company_backup --add-data 'docs/roadmap_100.csv;docs' desktop/entry.py
+          python -m PyInstaller --noconfirm --clean --onefile --windowed --name AIWACK --paths . --hidden-import desktop.company_operations --hidden-import desktop.company_office_gui --hidden-import desktop.company_model_connect_ui --hidden-import desktop.company_campaign --hidden-import desktop.company_deliverables --hidden-import desktop.company_backup --hidden-import desktop.company_handoffs --add-data 'docs/roadmap_100.csv;docs' desktop/entry.py
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           $exe = Join-Path $env:AIWACK_RELEASE_SRC 'dist/AIWACK.exe'
           if (!(Test-Path $exe)) { throw 'Native release AIWACK.exe missing' }

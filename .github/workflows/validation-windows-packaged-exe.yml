@@ -42,7 +42,7 @@ jobs:
         run: |
           $src = Join-Path $env:GITHUB_WORKSPACE 'windows-integrated-src'
           Set-Location $src
-          python -m PyInstaller --noconfirm --clean --onefile --windowed --name AIWACK --paths . --hidden-import desktop.company_operations --hidden-import desktop.company_office_gui --hidden-import desktop.company_model_connect_ui --hidden-import desktop.company_campaign --hidden-import desktop.company_deliverables --hidden-import desktop.company_backup --add-data 'docs/roadmap_100.csv;docs' desktop/entry.py
+          python -m PyInstaller --noconfirm --clean --onefile --windowed --name AIWACK --paths . --hidden-import desktop.company_operations --hidden-import desktop.company_office_gui --hidden-import desktop.company_model_connect_ui --hidden-import desktop.company_campaign --hidden-import desktop.company_deliverables --hidden-import desktop.company_backup --hidden-import desktop.company_handoffs --add-data 'docs/roadmap_100.csv;docs' desktop/entry.py
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
       - name: Launch EXE click type save close restart read logout
         shell: pwsh
