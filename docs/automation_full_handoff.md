@@ -139,3 +139,11 @@
 - **소유자 승인 정상 경로 강화**: `windows-integrated-src/tests/test_company_chief_review.py`에서 소유자가 확정한 복구 ID 3개에 대해 총괄 AI 검토만 수행하고 직원 중복 추론 없음·자동 승인 없음·SQLite 저장 및 재로그인 후 pending 검토 유지함을 확인하는 synthetic 회귀 테스트 추가. commit `335071010d85cc4fee28e47362718ae82fdf26f3`.
 - 실행 시점 확인: `99f76aea...` CI [success](https://github.com/junggyeol4444/AIWACK/actions/runs/39353661186), GUI Windows 두 플랫폼 [success](https://github.com/junggyeol4444/AIWACK/actions/runs/39353661211). `335071010...` 최신 코드의 [CI](https://github.com/junggyeol4444/AIWACK/actions/runs/39353715116), [Windows EXE 빌드](https://github.com/junggyeol4444/AIWACK/actions/runs/39353715118), [회사 GUI·SQLite](https://github.com/junggyeol4444/AIWACK/actions/runs/39353715141), [실제 GGUF](https://github.com/junggyeol4444/AIWACK/actions/runs/39353715139)는 마지막 조회 시 queued 또는 in_progress. **앞선 버전의 PASS를 이번 추가 테스트 버전의 PASS라고 주장 금지**. 실패 시 로그 확인 후 기존 코드만 안전 수정.
 - 중단 금지/금지 행동: ChatGPT 예약 설정, 다른 프로젝트, 외부 드라이브 연결·브랜치 신설·원본 삭제 등은 이번 회차 건드리지 않았다. 사용자 개인 Windows 11 실기기와 원본 T01~T20 전체 최종 인수는 여전히 미검증. 미래 회차마다 main/최신 Actions 재조회하고 정확한 PASS/FAIL/미검증을 보존한다.
+
+### 10절 후속 Actions 결과 재조회 (2026-10-20 KST, 완료/진행 구분)
+
+- 신규 소스 `335071010d85cc4fee28e47362718ae82fdf26f3`의 [CI 39353715116](https://github.com/junggyeol4444/AIWACK/actions/runs/39353715116)는 **success**. 로그에서 기존 루트 테스트 **133 passed**, Windows 통합 소스의 총괄 복구·모델 실행 타깃 회귀 테스트 **48 passed**를 확인. 이는 GUI/실제 GGUF 검사 성공과 별개임.
+- 동일 코드에서 [Windows 2025 회사 GUI·SQLite 로그인/저장 검사](https://github.com/junggyeol4444/AIWACK/actions/runs/39353715141)의 Windows 2025 job은 **success**; Windows 2022 job은 당시 **진행 중**.
+- 동일 코드에서 [Windows 2022/2025 EXE 배포 실행](https://github.com/junggyeol4444/AIWACK/actions/runs/39353715118)과 [실제 GGUF 전 직원 호출/두 업무](https://github.com/junggyeol4444/AIWACK/actions/runs/39353715139)는 당시 **진행 중**, 결과 확인 전 PASS 금지.
+- 인수인계 문서만 갱신한 후속 main `0e144bb5c4f0bd7637afbb5c6e455bdb3c716267`의 [CI 39354006241](https://github.com/junggyeol4444/AIWACK/actions/runs/39354006241)도 **success**. 이는 기능 검증 범위를 추가로 넓힌 것은 아님.
+- 이번 실행의 저장소 비교 결과 `2f6e119c...` → `0e144bb5...`는 기존 원본 파일 **삭제 없이** `model_runtime.py`, `test_company_chief_review.py`, `test_local_models.py`, 이 인수인계 문서만 수정됨. 최신 Actions 상태는 새 회차마다 반드시 다시 조회한다.
