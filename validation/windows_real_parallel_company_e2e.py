@@ -11,12 +11,33 @@ from pathlib import Path
 import sqlite3
 import sys
 from tempfile import TemporaryDirectory
-
+from threading import Lock
+from time import monotonic
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / 'windows-integrated-src'))
 from desktop import company_operations as ops
+from desktop import task_runtime
 from desktop.model_runtime import ModelConfig
 from desktop.storage import LocalStore
+
+
+def verify_sqlite_integrity(db: Path) -> None:
+    """Always close SQLite before Windows cleans up the test database."""
+    con = sqlite3.connect(db)
+    try:
+        if con.execute('PRAGMA integrity_check').fetchone()[0] != 'ok':
+            raise AssertionError('SQLite database integrity check failed')
+        if con.execute('PRAGMA foreign_key_check').fetchall():
+            raise AssertionError('SQLite foreign-key consistency check failed')
+    finally:
+        con.close()
+
+
+def actual_overlap_seconds(intervals: list[tuple[float, float]]) -> float:
+    """Duration of true, measured GGUF inference overlap; no stub timing."""
+    if len(intervals) != 2 or any(end <= start for start, end in intervals):
+        raise AssertionError('Two valid actual GGUF worker execution intervals are required')
+    return min(end for _, end in intervals) - max(start for start, _ in intervals)
 
 
 def verify(cli: Path, gguf: Path, evidence: Path) -> dict:
@@ -54,8 +75,30 @@ def verify(cli: Path, gguf: Path, evidence: Path) -> dict:
         ready = ops.list_approved_parallel_candidates(store)
         assert tuple(x['task_id'] for x in ready) == expected
         assert tuple(x['employee_id'] for x in ready) == employees
-        result = ops.execute_approved_parallel_cycle(
-            store, expected_task_ids=expected, expected_employee_ids=employees)
+        # Time real model inference inside the two workers, not merely
+        # thread-pool submission. The original GGUF subprocess remains in use.
+        intervals: list[tuple[float, float]] = []
+        lock = Lock()
+        original_run = task_runtime.run_local_model
+
+        def timed_real_gguf(*args, **kwargs):
+            start = monotonic()
+            try:
+                return original_run(*args, **kwargs)
+            finally:
+                finish = monotonic()
+                with lock:
+                    intervals.append((start, finish))
+
+        task_runtime.run_local_model = timed_real_gguf
+        try:
+            result = ops.execute_approved_parallel_cycle(
+                store, expected_task_ids=expected, expected_employee_ids=employees)
+        finally:
+            task_runtime.run_local_model = original_run
+        overlap = actual_overlap_seconds(intervals)
+        if overlap <= 0:
+            raise AssertionError(f'Actual GGUF worker inferences did not overlap: {intervals}')
         assert result['staff_execution_parallel'] is True
         assert result['staff_executions'] == result['chief_reviews'] == 2
         assert result['auto_approved'] is False and result['tasks_finalized'] is False
@@ -72,9 +115,9 @@ def verify(cli: Path, gguf: Path, evidence: Path) -> dict:
             artifact = store.list_task_artifacts(tid)[0]
             assert artifact['review_status'] == 'pending'
             assert store.find_chief_task_report(artifact['id'])['owner_decision'] == 'pending'
-        with sqlite3.connect(db) as con:
-            assert con.execute('PRAGMA integrity_check').fetchone()[0] == 'ok'
-            assert con.execute('PRAGMA foreign_key_check').fetchall() == []
+        # The sqlite3.Connection context manager does NOT close its handle.
+        # Windows will refuse TemporaryDirectory cleanup while it remains open.
+        verify_sqlite_integrity(db)
         store.logout()
         restarted = LocalStore(db)
         restarted.login('parallel_e2e_owner', 'parallel-temporary-gguf-e2e-password-2026')
@@ -84,11 +127,11 @@ def verify(cli: Path, gguf: Path, evidence: Path) -> dict:
             assert restarted.read_task(tid)['status'] == 'in_progress'
         report = dict(platform='Windows', actual_gguf=True, actual_parallel_staff=2,
                       sequential_real_chief_reviews=2, real_model_calls=sum(counts.values()),
+                      actual_gguf_worker_overlap_seconds=round(overlap, 6),
                       sqlite_integrity='ok', owner_review_status='pending',
                       auto_approved=False, tasks_finalized=False)
         (evidence / 'real-parallel-gguf-audit-metadata.json').write_text(
             json.dumps(report, indent=2), encoding='utf-8')
-        print('REAL_WINDOWS_TWO_STAFF_PARALLEL_GGUF_AND_CHIEF_RESTART_PASS', flush=True)
         return report
 
 
@@ -96,3 +139,5 @@ if __name__ == '__main__':
     if len(sys.argv) != 4:
         raise SystemExit('Usage: windows_real_parallel_company_e2e.py CLI GGUF EVIDENCE_DIRECTORY')
     verify(*(Path(v) for v in sys.argv[1:]))
+    # Print PASS only after Windows has successfully closed/cleaned the DB.
+    print('REAL_WINDOWS_TWO_STAFF_PARALLEL_GGUF_AND_CHIEF_RESTART_PASS', flush=True)

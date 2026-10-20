@@ -233,3 +233,10 @@
 - 정확한 소유자 승인 업무 ID·직원 ID를 전달해 실제 GGUF 직원 2명 동시 실행, 진짜 총괄 AI 모델 순차 검토 2건, 총 4회 실제 모델 감사, 결과물/회수 보고서 모두 관리자 승인 대기, SQLite 무결성·재시작 후 상태를 확인한다. 자동 승인·외부 거래·더미 모델 통과 불허.
 - 기존 Windows 2022/2025 workflow validation-windows-real-gguf-queue.yml에서 기존 packaged AIWACK.exe 실제 물리 GUI 마우스·키보드 E2E가 성공한 후 위 native 병렬 실 GGUF 검사를 추가. 두 검사는 분리되어 있으며 새로운 native 병렬 검사를 EXE 버튼의 물리 클릭 성공으로 과장하지 않는다.
 - 실패 시 job FAILURE, 모델/시스템 오류 감춰서 성공하지 않음. 검증 메타데이터 JSON을 기존 증빙 artifact에 포함. 동일 SHA Windows 2022/2025 job 결과 검증 완료 전 해당 실제 병렬 GGUF 통과로 기록하지 말 것.
+
+### 14절 Windows 실 GGUF 병렬 검증 오류 수정 및 실제 추론 시간 중첩 검사
+
+- main 94c194425...의 Windows Server 2022/2025 GGUF 검증 run 39367357588에서 실제 병렬 직원 2명·총괄 검토·재로그인까지 통과 메시지가 출력됐으나, 검증 스크립트의 sqlite3.connect() context manager가 연결을 닫지 않아 TemporaryDirectory 정리 시 WinError 32로 전체 Actions FAIL. 다음 run 39367632430 Windows 2022 역시 동일 원인 FAIL.
+- validation/windows_real_parallel_company_e2e.py의 SQLite 무결성 확인 함수를 명시적 try/finally + con.close로 분리. 테스트 완료 표시를 임시 DB가 실제 닫히고 정리된 다음에만 출력하도록 변경. PermissionError를 무시하거나 Windows 검증을 건너뛰지 않음.
+- 실제 GGUF 병렬 증거를 강화: 모델 응답을 대체하지 않고 기존 task_runtime.run_local_model 호출 시간을 두 직원별로 기록, 실제 모델 추론 구간에 양의 중첩 시간이 있는지 확인. 없으면 FAIL. 모의 직원 모델은 사용하지 않는다.
+- 루트 tests/test_windows_real_parallel_validation.py에 SQL 무결성 정상/오류 종료 후 DB 파일 삭제, 두 실제 실행구간 중첩 판정, 구간 측정 누락 거부 테스트 6개 추가. 새로운 Windows 2022/2025 실제 GGUF 결과는 동일 SHA Actions 종료 후 별도로 확정할 것.
