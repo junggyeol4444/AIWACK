@@ -82,7 +82,10 @@ def snapshot(store) -> dict:
                              verified_steps=approved_steps,
                              distinct_verified_workers=len(plan_staff),
                              fully_reviewed=bool(selected) and approved_steps==len(selected)))
+    # 직원 역할의 증거와 총괄 역할의 증거를 별도로 합산한다.
+    reviewed_workers=verified_staff_roles
     participants=accepted_staff|accepted_chiefs
+    complete_workers=(len(reviewed_workers)>=31 and len(accepted_departments)>=15)
     # An accepted chief report is evidence of a review, not a claim that the
     # employee and chief ran concurrently or that a real external sale occurred.
     return dict(employee_profiles=total_employees,model_bound_employees=bound_employees,
@@ -91,8 +94,10 @@ def snapshot(store) -> dict:
                 verified_owner_accepted_workers=len(accepted_staff),
                 verified_chief_reviewers=len(accepted_chiefs),
                 distinct_verified_participants=len(participants),
+                distinct_verified_workers=len(reviewed_workers),
                 distinct_verified_departments=len(accepted_departments),
-                full_31_participation_verified=(total_employees>=31 and len(participants)>=31),
+                full_15_department_coverage_verified=len(accepted_departments)>=15,
+                full_31_participation_verified=complete_workers,
                 plans=per_plan,real_sales_verified=False,
                 source='SQLite worker/model audits, approved order dispatches, owner reviews, accepted chief reports')
 
@@ -105,8 +110,9 @@ def text_report(store) -> str:
         f"성공 실행 직원(중복 제외) {data['observed_successful_workers']}명",
         f"직원 결과물+소유자 승인+총괄 수락 직원 {data['verified_owner_accepted_workers']}명",
         f"수락된 총괄 검토자 {data['verified_chief_reviewers']}명",
-        f"실제 승인 근거가 연결된 서로 다른 AI 참여자 {data['distinct_verified_participants']}명",
-        f"검증된 부서 {data['distinct_verified_departments']}곳",
+        f"실제 승인 근거가 연결된 서로 다른 AI 참여자(총괄 포함) {data['distinct_verified_participants']}명",
+        f"실제 승인된 직원 AI(총괄 제외) {data['distinct_verified_workers']}명 / 목표 31명",
+        f"검증된 부서 {data['distinct_verified_departments']}곳 / 목표 15곳",
         '31명 전원 협업 최종 실증: '+('증거 충족(실 GGUF/Windows 별도 검증 필요)' if data['full_31_participation_verified'] else '미완료')]
     for plan in data['plans'][-15:]:
         lines.append(f"계획 #{plan['plan_id']}: 승인 실증 {plan['verified_steps']}/{plan['steps']}단계, "
