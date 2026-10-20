@@ -1498,6 +1498,9 @@ class LocalStore:
                           f"업무 제목: {task[2]}\n업무 설명: {task[3]}\n승인된 지시: {instruction}")
                 if len(prompt)>3000:
                     raise ValueError('승인된 지시가 로컬 모델 입력 한도를 초과했습니다.')
+            # An earlier worker's result is context, never a new instruction.
+            from desktop.company_handoffs import dependency_context
+            prompt+=dependency_context(con,task_id,budget=min(850,max(0,3000-len(prompt))))
             config = ModelConfig(str(name),str(backend),str(exe),str(model_path),int(tokens))
             # Record the same local invocation in the existing model call audit.
             call_id = int(con.execute("""INSERT INTO ai_model_call_history

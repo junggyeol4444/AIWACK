@@ -303,6 +303,10 @@ class CompanyOffice:
                      lambda: self._goto_native('AI 업무 실행'), compact=True)
         self._action(recoverybar, '결과물 품질 검사', self.quality_check_result, compact=True)
         self._action(recoverybar, '승인 결과 파일 저장', self.export_result, compact=True)
+        knowledgebar=tk.Frame(card,bg=CARD)
+        knowledgebar.pack(fill='x',pady=(2,0))
+        self._action(knowledgebar, '승인 결과 회사 지식 등록',
+                     self.promote_knowledge, compact=True)
         self._label(card, '', size=9, color=AMBER, textvariable=self.review_summary).pack(anchor='w', pady=(5, 0))
         self._label(card, '실제 생성 결과가 없으면 표시하지 않습니다. 승인해도 업무가 자동 완료되지 않습니다.',
                     size=8, color=MUTED).pack(anchor='w', pady=(3, 0))
@@ -1027,6 +1031,20 @@ class CompanyOffice:
                 + issues + '\n내용 사실성·법적 적합성·상업적 품질은 관리자 직접 검토가 필요합니다.')
         except (ValueError,PermissionError) as exc:
             self._say('기계적 품질 검사 실패: '+str(exc))
+
+    def promote_knowledge(self):
+        from desktop import company_handoffs
+        try:
+            artifact_id=self._selected_artifact()
+            if not messagebox.askyesno('소유자 승인 지식 등록',
+                    f'관리자가 검수 승인한 결과물 #{artifact_id}만 공동 지식 저장소에 '
+                    '복사합니다. 미승인 결과·외부 게시·자동 결제는 하지 않습니다. 등록할까요?',
+                    parent=self.root):
+                return
+            result=company_handoffs.promote_approved(self.store,artifact_id)
+            self._say(f"공동 지식 #{result['knowledge_id']} 저장 완료 (원본 유지)")
+        except (PermissionError,ValueError,RuntimeError) as exc:
+            self._say('지식 저장 실패: '+str(exc))
 
     def export_result(self):
         from desktop import company_deliverables as deliver
