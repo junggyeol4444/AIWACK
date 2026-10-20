@@ -239,3 +239,23 @@ def test_windows_heap_corruption_fails_without_returning_or_retrying(tmp_path, m
     with pytest.raises(RuntimeError, match='0xC0000374'):
         run_local_model(make_config(exe, gguf), 'read-only diagnostics', timeout=5)
     assert len(invocations) == 1
+
+def test_cancel_during_final_subprocess_result_discards_reply(tmp_path, monkeypatch):
+    """A finished process must not override a late owner cancellation."""
+    import threading
+    from desktop import model_runtime
+    exe, gguf = sample_files(tmp_path)
+    cancel = threading.Event()
+    calls = []
+    class FinishAndCancel:
+        returncode = 0
+        def communicate(self, timeout=None):
+            cancel.set()
+            return b'SYNTHETIC COMPLETED BUT CANCELLED', b''
+    def fake_start(*args, **kwargs):
+        calls.append(args)
+        return FinishAndCancel()
+    monkeypatch.setattr(model_runtime.subprocess, 'Popen', fake_start)
+    with pytest.raises(InterruptedError, match='취소'):
+        run_local_model(make_config(exe, gguf), 'cancel after output', timeout=5, cancel=cancel)
+    assert len(calls) == 1
