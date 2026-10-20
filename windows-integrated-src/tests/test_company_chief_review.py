@@ -452,3 +452,32 @@ def test_owner_queue_does_not_continue_if_candidate_changes_mid_batch(tmp_path, 
     assert called == [approved[0]]
     assert store.find_chief_task_report(tasks[0][1]) is not None
     assert store.find_chief_task_report(tasks[2][1]) is None
+
+def test_owner_confirmed_recovery_queue_completes_without_rerunning_workers(tmp_path, monkeypatch):
+    """Exactly the signed-off task IDs are processed; owner approval stays pending."""
+    store, tasks = _recovery_queue_tasks(tmp_path, monkeypatch)
+    approved = tuple(tid for tid, _ in tasks)
+    before = {tid: store.list_task_runs(tid) for tid, _ in tasks}
+    calls = []
+    monkeypatch.setattr('desktop.task_runtime.run_local_model',
+                        lambda *args, **kwargs: (_ for _ in ()).throw(
+                            AssertionError('Employee model was executed twice')))
+    def chief(_store, artifact_id, **kwargs):
+        calls.append(artifact_id)
+        return f'SYNTHETIC SAVED CHIEF REPORT {artifact_id}'
+    monkeypatch.setattr('desktop.chief_task_runtime.collect_chief_task_result', chief)
+    result = ops.recover_interrupted_chief_review_queue(
+        store, limit=3, expected_task_ids=approved)
+    assert result['task_ids'] == list(approved)
+    assert result['worker_reexecuted'] is False and result['auto_approved'] is False
+    assert calls == [artifact_id for _, artifact_id in tasks]
+    for task_id, artifact_id in tasks:
+        assert store.list_task_runs(task_id) == before[task_id]
+        assert store.find_chief_task_report(artifact_id)['owner_decision'] == 'pending'
+        assert store.read_task(task_id)['status'] == 'in_progress'
+    store.logout()
+    reopened = LocalStore(store.path)
+    reopened.login('batch_recovery_owner', 'test-batch-recovery-password-2026')
+    assert ops.list_interrupted_chief_reviews(reopened) == []
+    assert all(reopened.find_chief_task_report(artifact_id)['owner_decision'] == 'pending'
+               for _, artifact_id in tasks)
