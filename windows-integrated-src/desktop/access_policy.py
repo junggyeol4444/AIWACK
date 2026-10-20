@@ -19,6 +19,7 @@ CAPABILITIES: dict[str, str] = {
 TOOLS: dict[str, tuple[str, str]] = {
     "local_company_reader": ("회사 정보 읽기(총괄 AI 로컬 읽기 전용)", "company:read"),
     "local_goals_reader": ("회사 목표 읽기(총괄 AI 로컬 읽기 전용)", "goals:read"),
+    "local_windows_version_reader": ("Windows 버전 실제 명령 조회(관리자 명시 실행)", "company:read"),
     "local_task_drafter": ("업무 제안 도구(실행 미구현)", "tasks:propose"),
     "local_document_drafter": ("문서 초안 도구(실행 미구현)", "documents:draft"),
 }

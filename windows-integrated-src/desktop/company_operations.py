@@ -562,7 +562,7 @@ def collect_chief_review(store, artifact_id: int, *,
         assert_running_allowed(store)
         if type(response) is not str or not response.strip() or len(response) > 10000 or '\x00' in response:
             raise ValueError('총괄 AI 회수 의견이 비었거나 저장 제한을 초과했습니다.')
-        report_id = store.save_chief_task_report(artifact_id, response.strip())
+        report_id = store.save_chief_task_report(artifact_id, response.strip(), lease_token=lease_token)
         return {'artifact_id': artifact_id, 'report_id': report_id,
                 'status': 'awaiting_owner_review', 'chief_model_called': True,
                 'worker_result_auto_approved': False, 'task_completed': False}

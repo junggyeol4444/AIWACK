@@ -207,3 +207,30 @@ def test_second_window_revocation_cancels_current_model_without_auto_approval(tm
         if worker.is_alive():
             first.emergency_stop_local(True,'Force stop test')
             worker.join(timeout=5)
+
+
+def test_operational_diagnostics_detects_missed_ticks_and_crash(owners):
+    a,b=owners
+    off=auto.operational_diagnostics(a,now=1000)
+    assert not off['enabled'] and not off['verified_continuous_24h']
+    auto.configure(a,True,now=1000)
+    due=auto.operational_diagnostics(b,now=1000)
+    assert due['enabled'] and not due['tick_overdue']
+    assert auto.run_once(a,now=1000)['executed']
+    fresh=auto.operational_diagnostics(b,now=1001)
+    assert fresh['observed_success_ticks_last_24h']==1
+    assert fresh['observed_failed_ticks_last_24h']==0
+    assert not fresh['verified_continuous_24h']
+    with a._connect() as con:
+        con.execute("INSERT INTO aiwack_autopilot_runs(planned_at,state) VALUES(1002,'running')")
+        con.execute("INSERT INTO aiwack_autopilot_model_runs(task_id,state) "
+                    "SELECT id,'running' FROM company_tasks LIMIT 1") if a.list_tasks() else None
+    overdue=auto.operational_diagnostics(b,now=2000)
+    assert overdue['tick_overdue']
+    assert overdue['unfinished_tick_records']==1
+    assert overdue['observed_success_ticks_last_24h']==1
+    assert not overdue['verified_continuous_24h']
+    a.emergency_stop_local(True,'수동 정지')
+    assert not auto.operational_diagnostics(b,now=2000)['tick_overdue']
+    for invalid in (-1,True,'2000'):
+        with pytest.raises(ValueError):auto.operational_diagnostics(b,now=invalid)

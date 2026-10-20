@@ -90,6 +90,8 @@ class LocalStore:
             initialize_tool_registry(con)
             from desktop.tool_approvals import initialize as initialize_tool_approvals
             initialize_tool_approvals(con)
+            from desktop.company_approved_tool_execution import initialize as initialize_tool_execution
+            initialize_tool_execution(con)
             from desktop.managed_documents import initialize as initialize_managed_documents
             initialize_managed_documents(con)
             from desktop.code_authoring import initialize as initialize_code_authoring
@@ -762,6 +764,29 @@ class LocalStore:
                     PRIMARY KEY (employee_id, tool_key)
                 )
             """)
+            # 기존 SQLite CHECK와 이전 도구 부여 기록을 보존하면서 Windows 전용
+            # 신규 도구 권한을 별도 테이블에 추가한다(기존 테이블 재작성 금지).
+            con.execute("""CREATE TABLE IF NOT EXISTS ai_employee_native_tool_grants (
+                employee_id INTEGER NOT NULL REFERENCES ai_employee_profiles(id) ON DELETE CASCADE,
+                tool_key TEXT NOT NULL CHECK(tool_key='local_windows_version_reader'),
+                PRIMARY KEY(employee_id,tool_key))""")
+            con.execute("""CREATE TRIGGER IF NOT EXISTS ai_native_tool_grant_requires_capability
+                BEFORE INSERT ON ai_employee_native_tool_grants
+                WHEN NOT EXISTS (SELECT 1 FROM ai_employee_profiles
+                                  WHERE id=NEW.employee_id AND lifecycle='draft')
+                  OR NOT EXISTS (SELECT 1 FROM ai_employee_capability_grants
+                                 WHERE employee_id=NEW.employee_id AND capability='company:read')
+                BEGIN SELECT RAISE(ABORT,'native tool requires active company:read grant'); END""")
+            con.execute("""CREATE TRIGGER IF NOT EXISTS ai_native_tool_revoke_with_company_read
+                AFTER DELETE ON ai_employee_capability_grants
+                WHEN OLD.capability='company:read'
+                BEGIN DELETE FROM ai_employee_native_tool_grants
+                      WHERE employee_id=OLD.employee_id; END""")
+            con.execute("""CREATE TRIGGER IF NOT EXISTS ai_native_tool_revoke_on_deactivation
+                AFTER UPDATE OF lifecycle ON ai_employee_profiles
+                WHEN NEW.lifecycle='inactive' AND OLD.lifecycle<>'inactive'
+                BEGIN DELETE FROM ai_employee_native_tool_grants
+                      WHERE employee_id=NEW.id; END""")
             # Fail closed at the database layer: never grant inactive employees.
             for table in ('ai_employee_capability_grants', 'ai_employee_tool_grants'):
                 con.execute(f"""
@@ -1358,8 +1383,13 @@ class LocalStore:
                 raise ValueError('승인된 총괄 AI 지시에서 성공한 실행의 저장된 결과물만 회수할 수 있습니다.')
             return dict(row)
 
-    def save_chief_task_report(self, artifact_id: int, body: str) -> int:
-        """Owner explicitly saves chief's text; no automatic review/approval."""
+    def save_chief_task_report(self, artifact_id: int, body: str, *,
+                               lease_token: str | None = None) -> int:
+        """Save owner-visible review, fencing stale automatic model invocations.
+
+        A manual owner save may omit a token; an in-flight model must supply
+        its own durable lease token, checked in the SAME SQLite transaction.
+        """
         self.require_permission('company:manage')
         self.require_permission('agents:manage')
         artifact_id=self._plan_id(artifact_id,'결과물')
@@ -1374,6 +1404,22 @@ class LocalStore:
                 WHERE a.id=? AND r.status='success'""",(artifact_id,)).fetchone()
             if row is None:
                 raise ValueError('승인된 지시와 연결된 성공 결과물이 필요합니다.')
+            has_lease_table = con.execute(
+                "SELECT 1 FROM sqlite_master WHERE type='table' "
+                "AND name='aiwack_chief_review_leases'").fetchone() is not None
+            if lease_token is None and has_lease_table and con.execute(
+                    'SELECT 1 FROM aiwack_chief_review_leases WHERE artifact_id=?',
+                    (artifact_id,)).fetchone():
+                raise PermissionError('진행 중인 총괄 AI 검토가 있어 수동 보고서 저장을 차단합니다.')
+            if lease_token is not None:
+                from desktop.stage87_90_management import stopped as emergency_stopped
+                if emergency_stopped(con):
+                    raise PermissionError('비상 정지 이후 총괄 AI 모델 응답은 저장하지 않습니다.')
+                if (not has_lease_table or type(lease_token) is not str
+                        or len(lease_token) != 32 or not con.execute('''SELECT 1 FROM aiwack_chief_review_leases
+                            WHERE artifact_id=? AND owner_token=?''',
+                            (artifact_id, lease_token)).fetchone()):
+                    raise PermissionError('총괄 AI 검토 잠금이 변경됐습니다. 이전 모델 응답을 저장하지 않습니다.')
             if con.execute('SELECT 1 FROM company_chief_task_reports WHERE order_id=? OR artifact_id=?',
                            (row[0],artifact_id)).fetchone():
                 raise ValueError('이미 저장된 총괄 AI 회수 보고서는 변경할 수 없습니다.')
@@ -2261,6 +2307,9 @@ class LocalStore:
                 "SELECT capability FROM ai_employee_capability_grants WHERE employee_id=? ORDER BY capability", (employee_id,))]
             tools = [x[0] for x in con.execute(
                 "SELECT tool_key FROM ai_employee_tool_grants WHERE employee_id=? ORDER BY tool_key", (employee_id,))]
+            tools += [x[0] for x in con.execute(
+                "SELECT tool_key FROM ai_employee_native_tool_grants WHERE employee_id=?", (employee_id,))]
+            tools.sort()
         return {"capabilities": capabilities, "tools": tools}
 
     def save_employee_access(self, employee_id: int, capabilities: list[str] | set[str],
@@ -2279,12 +2328,16 @@ class LocalStore:
                 raise ValueError("직원 정보가 존재하지 않습니다.")
             if row[0] != "draft":
                 raise ValueError("비활성 직원에게는 권한이나 도구를 설정할 수 없습니다.")
+            con.execute("DELETE FROM ai_employee_native_tool_grants WHERE employee_id=?", (employee_id,))
             con.execute("DELETE FROM ai_employee_tool_grants WHERE employee_id=?", (employee_id,))
             con.execute("DELETE FROM ai_employee_capability_grants WHERE employee_id=?", (employee_id,))
             con.executemany("INSERT INTO ai_employee_capability_grants(employee_id, capability) VALUES (?, ?)",
                             [(employee_id, x) for x in sorted(caps)])
             con.executemany("INSERT INTO ai_employee_tool_grants(employee_id, tool_key) VALUES (?, ?)",
-                            [(employee_id, x) for x in sorted(tool_keys)])
+                            [(employee_id, x) for x in sorted(tool_keys - {'local_windows_version_reader'})])
+            if 'local_windows_version_reader' in tool_keys:
+                con.execute("INSERT INTO ai_employee_native_tool_grants(employee_id,tool_key) VALUES(?,?)",
+                            (employee_id,'local_windows_version_reader'))
 
     def is_employee_allowed(self, employee_id: int, capability: str,
                             tool_key: str | None = None) -> bool:
@@ -2304,7 +2357,9 @@ class LocalStore:
                                   (employee_id, capability)).fetchone() is not None
             if not granted or tool_key is None:
                 return granted
-            return con.execute("SELECT 1 FROM ai_employee_tool_grants WHERE employee_id=? AND tool_key=?",
+            grant_table = ('ai_employee_native_tool_grants' if tool_key == 'local_windows_version_reader'
+                           else 'ai_employee_tool_grants')
+            return con.execute(f"SELECT 1 FROM {grant_table} WHERE employee_id=? AND tool_key=?",
                                (employee_id, tool_key)).fetchone() is not None
 
     def require_employee_access(self, employee_id: int, capability: str,
@@ -3519,6 +3574,22 @@ class LocalStore:
         from desktop.tool_approvals import get_request
         with self._connect() as con:
             return get_request(con, request_id)
+
+    def execute_approved_local_read_tool(self, request_id: int) -> dict:
+        from desktop.company_approved_tool_execution import execute
+        return execute(self, request_id)
+
+    def approved_local_read_tool_history(self, limit: int = 30) -> list[dict]:
+        from desktop.company_approved_tool_execution import history
+        return history(self, limit)
+
+    def execute_approved_windows_version_tool(self, request_id: int) -> dict:
+        from desktop.company_native_diagnostics import execute
+        return execute(self, request_id)
+
+    def approved_windows_version_tool_history(self, limit: int = 30) -> list[dict]:
+        from desktop.company_native_diagnostics import history
+        return history(self, limit)
 
     def ai_tool_use_audit(self, request_id: int) -> list[dict]:
         self.require_permission('company:manage')

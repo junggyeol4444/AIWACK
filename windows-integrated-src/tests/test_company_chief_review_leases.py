@@ -208,3 +208,109 @@ def test_emergency_stop_blocks_lease_in_atomic_reservation(tmp_path,monkeypatch)
     with pytest.raises(PermissionError,match='비상 정지'):
         leases.reserve(store,artifact['artifact_id'])
     assert leases.snapshot(store)==[]
++
+def test_owner_manual_lease_reset_persists_audit_after_relogin(tmp_path,monkeypatch):
+    """Forced unlock must leave durable evidence without exposing owner tokens."""
+    store,plan,artifact,chief,worker=office(tmp_path,monkeypatch)
+    aid=artifact['artifact_id']
+    token=leases.reserve(store,aid)
+    with store._connect() as con:
+        con.execute('UPDATE aiwack_chief_review_leases SET started_epoch=started_epoch-601')
+    with pytest.raises(PermissionError):
+        leases.clear_after_owner_inspection(store,aid,owner_confirmed=False)
+    assert leases.recovery_history(store)==[]
+    leases.clear_after_owner_inspection(store,aid,owner_confirmed=True)
+    record=leases.recovery_history(store)[0]
+    assert record['artifact_id']==aid and record['age_seconds']>=180
+    assert record['owner_confirmed'] is True
+    assert record['subprocess_termination_verified'] is False
+    assert token not in repr(record)
+    store.logout()
+    reopened=LocalStore(store.path)
+    reopened.login('owner','a'*24)
+    assert leases.recovery_history(reopened)[0]['artifact_id']==aid
+    assert leases.snapshot(reopened)==[]
+    assert reopened.read_task_artifact(aid)['id']==aid
+    with pytest.raises(ValueError):leases.recovery_history(reopened,limit=True)
+
+
+def test_31_coverage_cannot_count_chief_as_worker(tmp_path,monkeypatch):
+    store,plan,artifact,chief,worker=office(tmp_path,monkeypatch)
+    assert coverage.snapshot(store)['distinct_verified_workers']==0
+    monkeypatch.setattr('desktop.chief_task_runtime.collect_chief_task_result',
+                        lambda *a,**kw:'총괄 검토(합성)')
+    report=ops.collect_chief_review(store,artifact['artifact_id'])
+    store.review_task_artifact(artifact['artifact_id'],'approved')
+    store.review_chief_task_report(report['report_id'],'accepted')
+    data=coverage.snapshot(store)
+    assert data['distinct_verified_participants']==2
+    assert data['distinct_verified_workers']==1
+    assert data['full_15_department_coverage_verified'] is False
+    assert data['full_31_participation_verified'] is False
+    assert '총괄 제외' in coverage.text_report(store)
+
+
+def test_stale_model_cannot_save_after_owner_reset(tmp_path,monkeypatch):
+    """A previously running model cannot commit after the owner resets its lease."""
+    store,plan,artifact,chief,worker=office(tmp_path,monkeypatch)
+    aid=artifact['artifact_id']
+    old=leases.reserve(store,aid)
+    with store._connect() as con:
+        con.execute('UPDATE aiwack_chief_review_leases SET started_epoch=started_epoch-601')
+    leases.clear_after_owner_inspection(store,aid,owner_confirmed=True)
+    replacement=leases.reserve(store,aid)
+    with pytest.raises(PermissionError,match='잠금이 변경'):
+        store.save_chief_task_report(aid,'이전 모델의 늦은 응답',lease_token=old)
+    assert store.find_chief_task_report(aid) is None
+    report=store.save_chief_task_report(aid,'새 소유자 실행 응답',lease_token=replacement)
+    assert report>0
+    leases.release(store,aid,old)
+    assert len(leases.snapshot(store))==1
+    leases.release(store,aid,replacement)
+    assert leases.snapshot(store)==[]
+
+
+def test_model_review_reset_during_inference_is_fenced(tmp_path,monkeypatch):
+    """Two login sessions: a manually cleared in-flight lease must not save."""
+    store,plan,artifact,chief,worker=office(tmp_path,monkeypatch)
+    second=LocalStore(store.path)
+    second.login('owner','a'*24)
+    started=Event();finish=Event()
+    def delayed_chief(*args,**kwargs):
+        started.set()
+        assert finish.wait(10)
+        return '이전 모델의 늦은 회수 결과'
+    monkeypatch.setattr('desktop.chief_task_runtime.collect_chief_task_result',delayed_chief)
+    with ThreadPoolExecutor(max_workers=1) as pool:
+        future=pool.submit(ops.collect_chief_review,store,artifact['artifact_id'])
+        assert started.wait(10)
+        with second._connect() as con:
+            con.execute('UPDATE aiwack_chief_review_leases SET started_epoch=started_epoch-601')
+        leases.clear_after_owner_inspection(second,artifact['artifact_id'],owner_confirmed=True)
+        finish.set()
+        with pytest.raises(PermissionError,match='잠금이 변경'):
+            future.result(timeout=15)
+    assert store.find_chief_task_report(artifact['artifact_id']) is None
+    assert leases.snapshot(second)==[]
+
+
+def test_manual_report_cannot_bypass_active_chief_lease(tmp_path,monkeypatch):
+    store,plan,artifact,chief,worker=office(tmp_path,monkeypatch)
+    aid=artifact['artifact_id']
+    token=leases.reserve(store,aid)
+    with pytest.raises(PermissionError,match='진행 중인 총괄 AI'):
+        store.save_chief_task_report(aid,'수동 저장으로 잠금 우회 시도')
+    assert store.find_chief_task_report(aid) is None
+    leases.release(store,aid,token)
+    assert store.save_chief_task_report(aid,'잠금 없는 관리자 수동 검토')>0
+
+
+def test_emergency_stop_blocks_late_chief_model_commit(tmp_path,monkeypatch):
+    store,plan,artifact,chief,worker=office(tmp_path,monkeypatch)
+    aid=artifact['artifact_id']
+    token=leases.reserve(store,aid)
+    store.emergency_stop_local(True,'관리자 비상 정지')
+    with pytest.raises(PermissionError,match='비상 정지'):
+        store.save_chief_task_report(aid,'정지 이후 모델 응답',lease_token=token)
+    assert store.find_chief_task_report(aid) is None
+    leases.release(store,aid,token)

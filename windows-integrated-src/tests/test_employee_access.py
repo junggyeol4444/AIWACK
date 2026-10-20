@@ -115,14 +115,18 @@ def test_employee_id_validation(tmp_path, wrong_id):
         store.read_employee_access(wrong_id)
 
 
-def test_builtin_catalog_has_no_network_or_shell_connector():
+def test_builtin_catalog_has_no_arbitrary_network_or_shell_connector():
     assert len(CAPABILITIES) == 4
-    assert len(TOOLS) == 4
+    assert set(TOOLS) == {
+        "local_company_reader", "local_goals_reader", "local_task_drafter",
+        "local_document_drafter", "local_windows_version_reader"}
     for key, (label, required) in TOOLS.items():
         assert key.startswith('local_')
         assert required in CAPABILITIES
         if key in {'local_company_reader', 'local_goals_reader'}:
             assert '로컬 읽기 전용' in label
+        elif key == 'local_windows_version_reader':
+            assert 'Windows 버전' in label and required == 'company:read'
         else:
             assert '실행 미구현' in label
     assert validate_grants([], []) == (set(), set())

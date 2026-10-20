@@ -4701,7 +4701,7 @@ class AIWACKWindow:
         self.tool_use_purpose = tk.StringVar()
         self.tool_use_reason = tk.StringVar()
         self.tool_use_feedback = tk.StringVar()
-        self._label(parent,'52단계: 요청·권한·관리자 승인에 대한 사전 검사만 수행합니다. 도구 실행 없음.',
+        self._label(parent,'도구 요청·승인과 별도 실행: 관리자 명시 클릭 시 내장 회사/목표 SQLite 읽기만 실제 수행합니다.',
                     bg='#121c2d',wraplength=930).pack(anchor='w',pady=5)
         line = tk.Frame(parent,bg='#121c2d');line.pack(anchor='w',fill='x',pady=4)
         for name, var, width in (('요청 키',self.tool_use_key,23),('도구 ID',self.tool_use_tool,7),
@@ -4729,6 +4729,17 @@ class AIWACKWindow:
         self.tool_use_check_button=tk.Button(line,text='사전 권한 재검사',command=self._check_tool_use)
         self.tool_use_check_button.pack(side='left',padx=3)
         tk.Button(line,text='목록 새로고침',command=self._refresh_tool_use).pack(side='left',padx=3)
+        readbar=tk.Frame(parent,bg='#121c2d');readbar.pack(anchor='w',fill='x',pady=3)
+        self.tool_use_execute_button=tk.Button(readbar,text='승인된 로컬 읽기 도구 실제 실행',
+            command=self._execute_approved_read_tool)
+        self.tool_use_execute_button.pack(side='left',padx=3)
+        tk.Button(readbar,text='실제 실행·무결성 감사 조회',
+            command=self._show_approved_read_tool_history).pack(side='left',padx=3)
+        self.tool_windows_version_button=tk.Button(readbar,text='승인된 Windows 버전 명령 실제 실행',
+            command=self._execute_approved_windows_version_tool)
+        self.tool_windows_version_button.pack(side='left',padx=3)
+        tk.Button(readbar,text='Windows 명령 실행 감사',
+            command=self._show_approved_windows_version_history).pack(side='left',padx=3)
         self._label(parent,'',textvariable=self.tool_use_feedback,bg='#121c2d',wraplength=940).pack(anchor='w')
         self._refresh_tool_use()
 
@@ -4773,6 +4784,58 @@ class AIWACKWindow:
                 f'{result["reason"]} · 실제 도구 실행 없음')
         except (ValueError,PermissionError) as exc:
             self.tool_use_feedback.set(str(exc))
+
+    def _execute_approved_read_tool(self) -> None:
+        try:
+            rid=self._selected_tool_use()
+            if not messagebox.askyesno('로컬 도구 실제 실행 승인',
+                    f'요청 #{rid}의 현재 승인·직원 권한·비상정지를 재검사하고\n'
+                    '회사 또는 목표 SQLite 데이터를 실제로 조회합니다.\n'
+                    '외부 프로그램·파일·네트워크·결제 실행은 없습니다. 진행할까요?'):
+                return
+            result=self.store.execute_approved_local_read_tool(rid)
+            self.tool_use_feedback.set(
+                f'요청 #{rid} 로컬 SQLite 실제 조회 완료 · 실행 #{result["execution_id"]} '
+                f'· 중복={result["already_executed"]} · SHA256 {result["sha256"][:16]}…')
+        except (ValueError,PermissionError,RuntimeError) as exc:
+            self.tool_use_feedback.set('승인된 로컬 읽기 실행 실패: '+str(exc))
+
+    def _show_approved_read_tool_history(self) -> None:
+        try:
+            import json
+            rows=self.store.approved_local_read_tool_history(limit=20)
+            content='\n'.join(f'#{r["execution_id"]} 요청 {r["request_id"]} '
+                f'직원 {r["employee_id"]} / {r["tool_key"]} / SHA256 {r["sha256"][:16]}…'
+                for r in rows) or '아직 실제 읽기 실행 증빙이 없습니다.'
+            messagebox.showinfo('승인된 로컬 읽기 도구 실행 감사',content)
+        except (ValueError,PermissionError,RuntimeError) as exc:
+            self.tool_use_feedback.set('도구 실행 감사 조회 실패: '+str(exc))
+
+    def _execute_approved_windows_version_tool(self) -> None:
+        try:
+            rid=self._selected_tool_use()
+            if not messagebox.askyesno('Windows 기본 명령 실행 확인',
+                    f'요청 #{rid}의 관리자 승인과 직원 권한을 재검사한 후\n'
+                    'Windows 자체 cmd.exe /d /c ver 명령을 1회 실행합니다.\n'
+                    '임의 명령·네트워크·파일 수정·결제는 실행하지 않습니다. 계속할까요?'):
+                return
+            result=self.store.execute_approved_windows_version_tool(rid)
+            self.tool_use_feedback.set(
+                f'요청 #{rid} Windows 실제 명령 실행 완료 · #{result["execution_id"]} '
+                f'· 중복={result["already_executed"]} · SHA256 {result["sha256"][:16]}…')
+        except (ValueError,PermissionError,RuntimeError,OSError) as exc:
+            self.tool_use_feedback.set('Windows 명령 실행 실패: '+str(exc))
+
+    def _show_approved_windows_version_history(self) -> None:
+        try:
+            rows=self.store.approved_windows_version_tool_history(limit=20)
+            content='\n'.join(f'#{r["execution_id"]} 요청 {r["request_id"]} '
+                f'직원 {r["employee_id"]} / {r["state"]} / '
+                f'SHA256 {r["sha256"][:16]}… / {r["error_code"]}'
+                for r in rows) or 'Windows 명령 실행 기록이 없습니다.'
+            messagebox.showinfo('Windows 명령 실제 실행 감사',content)
+        except (ValueError,PermissionError,RuntimeError) as exc:
+            self.tool_use_feedback.set('Windows 명령 감사 조회 실패: '+str(exc))
 
     def _managed_documents_panel(self, parent: tk.Frame) -> None:
         self.document_name = tk.StringVar()

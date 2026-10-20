@@ -229,3 +229,49 @@ def history(store,limit=30):
                 for x in con.execute("""SELECT id,planned_at,state,proposal_created,
                    schedule_created,event_created,error_kind
                    FROM aiwack_autopilot_runs ORDER BY id DESC LIMIT ?""",(limit,))]
+
+
+def operational_diagnostics(store, *, now=None) -> dict:
+    """Read-only evidence of local ticks, not a synthetic 24h uptime claim.
+
+    A stale running row requires owner review, never an automatic retry.
+    """
+    store.require_permission('company:manage')
+    stamp=int(time.time()) if now is None else now
+    if type(stamp) is not int or stamp < 0:
+        raise ValueError('운영 진단 시각이 올바르지 않습니다.')
+    with store._connect() as con:
+        exists=con.execute("SELECT 1 FROM sqlite_master WHERE type='table' "
+                           "AND name='aiwack_autopilot_settings'").fetchone()
+        if not exists:
+            return dict(enabled=False,model_policy_enabled=False,
+                emergency_stop=bool(stopped(con)),next_due_epoch=0,
+                interval_seconds=300,tick_overdue=False,
+                unfinished_tick_records=0,unfinished_model_records=0,
+                observed_success_ticks_last_24h=0,observed_failed_ticks_last_24h=0,
+                last_recorded_tick_epoch=None,last_recorded_tick_state=None,
+                verified_continuous_24h=False,external_business_verified=False)
+        enabled,interval,due=con.execute('''SELECT enabled,interval_seconds,next_due
+            FROM aiwack_autopilot_settings WHERE id=1''').fetchone()
+        running=con.execute("SELECT COUNT(*) FROM aiwack_autopilot_runs WHERE state='running'").fetchone()[0]
+        succeeded=con.execute('''SELECT COUNT(*) FROM aiwack_autopilot_runs
+            WHERE state='success' AND planned_at>=? AND planned_at<=?''',
+            (max(0,stamp-86400),stamp)).fetchone()[0]
+        failures=con.execute('''SELECT COUNT(*) FROM aiwack_autopilot_runs
+            WHERE state='failed' AND planned_at>=? AND planned_at<=?''',
+            (max(0,stamp-86400),stamp)).fetchone()[0]
+        last=con.execute('''SELECT planned_at,state FROM aiwack_autopilot_runs
+            WHERE planned_at<=? ORDER BY id DESC LIMIT 1''',(stamp,)).fetchone()
+        model_running=con.execute("SELECT COUNT(*) FROM aiwack_autopilot_model_runs WHERE state='running'").fetchone()[0]
+        policy=con.execute('SELECT enabled FROM aiwack_autopilot_model_policy WHERE id=1').fetchone()
+        emergency=bool(stopped(con))
+    overdue=bool(enabled and not emergency and due and stamp>due+interval)
+    return dict(enabled=bool(enabled),model_policy_enabled=bool(policy and policy[0]),
+                emergency_stop=emergency,next_due_epoch=int(due),
+                interval_seconds=int(interval),tick_overdue=overdue,
+                unfinished_tick_records=int(running),unfinished_model_records=int(model_running),
+                observed_success_ticks_last_24h=int(succeeded),
+                observed_failed_ticks_last_24h=int(failures),
+                last_recorded_tick_epoch=None if last is None else int(last[0]),
+                last_recorded_tick_state=None if last is None else str(last[1]),
+                verified_continuous_24h=False,external_business_verified=False)

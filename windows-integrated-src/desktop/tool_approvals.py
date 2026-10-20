@@ -66,7 +66,10 @@ def employee_eligible(con: sqlite3.Connection, employee_id: int, tool: dict) -> 
     if tool['tool_key'] in TOOLS:
         if TOOLS[tool['tool_key']][1] != required:
             return False, '기존 도구의 필요 권한 정의와 충돌합니다.'
-        allowed = con.execute('''SELECT 1 FROM ai_employee_tool_grants
+        grant_table = ('ai_employee_native_tool_grants'
+                       if tool['tool_key']=='local_windows_version_reader'
+                       else 'ai_employee_tool_grants')
+        allowed = con.execute(f'''SELECT 1 FROM {grant_table}
                                  WHERE employee_id=? AND tool_key=?''', (employee_id, tool['tool_key'])).fetchone()
         if allowed is None:
             return False, '직원의 기존 도구 허가가 없습니다.'

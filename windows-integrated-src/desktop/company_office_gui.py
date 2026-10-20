@@ -1080,8 +1080,15 @@ class CompanyOffice:
                 detail.append('--- 기존 소유자 승인 GGUF 실제 실행 ---')
                 detail.extend(f"업무 #{m['task_id']} · {m['state']} · 오류 {m['error_kind'] or '-'}"
                               for m in models)
-            self._text_dialog('사내 자율 운영 감사',
-                              '\n'.join(detail) if detail else '실행 기록이 없습니다.')
+            diag=company_autopilot.operational_diagnostics(self.store)
+            detail.extend([
+                '--- 실제 SQLite 운영 지속성 진단 ---',
+                f"자동 운영 허용: {diag['enabled']} / 모델 별도 허용: {diag['model_policy_enabled']}",
+                f"최근 24시간 실제 기록된 성공/실패 주기: {diag['observed_success_ticks_last_24h']}/{diag['observed_failed_ticks_last_24h']}",
+                f"미완료 주기/모델 기록: {diag['unfinished_tick_records']}/{diag['unfinished_model_records']}",
+                f"다음 실행 지연 경고: {diag['tick_overdue']} / 비상정지: {diag['emergency_stop']}",
+                '실제 Windows 24시간 연속 실행 증명: 미검증(기록만으로 인증하지 않음)'])
+            self._text_dialog('사내 자율 운영 감사', '\n'.join(detail))
         except (ValueError,PermissionError) as exc:
             self._say('자율 운영 기록 조회 오류: '+str(exc))
 
@@ -1156,7 +1163,9 @@ class CompanyOffice:
         try:
             rows=leases.snapshot(self.store)
             if not rows:
-                self._say('총괄 AI 검토 잠금 기록이 없습니다.')
+                history=leases.recovery_history(self.store,limit=5)
+                self._say('총괄 AI 검토 잠금 기록이 없습니다. 최근 수동 해제 '
+                          +str(len(history))+'건(실제 프로세스 종료는 별도 확인).')
                 return
             details='\n'.join(
                 f"결과물 #{row['artifact_id']} / 업무 #{row['task_id']} / "
@@ -1175,7 +1184,7 @@ class CompanyOffice:
                 return
             leases.clear_after_owner_inspection(
                 self.store,selected,owner_confirmed=True)
-            self._say('관리자 확인에 따라 총괄 검토 잠금을 해제했습니다. 자동 재실행은 하지 않습니다.')
+            self._say('관리자 확인에 따라 총괄 검토 잠금을 해제하고 SQLite 감사에 기록했습니다. 자동 재실행은 하지 않습니다.')
         except (ValueError,PermissionError,RuntimeError) as exc:
             self._say('총괄 검토 잠금 확인 실패: '+str(exc))
 

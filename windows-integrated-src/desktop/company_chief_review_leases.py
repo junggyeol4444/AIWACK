@@ -16,6 +16,13 @@ def initialize(con) -> None:
         owner_token TEXT NOT NULL CHECK(length(owner_token)=32),
         started_epoch INTEGER NOT NULL,
         created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP)''')
+    con.execute('''CREATE TABLE IF NOT EXISTS aiwack_chief_review_recoveries(
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        artifact_id INTEGER NOT NULL,
+        lease_started_epoch INTEGER NOT NULL,
+        age_seconds INTEGER NOT NULL CHECK(age_seconds>=180),
+        owner_confirmed INTEGER NOT NULL CHECK(owner_confirmed=1),
+        recovered_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP)''')
 
 
 def reserve(store, artifact_id: int) -> str:
@@ -101,7 +108,32 @@ def clear_after_owner_inspection(store, artifact_id: int, *,
             WHERE artifact_id=?''',(artifact_id,)).fetchone()
         if row is None:
             raise ValueError('해제할 총괄 검토 잠금이 없습니다.')
-        if int(time.time())-int(row[0]) < 180:
+        age=int(time.time())-int(row[0])
+        if age < 180:
             raise ValueError('잠금 생성 후 3분이 지나지 않았습니다. 진행 중인 모델을 보호합니다.')
-        con.execute('DELETE FROM aiwack_chief_review_leases WHERE artifact_id=?',
-                    (artifact_id,))
+        deleted=con.execute('DELETE FROM aiwack_chief_review_leases WHERE artifact_id=?',
+                            (artifact_id,)).rowcount
+        if deleted != 1:
+            raise RuntimeError('잠금 상태가 변경됐습니다. 관리자 확인 후 다시 시도하세요.')
+        # Audit the override without storing tokens, model output or task text.
+        con.execute('''INSERT INTO aiwack_chief_review_recoveries(
+            artifact_id,lease_started_epoch,age_seconds,owner_confirmed)
+            VALUES(?,?,?,1)''', (artifact_id,int(row[0]),age))
+
+
+def recovery_history(store, limit: int = 30) -> list[dict]:
+    """Read-only owner audit for forced recovery, not model termination proof."""
+    store.require_permission('company:manage')
+    if type(limit) is not int or not 1<=limit<=100:
+        raise ValueError('총괄 검토 복구 감사 조회는 1~100건입니다.')
+    with store._connect() as con:
+        if not con.execute("SELECT 1 FROM sqlite_master WHERE type='table' "
+                           "AND name='aiwack_chief_review_recoveries'").fetchone():
+            return []
+        rows=con.execute('''SELECT id,artifact_id,age_seconds,recovered_at
+            FROM aiwack_chief_review_recoveries ORDER BY id DESC LIMIT ?''',
+            (limit,)).fetchall()
+    return [dict(id=int(rid),artifact_id=int(aid),age_seconds=int(age),
+                 recovered_at=at,owner_confirmed=True,
+                 subprocess_termination_verified=False)
+            for rid,aid,age,at in rows]
