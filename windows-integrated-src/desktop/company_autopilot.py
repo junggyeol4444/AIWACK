@@ -134,12 +134,17 @@ def configure_approved_models(store, enabled: bool) -> bool:
     return enabled
 
 
-def approved_models_enabled(store) -> bool:
-    initialize(store)
+def _policy_active_read_only(store) -> bool:
+    # No schema DDL in the 0.5-second cancellation watcher.
     with store._connect() as con:
         state=con.execute("""SELECT a.enabled,b.enabled FROM aiwack_autopilot_settings a
             CROSS JOIN aiwack_autopilot_model_policy b WHERE a.id=1 AND b.id=1""").fetchone()
         return bool(state and state[0] and state[1] and not stopped(con))
+
+
+def approved_models_enabled(store) -> bool:
+    initialize(store)
+    return _policy_active_read_only(store)
 
 
 def run_one_approved_model(store, task_ids: tuple[int, ...], *, cancel=None) -> dict:
@@ -156,6 +161,10 @@ def run_one_approved_model(store, task_ids: tuple[int, ...], *, cancel=None) -> 
     tid=task_ids[0]
     with store._connect() as con:
         con.execute('BEGIN IMMEDIATE')
+        state=con.execute("""SELECT m.enabled,p.enabled FROM aiwack_autopilot_settings m
+            CROSS JOIN aiwack_autopilot_model_policy p WHERE m.id=1 AND p.id=1""").fetchone()
+        if state is None or not state[0] or not state[1] or stopped(con):
+            raise PermissionError('실제 AI 작업 시작 전 소유자 자동 실행 허용이 해제됐습니다.')
         audit_id=int(con.execute("""INSERT INTO aiwack_autopilot_model_runs(task_id,state)
                                VALUES(?,'running')""",(tid,)).lastrowid)
     # Another EXE window may revoke the owner's separate model permission.
@@ -166,7 +175,7 @@ def run_one_approved_model(store, task_ids: tuple[int, ...], *, cancel=None) -> 
     def observe_policy():
         while not watcher_stop.wait(0.5):
             try:
-                allowed=approved_models_enabled(store)
+                allowed=_policy_active_read_only(store)
             except Exception:
                 allowed=False
             if not allowed:

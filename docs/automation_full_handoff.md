@@ -377,3 +377,8 @@
 - 한 EXE에서 실제 GGUF 직원 작업 중 다른 EXE 창의 소유자가 별도 AI 자동 실행 허용을 해제했을 때, 기존 GUI만 cancel을 전송해서 프로세스 사이 중지 신호 누락 위험이 있었음. 0.5초마다 SQLite 영속 승인 정책 및 비상정지 상태를 관찰하는 실행 시점 watcher를 추가. 소유자 정책이 해제되거나 연결 접근 실패 시 공통 cancel 이벤트에 신호 전달하여 기존 모델 subprocess 전체 중지 루틴 동작, 종료 후 watcher 정리.
 - 새 회귀는 두 개의 실제 로그인 SQLite 세션과 취소 이벤트를 감시하는 합성 직원 모델을 사용: 첫 EXE 업무 실행 중 두 번째 EXE에서 허용 해제 → 12초 이내 종료, 결과물 자동 저장/승인 없음, worker 감사 cancelled 및 모델 자동 실행 기록 failed 상태 확인. 기존 실 GGUF 자동 호출 성공과 혼동하지 않음.
 - 운영센터 자동운영 감사 창에 실제 자동 승인 업무 호출의 번호·상태·오류 종류도 함께 출력. 소유자 자동 활성화 없음.
+
+### 19절 Windows 실제 GGUF 자동 운영 장시간 실행 중 정책 관찰 부하·경합 개선
+
+- 0.5초 간격 실모델 취소 watcher가 기존 `approved_models_enabled`의 schema CREATE IF NOT EXISTS를 매번 실행하던 불필요한 SQLite 쓰기 잠금 위험을 개선. 테이블 초기화는 명시적 소유자 설정/실행 시작에서만, 장시간 추론 중에는 `_policy_active_read_only` SELECT와 비상정지 상태만 검사.
+- 다른 Windows 창의 모델 허용 해제와 호출 시작이 같은 순간 경쟁하더라도, 실행 감사 신규 INSERT 전 `BEGIN IMMEDIATE`에서 소유자 허용 상태/전체 자동 운영/비상정지 여부를 다시 확인해 시작을 차단. 모델 실행 중 철회 시 watcher가 공통 cancel event를 전달. 마지막 CI·Windows EXE 검증 PASS 전 완료라고 하지 않음.
