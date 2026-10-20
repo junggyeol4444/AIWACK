@@ -45,6 +45,7 @@ def snapshot(store) -> dict:
     by_step={}
     successful_staff=set()
     accepted_staff=set()
+    verified_staff_roles=set()
     accepted_chiefs=set()
     for plan_id,task_id,worker_id,run_id,run_status,artifact_id,review_status,report_id,decision,report_chief,model_status,order_chief in evidence:
         if run_status != 'success' or model_status != 'success' or order_chief is None:
@@ -57,6 +58,9 @@ def snapshot(store) -> dict:
                 and order_chief is not None
                 and int(report_chief)==dict(plans)[int(plan_id)]):
             accepted_staff.add(int(worker_id))
+            # 동일 AI가 다른 계획의 총괄도 맡았다는 이유로 이 계획의 직원 증거를 삭제하지 않는다.
+            if int(worker_id) != int(dict(plans)[int(plan_id)]):
+                verified_staff_roles.add(int(worker_id))
             by_step[key]['owner_accepted']=True
     per_plan=[]
     accepted_departments=set()
