@@ -937,6 +937,11 @@ class CompanyOffice:
             detail=[f"#{r['id']} {r['state']}: 제안 {r['proposal_created']}, "
                     f"일정 {r['schedule_created']}, 이벤트 {r['event_created']}, 오류 {r['error_kind'] or '-'}"
                     for r in rows]
+            models=company_autopilot.approved_model_history(self.store,limit=20)
+            if models:
+                detail.append('--- 기존 소유자 승인 GGUF 실제 실행 ---')
+                detail.extend(f"업무 #{m['task_id']} · {m['state']} · 오류 {m['error_kind'] or '-'}"
+                              for m in models)
             self._text_dialog('사내 자율 운영 감사',
                               '\n'.join(detail) if detail else '실행 기록이 없습니다.')
         except (ValueError,PermissionError) as exc:

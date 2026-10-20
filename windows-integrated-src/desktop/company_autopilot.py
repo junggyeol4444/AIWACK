@@ -6,6 +6,7 @@ generating the same proposals, scheduled tasks, or local event tasks.
 """
 from __future__ import annotations
 import time
+import threading
 from desktop.stage87_90_management import stopped
 
 
@@ -157,11 +158,29 @@ def run_one_approved_model(store, task_ids: tuple[int, ...], *, cancel=None) -> 
         con.execute('BEGIN IMMEDIATE')
         audit_id=int(con.execute("""INSERT INTO aiwack_autopilot_model_runs(task_id,state)
                                VALUES(?,'running')""",(tid,)).lastrowid)
+    # Another EXE window may revoke the owner's separate model permission.
+    # Poll persisted policy so the running GGUF subprocess also receives
+    # cancellation, not only future ticks.
+    signal=cancel if cancel is not None else threading.Event()
+    watcher_stop=threading.Event()
+    def observe_policy():
+        while not watcher_stop.wait(0.5):
+            try:
+                allowed=approved_models_enabled(store)
+            except Exception:
+                allowed=False
+            if not allowed:
+                signal.set()
+                break
+    watcher=threading.Thread(target=observe_policy,name='AIWACK-owner-model-policy',daemon=True)
+    watcher.start()
     try:
-        if cancel is not None and cancel.is_set():
+        if signal.is_set():
             raise InterruptedError('승인된 직원 자동 실행이 취소됐습니다.')
         result=ops.execute_approved_chief_queue(
-            store,limit=1,expected_task_ids=task_ids,cancel=cancel)
+            store,limit=1,expected_task_ids=task_ids,cancel=signal)
+        if signal.is_set() or not approved_models_enabled(store):
+            raise InterruptedError('소유자가 실제 AI 자동 실행 정책을 해제했습니다.')
         if result['completed_cycles']!=1 or result['auto_approved']:
             raise RuntimeError('승인 업무의 실제 직원·총괄 검토 기록이 불완전합니다.')
     except Exception as exc:
@@ -170,6 +189,9 @@ def run_one_approved_model(store, task_ids: tuple[int, ...], *, cancel=None) -> 
                 SET state='failed',error_kind=?,finished_at=CURRENT_TIMESTAMP
                 WHERE id=? AND state='running'""",(type(exc).__name__[:60],audit_id))
         raise
+    finally:
+        watcher_stop.set()
+        watcher.join(timeout=2)
     with store._connect() as con:
         con.execute("""UPDATE aiwack_autopilot_model_runs
             SET state='success',finished_at=CURRENT_TIMESTAMP

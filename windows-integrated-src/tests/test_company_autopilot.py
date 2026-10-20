@@ -156,3 +156,54 @@ def test_model_policy_emergency_stop_and_unapproved_selection(owners):
         assert auto.configure_approved_models(a,valid) is valid
     for wrong in (1,0,'1',None):
         with pytest.raises(ValueError):auto.configure_approved_models(a,wrong)
+
+
+def test_second_window_revocation_cancels_current_model_without_auto_approval(tmp_path,monkeypatch):
+    import sys
+    import time
+    import threading
+    from desktop.model_runtime import ModelConfig
+    from desktop import company_operations as ops
+    first=LocalStore(tmp_path/'revocation.sqlite3')
+    first.setup_owner('review_owner','review-owner-password-2026')
+    other=LocalStore(first.path)
+    other.login('review_owner','review-owner-password-2026')
+    ceo=first.add_employee_draft('chief_rev','Chief')
+    staff=first.add_employee_draft('staff_rev','Staff')
+    first.assign_reporting_line(ceo,'ceo')
+    mid=first.add_local_model(ModelConfig('SYNTH','llamafile',sys.executable,'',32))
+    first.set_employee_model(ceo,mid)
+    first.set_employee_model(staff,mid)
+    tid=ops.create_task(first,'Approved long worker')
+    ops.assign_task(first,tid)
+    ops.approve_chief_order(first,tid,'Owner permits task')
+    auto.configure(first,True,now=100)
+    auto.configure_approved_models(first,True)
+    started=threading.Event()
+    def blocked_worker(config,prompt,*,timeout,cancel):
+        started.set()
+        while not cancel.is_set():
+            time.sleep(0.02)
+        raise InterruptedError('Owner revoked permission')
+    monkeypatch.setattr('desktop.task_runtime.run_local_model',blocked_worker)
+    errors=[]
+    def work():
+        try:
+            auto.run_one_approved_model(first,(tid,))
+        except Exception as exc:
+            errors.append(exc)
+    worker=threading.Thread(target=work)
+    worker.start()
+    try:
+        assert started.wait(timeout=12)
+        auto.configure_approved_models(other,False)
+        worker.join(timeout=12)
+        assert not worker.is_alive()
+        assert len(errors)==1 and isinstance(errors[0],InterruptedError),errors
+        assert first.list_task_artifacts(tid)==[]
+        assert first.list_task_runs(tid)[0]['status']=='cancelled'
+        assert auto.approved_model_history(first)[0]['state']=='failed'
+    finally:
+        if worker.is_alive():
+            first.emergency_stop_local(True,'Force stop test')
+            worker.join(timeout=5)
