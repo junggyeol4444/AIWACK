@@ -81,3 +81,25 @@
 - 원래 대화에 계속 메시지가 이어붙는다는 **플랫폼 보장 없음**. 사용자 요청은 같은 대화 최우선, 길이 초과만 대화 이동 허용이라는 점을 명시적으로 보존한다. 불가능한 부분을 감추지 말 것.
 - 계속 작업하는 프로젝트는 AIWACK **딱 하나**이며, 이 작업을 위해 다른 프로젝트 예약, 외부 드라이브, 다른 GitHub 저장소를 건드리지 말 것.
 - **단순 자동화 프롬프트 자체는 소스/인수인계 보존을 대신하지 않는다.** 이 GitHub 문서와 main 커밋 이력을 기준으로 누적 업데이트하여 새 대화에서도 이전 소스와 작업 단계를 읽고 복구할 수 있도록 한다.
+
+## 7. 2026-10-20 실제 기존 프로그램 수정·테스트 누적 (이번 대화에서 검증한 사실)
+
+- 주의: 이 문서의 2026-10-19 이전 내역과 10월 20일 신규 작업은 구분한다. 이번 대화에서 실질 수정 성공 여부를 GitHub main에서 재조회함.
+- 작업 전 GitHub main HEAD는 `71f104e8821411508058c0ca92eaeff415c32e47` (인수인계 문서 생성 커밋)이었고, 2026-10-20 신규 실제 커밋이 이후 생성되었다. 아래는 **기존 main의 기존 파일을 수정한 내역**이다.
+- 코드 수정 3개 파일: `windows-integrated-src/desktop/model_runtime.py` (출력 20000자 초과/빈 응답 실패 처리 및 링크가 가리키는 UNC 공유 차단) → `147692e948aafd672a26ce9df0253ed380372794`; `windows-integrated-src/desktop/company_operations.py` (running 감사 DB 조건 조회; 총괄 복구 관리자가 확인한 ID 목록 비교) → `8dabac793019b76453425a14e6d00a59b5846410`; `windows-integrated-src/desktop/company_office_gui.py` (누락을 막는 표시 및 확인한 업무 ID 전달) → `de0ef31c10a6f406dd5a799058b429301fc9d01b`.
+- 기존 회귀테스트 2개 파일에 새 테스트 추가: `windows-integrated-src/tests/test_company_chief_review.py` → `f3101134597694a44f5ebb25790d9cdc4b534518`, `windows-integrated-src/tests/test_local_models.py` → `d3bc4d1dc0995c446334d9f353f98ec7d89b15bd`. 테스트에 synthetic/stub 사용됨을 실제 GGUF E2E와 혼동하지 않는다.
+- GitHub main 전용 자동 개발 범위 문서 `docs/AUTOMATION_PROMPT.md` 수정 → `916218d54028138abf7db764b4e1d29b1b0fcf5a`. `.github/workflows/hourly-development.yml`에서 `automation/*` 생성/푸시/PR 로직 제거, 보호된 현재 main HEAD 비교 후 같은 main에 비강제 push, native 코드와 인수인계만 변경하도록 제한 → `0572947fa5b15eea0f9ab9b65c1617b0384dd7a7`. 실제 pyproject 경로 기준으로 설치 오류 바로잡음 → `f0d33fed81043eb52e2dd5a749e2076f6acd824e`. 이는 GitHub Actions 워크플로 변경이며, ChatGPT 예약 상태를 수정한 것이 아니다.
+- `.github/workflows/ci.yml`에 기존 `windows-integrated-src` 회귀테스트 설치 및 실행 단계 추가 → `21f94fff5bfddaed78252864779ceb9f5ded2674`. **이전 성공한 일반 CI는 이 신규 native 회귀테스트 성공의 증거가 아니다.** 신규 변경된 CI 실행 결과를 확인해야 한다.
+- **검사 구분/실제 상태(이 문서 업데이트 시 조회)**:
+  - 기존 신규 소스 SHA `8dabac...` CI success: https://github.com/junggyeol4444/AIWACK/actions/runs/39346471157
+  - 신규 소스 SHA `de0ef...` CI success: https://github.com/junggyeol4444/AIWACK/actions/runs/39346479664
+  - 신규 소스 SHA `de0ef...` Windows 포장 EXE 회사 설정 저장·재시작 GUI success: https://github.com/junggyeol4444/AIWACK/actions/runs/39346479494
+  - 5개 소스/테스트 누적 SHA `d3bc4...` 신규 CI **queued**: https://github.com/junggyeol4444/AIWACK/actions/runs/39346604557
+  - SHA `d3bc4...` Windows 2022/2025 EXE 시작 GUI **queued**: https://github.com/junggyeol4444/AIWACK/actions/runs/39346604596
+  - SHA `d3bc4...` Windows 2022/2025 회사 저장·재로그인 **queued**: https://github.com/junggyeol4444/AIWACK/actions/runs/39346604543
+  - SHA `d3bc4...` Windows 2022/2025 실제 GGUF 승인 업무 2건 **queued**: https://github.com/junggyeol4444/AIWACK/actions/runs/39346604586
+  - `21f94...`에 신규 native 테스트 실행 단계가 추가됐으나 결과는 이 문서 업데이트 시 **미확인**; 반드시 최신 CI 재조회.
+- 한계: Windows Server 2022/2025 Actions 실행 결과만 검증된 것이고, 사용자의 Windows 11 물리 PC에서 검증된 것이 아니다. T01~T20 전체 최종 인수는 미완료. queued/in_progress를 PASS로 변경하지 않는다.
+- 본 대화에서 사용자 직접 지시로 **ChatGPT AIWACK 매시간 예약이 비활성화**된 상태. 사용자가 명령하지 않으면 예약 활성화/비활성화 등의 설정을 다시 변경하지 않는다. GitHub Actions의 자체 cron과 ChatGPT 예약은 별개다.
+- 외부 드라이브와 다른 프로젝트 예약/저장소는 사용하지 않음.
+- **다음 작업:** 이번 신규 main의 CI, Windows 2022/2025 실제 EXE GUI/SQLite/실제 GGUF 두 업무 승인/재시작 결과를 run SHA별로 재조회. 실패 시 코드를 고치고 main에 커밋. T01~T20 최종 검증 매트릭스를 각각 실제 검증/미검증으로 갱신. 사용자 Windows11 물리 PC 확인은 실제로 접속/실행할 수 없으므로 미검증 유지. 다음 인수인계는 본문을 삭제하지 않고 누적한다.
