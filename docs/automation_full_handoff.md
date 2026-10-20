@@ -367,3 +367,7 @@
 ### 19절 신규 자율운영/직원 성과 모듈 Windows EXE 누락 방지
 
 - Windows 2022·2025 EXE, 실제 GGUF E2E, packaged GUI 검증 및 사용자가 실행하는 원본 build_windows_exe.bat의 PyInstaller 설정을 함께 갱신하여 동적 로드하는 `company_autopilot`과 `company_staff_metrics`를 반드시 포함. 신규 사내 자율 운영 켜기/끄기/실제 승인 직원 호출, 실제 성과 기록 버튼의 EXE 실행 시 ModuleNotFoundError 방지. 새 SHA Windows 검사 종료 후 실제 확인 필요.
+
+### 19절 전체 CI 검증 후 허용 정책 입력 테스트 수정
+
+- 실모델 별도 허용 CI #39384659084는 138 기존 PASS, 176/177 네이티브 PASS. 한 건은 Python `True`가 **정상적인 활성 값**인데 회귀 테스트의 잘못된 입력 목록에 포함시켜 실패. 실제 GUI 허용/거부 기능 오류가 아니라 잘못된 테스트 케이스. 두 정상 bool 모두 수용, 정수 0/1, 문자열, None은 거부로 회귀 조건 바로잡음. 새 SHA 전체 CI+Windows EXE/GGUF 검증 결과 완료 전 최종 통과 주장 금지.

@@ -151,5 +151,8 @@ def test_model_policy_emergency_stop_and_unapproved_selection(owners):
     a.emergency_stop_local(False,'Resume')
     auto.configure_approved_models(b,False)
     assert not auto.approved_models_enabled(a)
-    for wrong in (True,'1',0):
+    # True/False are the two valid explicit user choices. Only non-booleans fail.
+    for valid in (True, False):
+        assert auto.configure_approved_models(a,valid) is valid
+    for wrong in (1,0,'1',None):
         with pytest.raises(ValueError):auto.configure_approved_models(a,wrong)
