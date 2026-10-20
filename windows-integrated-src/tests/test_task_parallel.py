@@ -17,7 +17,7 @@ def parallel(tmp_path):
     db = LocalStore(tmp_path / 'parallel.sqlite3')
     db.setup_owner('owner29', 'long-private-password-29')
     runner = tmp_path / 'local-runner'
-    runner.write_text('#!/usr/bin/env python3\nimport sys,time\ntime.sleep(0.5)\nprint("OFFLINE_PARALLEL " + " ".join(sys.argv[1:]))\n', encoding='utf-8')
+    runner.write_text('#!/usr/bin/env python3\nimport sys,time\nstart=time.monotonic()\ntime.sleep(1.0)\nfinish=time.monotonic()\nprint(f"OFFLINE_PARALLEL|{start:.9f}|{finish:.9f}")\n', encoding='utf-8')
     runner.chmod(0o700)
     if os.name == 'nt':
         runner = __import__('pathlib').Path(__import__('sys').executable)
@@ -193,12 +193,20 @@ def test_owner_access_and_independent_recovery(parallel):
 @pytest.mark.skipif(os.name == 'nt', reason='Linux executable fixture, Windows EXE not built')
 def test_real_two_local_subprocesses_overlap(parallel):
     db, tasks, _, _ = parallel
-    start = time.monotonic()
+    # Do not infer process overlap from an absolute wall-clock threshold.
+    # Authentication, SQLite and runner process startup vary under CI load.
+    # Instead compare the real work intervals reported by each child process.
     with ThreadPoolExecutor(max_workers=2) as pool:
         a = pool.submit(invoke_task_execution, db, tasks[0], timeout=5)
         b = pool.submit(invoke_task_execution, db, tasks[1], timeout=5)
-        assert 'OFFLINE_PARALLEL' in a.result(timeout=8)
-        assert 'OFFLINE_PARALLEL' in b.result(timeout=8)
-    duration = time.monotonic() - start
-    assert duration < 1.5, f'Unexpected serialized execution: {duration:.2f}s'
+        replies = (a.result(timeout=8), b.result(timeout=8))
+    intervals = []
+    for reply in replies:
+        name, started, finished = reply.strip().split('|')
+        assert name == 'OFFLINE_PARALLEL'
+        begin, end = float(started), float(finished)
+        assert end > begin and end - begin >= 0.9
+        intervals.append((begin, end))
+    assert max(a for a, _ in intervals) < min(b for _, b in intervals), (
+        'Actual local subprocess execution was serialized: %r' % intervals)
     assert all(db.list_task_runs(t)[0]['status'] == 'success' for t in tasks[:2])
