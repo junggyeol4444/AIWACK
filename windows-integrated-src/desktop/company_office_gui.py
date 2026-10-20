@@ -280,6 +280,7 @@ class CompanyOffice:
         campaign_controls.pack(fill='x', pady=(4, 0))
         self._action(campaign_controls, '31명 승인 연속 운영', self.run_campaign, compact=True)
         self._action(campaign_controls, '운영 기록 확인', self.campaign_report, compact=True)
+        self._action(campaign_controls, '직원 실제 업무 성과', self.staff_metrics_report, compact=True)
         self._label(main, '업무를 선택 → 담당 AI 배정 → 모델 실행.  모델이 없으면 실패 사유를 표시합니다.',
                     size=8, color=MUTED).pack(anchor='w', pady=(7, 0))
 
@@ -595,6 +596,14 @@ class CompanyOffice:
 
     def run_batch(self):
         self._start(lambda: ops.execute_batch(self.store, max_tasks=3, cancel=self.cancel))
+
+    def staff_metrics_report(self):
+        from desktop import company_staff_metrics
+        try:
+            self._text_dialog('사내 AI 직원 실제 실행·검수 기록',
+                              company_staff_metrics.text_report(self.store))
+        except (ValueError,PermissionError,RuntimeError) as exc:
+            self._say('실제 직원 기록 분석 실패: '+str(exc))
 
     def campaign_report(self):
         from desktop import company_campaign as campaigns

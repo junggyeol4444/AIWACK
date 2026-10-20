@@ -54,7 +54,7 @@ with tempfile.TemporaryDirectory() as directory:
                     return found
             return None
         for view,labels in [
-            ('work',['비상 정지','31명 승인 연속 운영','운영 기록 확인']),
+            ('work',['비상 정지','31명 승인 연속 운영','운영 기록 확인','직원 실제 업무 성과']),
             ('planning',['사내 자율 운영 켜기','사내 자율 운영 끄기','자율 운영 실행 감사']),
             ('results',['승인','수정 요청','반려','결과물 품질 검사','승인 결과 파일 저장',
                         '승인 결과 회사 지식 등록','회사 공유 지식 등록 기록']),
