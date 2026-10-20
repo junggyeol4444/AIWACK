@@ -99,3 +99,28 @@ def test_campaign_worker_failure_never_auto_retries_or_runs_chief(team,monkeypat
     assert status['state']=='paused' and status['needs_review']>=1
     assert events.count('chief')==0
     with pytest.raises(ValueError):camp.execute_campaign(store,cid)
+
+
+def test_manually_recovered_chief_report_reconciles_without_replaying_worker(team,monkeypatch):
+    store,ids,employees,events=team
+    cid=camp.create_campaign(store,expected_task_ids=ids)
+    # First worker returned and saved a real audited result, but EXE died
+    # after that checkpoint. The owner later recovered the chief report.
+    result=ops.execute_task(store,ids[0])
+    artifact_id=result['artifact_id']
+    with store._connect() as con:
+        con.execute("UPDATE aiwack_work_campaigns SET state='paused' WHERE id=?",(cid,))
+        con.execute("""UPDATE aiwack_work_campaign_items SET state='needs_review'
+            WHERE campaign_id=? AND task_id=?""",(cid,ids[0]))
+    initial=camp.reconcile_manually_recovered_chief_reviews(store,cid)
+    assert initial['needs_review']==1 and initial['models_reexecuted'] is False
+    assert events.count('worker')==1 and events.count('chief')==0
+    ops.collect_chief_review(store,artifact_id)
+    reconciled=camp.reconcile_manually_recovered_chief_reviews(store,cid)
+    assert reconciled['reconciled_existing_chief_reports']==[ids[0]]
+    assert reconciled['review_pending']==1 and reconciled['needs_review']==0
+    assert events.count('worker')==events.count('chief')==1
+    resumed=camp.execute_campaign(store,cid)
+    assert resumed['state']=='review_pending' and resumed['review_pending']==3
+    assert events.count('worker')==3 and events.count('chief')==3
+    assert len(store.list_task_runs(ids[0]))==1

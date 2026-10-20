@@ -587,6 +587,13 @@ class CompanyOffice:
                             '임의 재실행 없이 중단 기록만 확인하시겠습니까?',parent=self.root):
                         return
                     item=campaigns.inspect_interrupted_campaign(self.store,item['id'])
+                if item['state']=='paused' and item['needs_review']:
+                    if messagebox.askyesno('저장된 총괄 보고서 연결 확인',
+                            '기존 SQLite에 이미 저장된 총괄 보고서만 운영 기록에 연결합니다. '
+                            '직원/총괄 모델 재실행은 하지 않습니다. 확인하시겠습니까?',
+                            parent=self.root):
+                        item=campaigns.reconcile_manually_recovered_chief_reviews(
+                            self.store,item['id'])
                 if item['needs_review'] or item['running']:
                     self._say(f"운영 작업 #{item['id']}에 중단·실행 중 기록이 있습니다. "
                               '운영 기록을 확인하고 기존 결과를 먼저 검토하세요. 자동 재실행하지 않습니다.')

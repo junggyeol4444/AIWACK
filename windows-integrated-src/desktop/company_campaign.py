@@ -158,6 +158,42 @@ def inspect_interrupted_campaign(store, campaign_id: int) -> dict:
     return campaign_status(store,campaign_id)
 
 
+def reconcile_manually_recovered_chief_reviews(store, campaign_id: int) -> dict:
+    """Reconcile ONLY already persisted chief reports; never rerun a model.
+
+    An interrupted item without a chief report stays in needs_review. The
+    existing owner-controlled recovery screen can separately review it.
+    """
+    state=campaign_status(store,campaign_id)
+    if state['state']!='paused':
+        raise ValueError('중단되어 관리자가 확인한 운영 작업만 다시 대조할 수 있습니다.')
+    matched=[]
+    for item in state['items']:
+        if item['state']!='needs_review':
+            continue
+        artifacts=store.list_task_artifacts(item['task_id'])
+        if len(artifacts)!=1:
+            continue
+        artifact_id=int(artifacts[0]['id'])
+        report=store.find_chief_task_report(artifact_id)
+        if not report or int(report['artifact_id'])!=artifact_id:
+            continue
+        if store.read_task(item['task_id'])['status']!='in_progress':
+            continue
+        with store._connect() as con:
+            con.execute('BEGIN IMMEDIATE')
+            changed=con.execute("""UPDATE aiwack_work_campaign_items
+                SET state='review_pending',artifact_id=?,
+                    note='관리자가 기존 총괄 검토와 연결함; 재실행 없음'
+                WHERE campaign_id=? AND task_id=? AND state='needs_review'""",
+                (artifact_id,campaign_id,item['task_id'])).rowcount
+            if changed==1:matched.append(item['task_id'])
+    result=campaign_status(store,campaign_id)
+    result['reconciled_existing_chief_reports']=matched
+    result['models_reexecuted']=False
+    return result
+
+
 def _set_item(store, cid, tid, state, *, artifact_id=None, note=''):
     with store._connect() as con:
         con.execute('BEGIN IMMEDIATE')
