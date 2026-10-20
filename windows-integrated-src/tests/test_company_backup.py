@@ -100,3 +100,29 @@ def test_snapshot_during_active_owner_writes_has_consistent_foreign_keys(company
         assert con.execute('SELECT description FROM company_profile WHERE id=1').fetchone()[0].startswith(
             'concurrent-writer-') or con.execute('SELECT description FROM company_profile WHERE id=1').fetchone()[0]=='Preserved state'
     assert original['name']=='AIWACK test company'
+
+
+def test_recovered_candidate_opens_in_actual_local_store_after_original_changes(company):
+    s,folder=company
+    snapshot=bk.create_snapshot(s,root=folder)
+    s.save_company('Owner changed original','different description','new mission')
+    copy=bk.restore_into_new_copy(s,Path(snapshot['path']),root=folder)
+    restored=LocalStore(Path(copy['restored_copy']))
+    restored.login('backup_owner','backup-owner-test-password-2026')
+    assert restored.read_company()['name']=='AIWACK test company'
+    assert s.read_company()['name']=='Owner changed original'
+    assert restored.path!=s.path
+
+
+def test_modified_backup_manifest_never_creates_recovery_candidate(company):
+    import json
+    s,folder=company
+    snapshot=bk.create_snapshot(s,root=folder)
+    metadata=Path(snapshot['manifest'])
+    info=json.loads(metadata.read_text(encoding='utf-8'))
+    info['sha256']='0'*64
+    metadata.write_text(json.dumps(info),encoding='utf-8')
+    with pytest.raises(RuntimeError,match='SHA256'):
+        bk.restore_into_new_copy(s,Path(snapshot['path']),root=folder)
+    assert list((folder/'verified_backups').glob('aiwack_restore_candidate_*.sqlite3'))==[]
+    assert s.read_company()['name']=='AIWACK test company'

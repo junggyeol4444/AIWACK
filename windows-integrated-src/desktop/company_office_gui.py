@@ -196,6 +196,8 @@ class CompanyOffice:
         self.jobs.bind('<Double-1>', lambda _event: self.set_view('work'))
         self._label(right, '업무 실행은 사람의 명시적 시작 명령 후 진행됩니다.',
                     size=8, color=MUTED).pack(anchor='w', pady=(7, 0))
+        self._action(right, '검증된 회사 백업의 별도 복구 사본 만들기',
+                     self.prepare_company_restore, compact=True)
 
     def _draw_organization(self, frame):
         card = self._card(frame)
@@ -349,6 +351,29 @@ class CompanyOffice:
             self._say('회사 DB 안전 백업 완료: '+info['path'])
         except (ValueError,PermissionError,RuntimeError,OSError) as exc:
             self._say('회사 백업 실패: '+str(exc))
+
+    def prepare_company_restore(self):
+        """Owner-triggered verified recovery COPY; never replace live database."""
+        from desktop import company_backup
+        from desktop.storage import user_data_dir
+        try:
+            folder=user_data_dir()/'verified_backups'
+            backups=sorted(folder.glob('aiwack_backup_*.sqlite3'),
+                           key=lambda p:p.stat().st_mtime,reverse=True) if folder.is_dir() else []
+            if not backups:
+                self._say('복구 사본을 만들 검증 가능한 회사 백업이 없습니다.')
+                return
+            snapshot=backups[0]
+            company_backup.verify_snapshot(self.store,snapshot)
+            if not messagebox.askyesno('검증된 회사 DB 분리 복구',
+                    '최신 백업의 SHA256과 SQLite 무결성을 확인했습니다.\n'
+                    '지금 사용 중인 회사 DB는 변경하지 않고 독립적인 복구 후보 파일만 만듭니다. '
+                    '진행하시겠습니까?',parent=self.root):
+                return
+            result=company_backup.restore_into_new_copy(self.store,snapshot)
+            self._say('회사 DB 원본 변경 없이 복구 사본 생성 완료: '+result['restored_copy'])
+        except (ValueError,PermissionError,RuntimeError,OSError) as exc:
+            self._say('회사 백업 사본 준비 실패: '+str(exc))
 
     def verify_company_backup(self):
         from desktop import company_backup
