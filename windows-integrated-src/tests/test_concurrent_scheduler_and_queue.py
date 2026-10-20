@@ -81,3 +81,38 @@ def test_bool_now_and_limit_not_accepted(tmp_path):
         for kwargs in ({'now': True}, {'now': 10, 'limit': True}):
             with pytest.raises(ValueError):
                 dispatch(con, **kwargs)
+
+
+def test_simulated_24h_recurrence_creates_288_unique_unassigned_tasks(tmp_path):
+    a, b = two_owners(tmp_path)
+    sid = a.add_recurring_schedule('Five-minute local draft', interval_minutes=5)
+    a.set_recurring_schedule_enabled(sid, True)
+    due = a.list_recurring_schedules()[0]['next_due']
+    created = []
+    for tick in range(288):
+        now = due + tick * 300
+        left, right = (a, b) if tick % 2 == 0 else (b, a)
+        current = left.run_due_recurring_schedules(now=now)
+        assert len(current) == 1
+        assert right.run_due_recurring_schedules(now=now) == []
+        created.extend(current)
+    assert len(created) == len(set(created)) == 288
+    assert len(a.list_recurring_occurrences()) == 288
+    assert a.list_task_runs() == []
+    assert all(a.read_task(tid)['status'] == 'todo' for tid in created)
+
+
+def test_emergency_stop_blocks_schedule_and_manual_claim_until_owner_resumes(tmp_path):
+    a, b = two_owners(tmp_path)
+    sid = a.add_recurring_schedule('Owner-controlled tick', interval_minutes=5)
+    a.set_recurring_schedule_enabled(sid, True)
+    due = a.list_recurring_schedules()[0]['next_due']
+    task = a.add_task('Manual queued task')
+    qid = a.enqueue_task(task)
+    a.emergency_stop_local(True, 'Owner suspended all operations')
+    assert a.run_due_recurring_schedules(now=due) == []
+    assert b.claim_queued_task(now=due) is None
+    assert a.list_recurring_occurrences() == []
+    a.emergency_stop_local(False, 'Owner resumed local work')
+    assert len(b.run_due_recurring_schedules(now=due)) == 1
+    assert a.claim_queued_task(now=due) == {'id': qid, 'task_id': task}
