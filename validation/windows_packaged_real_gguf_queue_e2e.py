@@ -426,7 +426,7 @@ def perform(exe, model_cli, gguf):
         # a wrong row is detected by the persisted per-artifact assertions below.
         click(w, 555, 270)
         click(w, 165, 483)
-        click(w, 421, 636)
+        click(w, 385, 572)
         # Queue UI originally opened the LAST pending report automatically.
         # After an abnormal exit, the owner must explicitly reopen it.
         last_artifact_id=read("SELECT id FROM company_task_artifacts WHERE task_id=?",(second_id,))
@@ -459,9 +459,9 @@ def perform(exe, model_cli, gguf):
                  "in_progress", (task_id,))
         evidence("owner-approved-artifact-still-in-progress")
         click(w, 165, 483)
-        # Actual Windows screenshot: final owner-finish blue button occupies
-        # screen y=625..657; win title top=9. Click inside, not on border.
-        click(w, 130, 636)
+        # Failed Windows screenshot shows finalize button at y=565..598,
+        # not at former y=625..657. Click the actual existing native GUI.
+        click(w, 130, 572)
         evidence("owner-finalize-task-button-physically-clicked")
         confirm()
         evidence("owner-finalize-task-confirmed")
@@ -479,7 +479,7 @@ def perform(exe, model_cli, gguf):
         wait_sql("SELECT review_status FROM company_task_artifacts WHERE id=?",
                  "pending", (first_artifact_id,))
         click(w, 165, 513)
-        click(w, 421, 636)
+        click(w, 385, 572)
         first_report = find_dialog("총괄 AI 회수 보고서", timeout=30)
         evidence("first-task-chief-report-opened-through-exe")
         click(first_report, 115, 491)
@@ -500,7 +500,7 @@ def perform(exe, model_cli, gguf):
                  "in_progress", (first_task_id,))
         evidence("first-task-artifact-approved-not-autofinished")
         click(w, 165, 513)
-        click(w, 130, 636)
+        click(w, 130, 572)
         confirm()
         wait_sql("SELECT status FROM company_tasks WHERE id=?", "done", (first_task_id,))
         evidence("first-task-separate-owner-finalize-to-done")
