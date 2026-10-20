@@ -285,6 +285,10 @@ class CompanyOffice:
         self._action(campaign_controls, '31명 승인 연속 운영', self.run_campaign, compact=True)
         self._action(campaign_controls, '운영 기록 확인', self.campaign_report, compact=True)
         self._action(campaign_controls, '직원 실제 업무 성과', self.staff_metrics_report, compact=True)
+        self._action(campaign_controls, '부서 협업 AI 초안', self.propose_department_plan, compact=True)
+        self._action(campaign_controls, '부서 협업 승인', self.approve_department_plan, compact=True)
+        self._action(campaign_controls, '협업 현황', self.show_department_plans, compact=True)
+        self._action(campaign_controls, '협업 초안 기각', self.reject_department_plan, compact=True)
         self._label(main, '업무를 선택 → 담당 AI 배정 → 모델 실행.  모델이 없으면 실패 사유를 표시합니다.',
                     size=8, color=MUTED).pack(anchor='w', pady=(7, 0))
 
@@ -579,6 +583,11 @@ class CompanyOffice:
                 self.set_view('results')
                 self._say('총괄 AI 회수 보고서 저장됨 · 관리자 수락/반려 전에는 업무 상태 변경 없음')
                 self.open_chief_report(int(result['artifact_id']))
+            elif self.after_action == 'department_draft':
+                from desktop.company_department_collaboration import report_text
+                self.set_view('work')
+                self._text_dialog('실제 총괄 AI 부서 협업 미승인 초안',report_text(result))
+                self._say('실제 총괄 AI 부서별 초안 저장됨 · 소유자 승인 전 업무 생성 없음')
             elif self.after_action == 'chief_order':
                 self.review_chief_order(result)
                 self._say('총괄 AI 초안 수신 · 소유자가 지시를 승인해야만 직원이 수행할 수 있습니다.')
@@ -602,6 +611,79 @@ class CompanyOffice:
 
     def run_batch(self):
         self._start(lambda: ops.execute_batch(self.store, max_tasks=3, cancel=self.cancel))
+
+    def propose_department_plan(self):
+        from desktop import company_department_collaboration as chain
+        if self.worker and self.worker.is_alive():
+            self._say('다른 AI 실행 중에는 협업 초안을 생성하지 않습니다.')
+            return
+        try:
+            task_id=self.selected_task()
+            if not messagebox.askyesno('실제 총괄 AI 부서 협업 초안',
+                    f'선택 업무 #{task_id}에 대해 총괄 로컬 AI 모델을 실제 호출하여 '
+                    '2~5개 부서 협업 지시를 제안받습니다. 미승인 초안만 저장하며 '
+                    '직원 실행·게시·거래는 시작하지 않습니다. 계속할까요?',
+                    parent=self.root):
+                return
+            self._start(lambda:chain.propose(self.store,task_id,cancel=self.cancel),
+                        after='department_draft')
+        except (ValueError,PermissionError) as exc:
+            self._say('부서 협업 초안 시작 실패: '+str(exc))
+
+    def _selected_department_draft(self):
+        from desktop import company_department_collaboration as chain
+        task_id=self.selected_task()
+        drafts=[x for x in chain.list_plans(self.store,limit=100)
+                if x['source_task_id']==task_id and x['state']=='draft']
+        if not drafts:
+            raise ValueError('선택 업무에 미승인 부서 협업 초안이 없습니다.')
+        return drafts[0]
+
+    def approve_department_plan(self):
+        from desktop import company_department_collaboration as chain
+        try:
+            plan=self._selected_department_draft()
+            if not messagebox.askyesno('부서 협업 전체 계획 승인',
+                    chain.report_text(plan)[:3500]+
+                    '\n\n모든 단계에 실제 로컬 모델 연결 직원을 배정하고 '
+                    '총괄 AI 지시를 승인합니다. 앞 단계 결과를 소유자가 승인·완료해야 '
+                    '다음 직원이 실행 가능합니다. 외부 거래·결제·게시·자동 결과 승인 '
+                    '없이 전체 협업 계획을 승인할까요?',
+                    parent=self.root):
+                return
+            approved=chain.approve(self.store,plan['id'])
+            self.refresh()
+            self._text_dialog('승인된 실제 부서 협업 계획',chain.report_text(approved))
+            self._say(f"협업 계획 #{approved['id']} 승인 · "
+                      f"{len(approved['steps'])}개 업무/실제 직원/총괄 지시 연결")
+        except (ValueError,PermissionError,RuntimeError) as exc:
+            self._say('부서 협업 계획 승인 실패: '+str(exc))
+
+    def reject_department_plan(self):
+        from desktop import company_department_collaboration as chain
+        try:
+            plan=self._selected_department_draft()
+            if not messagebox.askyesno('미승인 부서 협업 초안 기각',
+                    f"선택 업무 #{plan['source_task_id']}의 협업 계획 #{plan['id']}을 "
+                    '기각합니다. 실행·업무 생성은 하지 않습니다. 기각할까요?',
+                    parent=self.root):
+                return
+            chain.reject(self.store,plan['id'])
+            self._say(f"부서 협업 초안 #{plan['id']} 기각 · 실행 업무 생성 없음")
+        except (ValueError,PermissionError) as exc:
+            self._say('부서 협업 초안 기각 실패: '+str(exc))
+
+    def show_department_plans(self):
+        from desktop import company_department_collaboration as chain
+        try:
+            plans=chain.list_plans(self.store,limit=30)
+            if not plans:
+                self._say('저장된 부서 협업 초안과 승인 계획이 없습니다.')
+                return
+            self._text_dialog('실제 부서 협업·직원 배정·업무 현황',
+                              '\n\n'.join(chain.report_text(p) for p in plans)[:15000])
+        except (ValueError,PermissionError,RuntimeError) as exc:
+            self._say('부서 협업 현황 조회 실패: '+str(exc))
 
     def staff_metrics_report(self):
         from desktop import company_staff_metrics
