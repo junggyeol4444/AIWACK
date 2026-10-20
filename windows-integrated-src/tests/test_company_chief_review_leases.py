@@ -208,7 +208,7 @@ def test_emergency_stop_blocks_lease_in_atomic_reservation(tmp_path,monkeypatch)
     with pytest.raises(PermissionError,match='비상 정지'):
         leases.reserve(store,artifact['artifact_id'])
     assert leases.snapshot(store)==[]
-+
+
 def test_owner_manual_lease_reset_persists_audit_after_relogin(tmp_path,monkeypatch):
     """Forced unlock must leave durable evidence without exposing owner tokens."""
     store,plan,artifact,chief,worker=office(tmp_path,monkeypatch)
