@@ -59,3 +59,17 @@ def test_unconfigured_department_does_not_create_partial_tasks(tmp_path,monkeypa
         chain.approve(db,plan['id'])
     assert len(db.list_tasks())==1
     assert chain.read_plan(db,plan['id'])['state']=='draft'
+
+
+def test_changed_source_and_emergency_stop_block_owner_approval(tmp_path,monkeypatch):
+    db,task,staff2=_office(tmp_path,monkeypatch)
+    plan=chain.propose(db,task)
+    db.update_task(task,'변경된 기준 업무','다른 목표')
+    with pytest.raises(ValueError):
+        chain.approve(db,plan['id'])
+    assert len(db.list_tasks())==1
+    db.emergency_stop_local(True,'Owner stopped company')
+    with pytest.raises(PermissionError):
+        chain.approve(db,plan['id'])
+    with pytest.raises(PermissionError):
+        chain.propose(db,task)
