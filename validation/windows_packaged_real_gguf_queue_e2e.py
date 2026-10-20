@@ -342,7 +342,8 @@ def perform(exe, model_cli, gguf):
         # physically-clicked Windows dialogs. Neither has executed yet.
         for current_id,row_y in ((second_id,513),(task_id,483)):
             click(w, 170, row_y)
-            click(w, 125, 653)
+            # Windows 2025 screenshot evidence: chief-order button y=610..641.
+            click(w, 125, 626)
             prompt=find_dialog("총괄 AI → 직원 업무 지휘",timeout=20)
             pyautogui.write(OBJECTIVE, .01)
             pyautogui.press("enter")
@@ -361,7 +362,8 @@ def perform(exe, model_cli, gguf):
         # with no additional clicks by the acceptance driver.
         # Windows screenshot: approved queue blue button occupies x=289..447.
         # x=462 would click '결과' instead of starting the approved task queue.
-        click(w, 367, 653)
+        # Windows 2025 screenshot evidence: approved queue y=610..641.
+        click(w, 367, 626)
         evidence("owner-clicked-approved-two-task-queue")
         confirm()
         for current_id in (task_id,second_id):
