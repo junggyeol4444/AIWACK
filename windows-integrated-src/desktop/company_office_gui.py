@@ -246,6 +246,7 @@ class CompanyOffice:
         self._label(head, '업무 지휘실  /  TASK BOARD', size=12, bold=True).pack(side='left')
         self._action(head, '담당 AI 자동 배정', self.assign, compact=True)
         self._action(head, '선택 업무 실행', self.run_selected, strong=True, compact=True)
+        self._action(head, '승인 AI 2명 병렬', self.run_approved_parallel, compact=True)
         self.work_jobs = self._table(main, [('job', '업무', 290), ('owner', '담당 AI', 150),
                                             ('state', '진행', 95)], height=4)
         self.work_jobs.bind('<<TreeviewSelect>>', self._sync_work_selection)
@@ -477,6 +478,11 @@ class CompanyOffice:
                 self._say(f'승인 업무 {n}건 직원 실행·총괄 회수 완료 · 모두 소유자 검수 대기')
                 if result['reports']:
                     self.open_chief_report(int(result['reports'][-1]['artifact_id']))
+            elif self.after_action == 'chief_parallel':
+                self.set_view('results')
+                self._say('실제 직원 AI 2명 병렬 업무·총괄 AI 검토 완료 · 모두 관리자 승인 대기')
+                if result['reports']:
+                    self.open_chief_report(int(result['reports'][-1]['artifact_id']))
             elif self.after_action == 'chief_recovery_queue':
                 self.set_view('results')
                 count=int(result['recovered_reviews'])
@@ -510,6 +516,36 @@ class CompanyOffice:
 
     def run_batch(self):
         self._start(lambda: ops.execute_batch(self.store, max_tasks=3, cancel=self.cancel))
+
+    def run_approved_parallel(self):
+        """Physical owner confirmation and exact pinned two-task preview."""
+        if self.worker and self.worker.is_alive():
+            self._say('이미 실행 중인 AI 작업이 있어 병렬 실행을 시작하지 않습니다.')
+            return
+        try:
+            preview = ops.list_approved_parallel_candidates(self.store)
+            if len(preview) != 2:
+                self._say('서로 다른 직원 AI와 승인 지시·모델이 연결된 업무 2건이 필요합니다.')
+                return
+            ids = tuple(int(x['task_id']) for x in preview)
+            employees = tuple(int(x['employee_id']) for x in preview)
+            details = '\n'.join(f"#{x['task_id']} · 담당 AI #{x['employee_id']} · {str(x['title'])[:45]}"
+                                for x in preview)
+            if not messagebox.askyesno(
+                    '승인 직원 AI 병렬 실행',
+                    '다음 두 승인 업무를 각기 다른 AI 직원이 동시에 실행합니다.\n'
+                    + details + '\n'
+                    '직원 결과는 저장되고 총괄 AI가 순서대로 검토하지만 '
+                    '결과물 승인·업무 완료는 관리자가 직접 합니다.\n'
+                    '하나라도 실패하면 다른 직원 실행도 취소 요청합니다. 시작할까요?',
+                    parent=self.root):
+                return
+            self._start(lambda: ops.execute_approved_parallel_cycle(
+                self.store, expected_task_ids=ids, expected_employee_ids=employees,
+                cancel=self.cancel),
+                after='chief_parallel')
+        except (ValueError, PermissionError) as exc:
+            self._say('병렬 직원 실행 준비 실패: ' + str(exc))
 
     def run_approved_queue(self):
         """Show exact owner-confirmed IDs before bounded subprocess execution."""

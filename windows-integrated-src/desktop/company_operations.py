@@ -259,6 +259,97 @@ def execute_approved_chief_queue(store, *, limit: int = 3,
             'auto_approved':False,'tasks_finalized':False}
 
 
+def list_approved_parallel_candidates(store) -> list[dict]:
+    """Owner-visible read-only preview of two independent, approved AI staff tasks.
+
+    The two workers must be distinct. Model connectivity and approved orders
+    are required. The task reservation transaction checks dependencies again.
+    """
+    store.require_permission('company:manage')
+    candidates = []
+    chosen_staff = set()
+    for task in sorted(store.list_tasks(), key=lambda row: int(row['id'])):
+        task_id = int(task['id'])
+        if task['status'] != 'todo' or store.read_chief_task_order(task_id) is None:
+            continue
+        if store.list_task_runs(task_id) or store.list_task_artifacts(task_id):
+            continue
+        route = store.read_task_routing(task_id)
+        staff = route['employee_id']
+        if not staff or int(staff) in chosen_staff or store.read_employee_model(int(staff)) is None:
+            continue
+        candidates.append({'task_id': task_id, 'title': task['title'], 'employee_id': int(staff)})
+        chosen_staff.add(int(staff))
+        if len(candidates) == 2:
+            break
+    return candidates
+
+
+def execute_approved_parallel_cycle(store, *, expected_task_ids: tuple[int, int],
+                                    expected_employee_ids: tuple[int, int],
+                                    cancel: threading.Event | None = None) -> dict:
+    """Run TWO owner-confirmed, different employees concurrently, then chief reviews.
+
+    A failure/cancellation stops the remaining model promptly and keeps all
+    individual SQL audit trails. Partial worker artifacts remain pending for
+    owner inspection, never automatically approved or repeated. No external
+    tool execution, billing or automatic completion occurs here.
+    """
+    from concurrent.futures import ThreadPoolExecutor, as_completed
+    assert_running_allowed(store)
+    if (type(expected_task_ids) is not tuple or len(expected_task_ids) != 2
+            or any(type(tid) is not int or tid <= 0 for tid in expected_task_ids)
+            or len(set(expected_task_ids)) != 2):
+        raise ValueError('소유자가 확인한 서로 다른 승인 업무 번호 2개가 필요합니다.')
+    if (type(expected_employee_ids) is not tuple or len(expected_employee_ids) != 2
+            or any(type(employee_id) is not int or employee_id <= 0
+                   for employee_id in expected_employee_ids)
+            or len(set(expected_employee_ids)) != 2):
+        raise ValueError('소유자가 확인한 서로 다른 담당 직원 AI 번호 2개가 필요합니다.')
+    if cancel is not None and cancel.is_set():
+        raise InterruptedError('직원 병렬 업무 실행 전에 관리자가 취소했습니다.')
+    preview = list_approved_parallel_candidates(store)
+    if (tuple(row['task_id'] for row in preview) != expected_task_ids
+            or tuple(row['employee_id'] for row in preview) != expected_employee_ids):
+        raise ValueError('병렬 업무 대상 또는 담당 직원이 변경됐습니다. 다시 확인하세요.')
+    # Shared stop signal is passed to both real local subprocess runners.
+    # The caller's event remains the single cancellation point for its GUI.
+    shared_cancel = cancel if cancel is not None else threading.Event()
+    workers: dict[int, dict] = {}
+    errors: dict[int, Exception] = {}
+    with ThreadPoolExecutor(max_workers=2, thread_name_prefix='AIWACK-approved-staff') as pool:
+        tasks = {pool.submit(execute_task, store, tid, cancel=shared_cancel): tid
+                 for tid in expected_task_ids}
+        for future in as_completed(tasks):
+            tid = tasks[future]
+            try:
+                workers[tid] = future.result()
+            except Exception as exc:
+                errors[tid] = exc
+                shared_cancel.set()
+    if errors:
+        first = next((errors[t] for t in expected_task_ids if t in errors))
+        # Preserve the exact original error type and all saved run audits.
+        raise type(first)('병렬 업무 일부가 실패하여 후속 총괄 AI를 실행하지 않았습니다. '
+                          f'실패 업무: {sorted(errors)} · {str(first)[:250]}')
+    if shared_cancel.is_set():
+        raise InterruptedError('병렬 실행 종료 후 관리자가 취소하여 총괄 검토를 시작하지 않습니다.')
+    # Both staff results were durably saved. Chief calls are intentionally
+    # serialized because the same chief model cannot serve two at once.
+    reports = []
+    for task_id in expected_task_ids:
+        assert_running_allowed(store)
+        if shared_cancel.is_set():
+            raise InterruptedError('총괄 검토 중 취소되었습니다. 저장된 직원 결과는 보존됩니다.')
+        reports.append(collect_chief_review(store, int(workers[task_id]['artifact_id']),
+                                            cancel=shared_cancel))
+    return {'task_ids': list(expected_task_ids),
+            'staff_execution_parallel': True, 'staff_executions': 2,
+            'chief_reviews': 2, 'reports': reports,
+            'pending_owner_review': 2, 'auto_approved': False,
+            'tasks_finalized': False}
+
+
 def execute_batch(store, *, max_tasks: int=3, timeout: int=60,
                   cancel: threading.Event | None=None) -> list[dict]:
     """Explicitly triggered, bounded owner work session; not 24/7 autonomy."""

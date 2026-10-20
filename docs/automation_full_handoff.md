@@ -203,3 +203,14 @@
 - `165b6255...` [Windows 2022/2025 EXE·GUI·SQLite #39360520276](https://github.com/junggyeol4444/AIWACK/actions/runs/39360520276)는 마지막 조회 시 **in_progress**, 결과 확정 전 PASS 표기 금지.
 - 과거 정상으로 검증된 `ffa8931b...` Windows 2022/2025 실제 EXE·GUI 및 GGUF [#39357846294](https://github.com/junggyeol4444/AIWACK/actions/runs/39357846294) 성공은 이번 변경의 증거가 아니므로 커밋 구분.
 - 이 배치의 안전 변경 목적은 비상정지/취소 시 기존 실행·모델 호출 감사와 저장 결과를 일치시켜 정상 완료 오판을 없애는 것. 사용자 직접 물리 Windows 10/11 환경, T01~T20 전체 인수, 장기 자율 운영/다중 AI 실질 협업/외부 도구 및 실제 사업 거래는 미검증.
+
+## 13. Windows 네이티브 2직원 동시 업무 실행과 총괄 검토 (다중 기능 통합 개발)
+
+- 시작 main HEAD: 76fb2a8a3c8de8f270ea1550fbcd0141758f1d61. 직전 main 제품 코드 `165b6255...`는 Windows Server 2022/2025 EXE build, GUI SQLite, 실제 GGUF 직원·총괄 2업무 검증 모두 success; 개인 Windows10/11 실기기 테스트는 미완료.
+- 기존 `desktop/company_operations.py`에 read-only `list_approved_parallel_candidates` 추가: 승인된 업무이며 모델이 연결된 서로 다른 직원 AI가 배정된 2건의 ID/제목/담당 직원 목록 제시.
+- `execute_approved_parallel_cycle`는 관리자가 정확히 확인한 2개 업무 ID와 **2개 직원 ID**를 검증한 후 스레드 2개로 실제 `execute_task`를 병렬 실행. 기존 DB의 실행 동시 한도 2, 직원별 고유 실행, 업무 선행조건, 승인된 총괄 지시, 비상정지 및 취소 제어, 각 실행의 독립 SQL 감사 기록을 그대로 사용한다. 하나 실패하면 다른 프로세스에 취소 요청하고 다음 총괄 AI 검토를 하지 않는다. 성공 시 두 결과물을 저장하고 같은 총괄 AI는 순차 검토하며 관리자 최종 승인 대기로 유지한다. 자동 판매·결제·보고서 수락·업무 완료·무단 반복 없음.
+- `desktop/company_office_gui.py` 업무 지휘실 상단에 **'승인 AI 2명 병렬'** 버튼을 추가하고, 실 실행 전 업무 ID·직원 ID·제목을 보여주는 실제 관리자 확인창 및 결과 상태 표시 구현. 기존 비상정지 버튼이 화면에서 밀려 사라지지 않도록 하단 제어행에 새로운 버튼을 추가하지 않고 기존 상단 줄에 배치.
+- 기존 테스트를 삭제하지 않고 `tests/test_company_parallel_approved_cycle.py`에 병렬 worker 2명 실제 겹침 확인, 총괄 순차 검토/SQLite 재시작 pending 보존, 사전 확인 ID/직원 불일치·미승인 업무 차단, 한쪽 실패 시 다른 worker 취소·총괄 비실행, 비상정지 후 결과물 저장 거부의 4개 synthetic 병렬 회귀검사 추가. 이 fixture는 진짜 GGUF가 아니라 SQLite+모델 실행 파이프라인 검증임.
+- 로컬 검증: 새 4 tests PASS, 기존 approved cycle+신규 합계 16 PASS, 병렬 하위 프로세스·모델 연결 포함 선별 25 PASS, Tkinter `COMPANY_OFFICE_LIVE_GUI_PASS`. Python compileall desktop PASS. 로컬의 전체 8개 테스트 파일 pytest는 느린 리소스로 제한시간 내 완료되지 않아 통과 주장 금지.
+- `.github/workflows/ci.yml`와 `.github/workflows/windows-exe.yml` 모두 새 병렬 회귀 테스트를 기존 통합 테스트들과 함께 실행하도록 수정. Windows EXE 자체 및 실제 GGUF GUI 워크플로는 새 동일 SHA의 최종 Actions로 확인 후 성과 구분.
+- 계속 남음: 한 화면에서 다수 직원의 장시간 협업과 실제 다중 업무 반복 자율 운영, 부서 간 의존 업무, 외부 서비스·거래, 원본 T01~T20의 전 항목 최종 인수; Windows 10/11 사용자 PC에서 EXE 물리 테스트.
