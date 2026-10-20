@@ -147,6 +147,10 @@ def run_local_model(config: ModelConfig, prompt: str, *, timeout: int = 60,
             process.kill()
             raise RuntimeError("모델 종료 후 출력 핸들이 해제되지 않았습니다.") from exc
         raise
+    # The owner can cancel during the final communicate() call. Do not accept
+    # a successful exit as an approved result if cancellation arrived meanwhile.
+    if cancel is not None and cancel.is_set():
+        raise InterruptedError("관리자가 모델 실행을 취소했습니다. 반환된 결과는 저장하지 않습니다.")
     output = out.decode("utf-8", errors="replace")
     stderr = err.decode("utf-8", errors="replace")
     if process.returncode != 0:
