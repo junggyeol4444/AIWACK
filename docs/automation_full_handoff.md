@@ -194,3 +194,12 @@
 - 기존에 실제로 다운로드·SHA256 확인하는 **동일한 공식 llama.cpp CPU 배포 ZIP** 내의 `llama-cli.exe`를 다른 후보로 엄격히 검증할 수 있는 `validation/real_gguf_preflight.py` 추가. 우선 `llama-completion.exe`로 진짜 GGUF를 추론하고 정상 종료/비어있지 않은 응답일 때만 허용. 힙 손상 등 비정상 종료이면 해당 실패를 증거에 남기고 같은 검증 배포본의 `llama-cli.exe`를 1회 진짜 추론. 대체 실행기가 정상 종료/출력한 경우에만 실제 GUI/E2E 단계로 진행하고 선택한 경로를 GitHub 환경변수로 넘김. 두 실행기가 모두 실패/출력 공백이면 **FAIL을 유지**하며 모델 응답 텍스트만으로 성공을 위조하지 않음.
 - 기존 `validation/windows_packaged_real_gguf_queue_e2e.py`는 위 사전 진단에서 선택한 공식 `llama-completion.exe` 또는 `llama-cli.exe`를 허용. 31명 실 GGUF 호출, 두 승인 업무, 실제 GUI 마우스 클릭, SQLite 결과 감사 등 **기존 강제 검증 조건은 완화하지 않음**.
 - `tests/test_real_gguf_preflight.py`에 모의 subprocess 기반 5개 안전/호환성 테스트 추가. **로컬 5 passed**. 이는 실제 Windows 2022 대체 실행기 성공을 증명하지 않는다. 최종 Windows Server 2022/2025 액션에서 결과 확인 필요.
+
+### 12절 CI/Windows 실제 실행 결과 재확인
+
+- 현재 제품 코드 기준 commit `165b6255f73087160ddd7579f876398f5b76b332`: [CI #39360520281](https://github.com/junggyeol4444/AIWACK/actions/runs/39360520281) **최종 SUCCESS**, 로그에서 루트 **138 passed** + 기존 Windows 네이티브 승인·복구·직원 모델·병렬·회사 운영 **110 passed** = 통합 두 묶음 **248 passed** 직접 확인. 새 root 5개 사전 진단 단위 테스트 포함.
+- `a7e047de...` 보존된 Windows 2022/2025 [회사 GUI·SQLite 종료/재실행 #39360004877](https://github.com/junggyeol4444/AIWACK/actions/runs/39360004877) SUCCESS 및 [Windows EXE 실행 #39360004935](https://github.com/junggyeol4444/AIWACK/actions/runs/39360004935) 2022/2025 SUCCESS. `a7e...` Windows 2022 **실제 GGUF #39360004947 FAIL**: 공식 `llama-completion.exe` 사전 진단 힙 손상(0xC0000374); 실제 EXE GGUF 업무 검사 전에 멈춤. 이 FAIL은 이후 검사 통과로 숨기지 말 것.
+- `165b6255...` [Windows 2022/2025 GGUF 실제 EXE #39360520310](https://github.com/junggyeol4444/AIWACK/actions/runs/39360520310)는 마지막 조회 시 양쪽 **공식 GGUF 실제 추론 프리플라이트 통과 후 패키지 EXE GUI 클릭·2업무·31명 모델 검증 단계 in_progress**. 최종 PASS 아님. 실제 선택된 실행기/후속 업무 성공 여부는 job 종료 및 artifact로 확인해야 함.
+- `165b6255...` [Windows 2022/2025 EXE·GUI·SQLite #39360520276](https://github.com/junggyeol4444/AIWACK/actions/runs/39360520276)는 마지막 조회 시 **in_progress**, 결과 확정 전 PASS 표기 금지.
+- 과거 정상으로 검증된 `ffa8931b...` Windows 2022/2025 실제 EXE·GUI 및 GGUF [#39357846294](https://github.com/junggyeol4444/AIWACK/actions/runs/39357846294) 성공은 이번 변경의 증거가 아니므로 커밋 구분.
+- 이 배치의 안전 변경 목적은 비상정지/취소 시 기존 실행·모델 호출 감사와 저장 결과를 일치시켜 정상 완료 오판을 없애는 것. 사용자 직접 물리 Windows 10/11 환경, T01~T20 전체 인수, 장기 자율 운영/다중 AI 실질 협업/외부 도구 및 실제 사업 거래는 미검증.
