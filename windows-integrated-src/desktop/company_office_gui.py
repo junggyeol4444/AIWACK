@@ -278,8 +278,6 @@ class CompanyOffice:
         head.pack(fill='x', pady=(0, 6))
         self._label(head, 'AI 결과물  /  REVIEW QUEUE', size=12, bold=True).pack(side='left')
         self._action(head, '결과 열기', self.open_result, compact=True)
-        self._action(head, '결과물 품질 검사', self.quality_check_result, compact=True)
-        self._action(head, '승인 결과 파일 저장', self.export_result, compact=True)
         self._action(head, '승인', self.approve_selected, strong=True, compact=True)
         self._action(head, '수정 요청', self.request_changes, compact=True)
         self._action(head, '반려', self.reject_selected, danger=True, compact=True)
@@ -299,6 +297,8 @@ class CompanyOffice:
                      self.recover_interrupted_queue, compact=True)
         self._action(recoverybar, '미완료 직원 실행 확인 ↗',
                      lambda: self._goto_native('AI 업무 실행'), compact=True)
+        self._action(recoverybar, '결과물 품질 검사', self.quality_check_result, compact=True)
+        self._action(recoverybar, '승인 결과 파일 저장', self.export_result, compact=True)
         self._label(card, '', size=9, color=AMBER, textvariable=self.review_summary).pack(anchor='w', pady=(5, 0))
         self._label(card, '실제 생성 결과가 없으면 표시하지 않습니다. 승인해도 업무가 자동 완료되지 않습니다.',
                     size=8, color=MUTED).pack(anchor='w', pady=(3, 0))

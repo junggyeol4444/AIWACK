@@ -47,9 +47,9 @@ def test_real_approved_markdown_written_once_and_reopen_verified(artifact):
     assert result['owner_approved'] and not result['published_externally']
     path=result['path']
     assert (folder/'approved_deliverables').exists()
+    from pathlib import Path
     assert dl.verify_exports(store,root=folder)==[
-        {'artifact_id':aid,'file_name':path.split('/')[-1] if '/' in path else path.split('\\\\')[-1],
-         'integrity_ok':True}]
+        {'artifact_id':aid,'file_name':Path(path).name,'integrity_ok':True}]
     again=dl.export_approved(store,aid,root=folder)
     assert again['path']==path
     store.logout()
@@ -77,5 +77,10 @@ def test_invalid_id_and_outside_symlink_refused(artifact):
     folder.mkdir()
     external=folder.parent/'outside'
     external.mkdir()
-    (folder/'approved_deliverables').symlink_to(external,target_is_directory=True)
+    try:
+        (folder/'approved_deliverables').symlink_to(external,target_is_directory=True)
+    except OSError as exc:
+        # Some Windows runners deny creation of symlinks without privilege.
+        # The Linux test and Windows filesystem integration still verify the guard.
+        pytest.skip(f'OS denied creating a test-only symlink: {exc}')
     with pytest.raises(PermissionError):dl.export_approved(store,aid,root=folder)
