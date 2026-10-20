@@ -185,8 +185,36 @@ def execute_approved_chief_cycle(store, task_id: int, *,
 
 
 
+def list_approved_chief_queue_candidates(store, *, limit: int = 3) -> list[dict]:
+    """Read-only preview of exactly the approved, model-ready company tasks.
+
+    No model invocation, dispatch, approval or database modification here.
+    The executor revalidates every owner-confirmed ID before running a task.
+    """
+    store.require_permission('company:manage')
+    if type(limit) is not int or not 1 <= limit <= 3:
+        raise ValueError('한 번에 자동 실행 가능한 승인 업무는 1~3건입니다.')
+    candidates = []
+    for task in sorted(store.list_tasks(), key=lambda t: int(t['id'])):
+        task_id = int(task['id'])
+        if task['status'] != 'todo' or store.read_chief_task_order(task_id) is None:
+            continue
+        if store.list_task_runs(task_id) or store.list_task_artifacts(task_id):
+            continue
+        route = store.read_task_routing(task_id)
+        employee_id = route['employee_id']
+        if not employee_id or store.read_employee_model(int(employee_id)) is None:
+            continue
+        candidates.append({'task_id': task_id, 'title': task['title'],
+                           'employee_id': int(employee_id)})
+        if len(candidates) >= limit:
+            break
+    return candidates
+
+
 def execute_approved_chief_queue(store, *, limit: int = 3,
-                                 cancel: threading.Event | None = None) -> dict:
+                                 cancel: threading.Event | None = None,
+                                 expected_task_ids: tuple[int, ...] | None = None) -> dict:
     """Run up to three EXISTING owner-approved tasks sequentially.
 
     No implicit chief order approval, no model discovery, no payments,
@@ -198,31 +226,31 @@ def execute_approved_chief_queue(store, *, limit: int = 3,
         raise ValueError('한 번에 자동 실행 가능한 승인 업무는 1~3건입니다.')
     if cancel is not None and cancel.is_set():
         raise InterruptedError('승인 업무 자동 실행 전에 취소됐습니다.')
-    candidates=[]
-    for task in sorted(store.list_tasks(),key=lambda t:int(t['id'])):
-        tid=int(task['id'])
-        if task['status'] != 'todo' or store.read_chief_task_order(tid) is None:
-            continue
-        if store.list_task_runs(tid) or store.list_task_artifacts(tid):
-            continue
-        route=store.read_task_routing(tid)
-        employee=route['employee_id']
-        if not employee or store.read_employee_model(int(employee)) is None:
-            continue
-        candidates.append(tid)
-        if len(candidates)==limit:
-            break
-    if not candidates:
+    if expected_task_ids is not None:
+        if (type(expected_task_ids) is not tuple or not expected_task_ids
+                or len(expected_task_ids) > limit
+                or any(type(tid) is not int or tid <= 0 for tid in expected_task_ids)
+                or len(set(expected_task_ids)) != len(expected_task_ids)):
+            raise ValueError('소유자가 확인한 승인 업무 번호 목록이 올바르지 않습니다.')
+    candidates = list_approved_chief_queue_candidates(store, limit=limit)
+    selected = tuple(item['task_id'] for item in candidates)
+    if not selected:
         raise ValueError('실행 가능한 소유자 승인·직원 모델 연결 업무가 없습니다.')
+    if expected_task_ids is not None and selected != expected_task_ids:
+        raise ValueError('확인한 승인 업무 목록이 변경됐습니다. 다시 확인하고 승인하세요.')
     reports=[]
-    for tid in candidates:
+    for index, tid in enumerate(selected):
         if cancel is not None and cancel.is_set():
             raise InterruptedError('대기열 진행 도중 관리자가 취소했습니다.')
         assert_running_allowed(store)
-        # Checks the order, routing, model binding and single-run state again.
-        # If any stage fails, do not try the next task automatically.
+        # Re-check before EVERY subprocess. Never replace a confirmed task
+        # with one added by another UI session during an earlier execution.
+        remaining = tuple(item['task_id'] for item in
+            list_approved_chief_queue_candidates(store, limit=len(selected)-index))
+        if remaining != selected[index:]:
+            raise ValueError('승인 업무가 대기열 실행 중 변경됐습니다. 다음 업무를 시작하지 않습니다.')
         reports.append(execute_approved_chief_cycle(store,tid,cancel=cancel))
-    return {'reports':reports,'task_ids':candidates,
+    return {'reports':reports,'task_ids':list(selected),
             'completed_cycles':len(reports),
             'pending_owner_review':len(reports),
             'auto_approved':False,'tasks_finalized':False}
@@ -525,8 +553,21 @@ def inspect_recovery_state(store, *, max_runs: int = 200) -> dict:
         'status': item[3],
         'started_at': item[4],
     } for item in rows[:max_runs]]
+    # The model-call journal also contains diagnostics and chief calls not
+    # represented in company_task_runs. Keep older unfinished calls visible
+    # without deciding that their processes are dead or retrying them.
+    with store._connect() as con:
+        model_rows = con.execute(
+            """SELECT id,employee_id,model_id,started_at
+               FROM ai_model_call_history WHERE status='running'
+               ORDER BY id DESC LIMIT ?""", (max_runs + 1,)).fetchall()
+    running_models = [dict(call_id=int(row[0]), employee_id=int(row[1]),
+                           model_id=int(row[2]), started_at=str(row[3]))
+                      for row in model_rows[:max_runs]]
     return {'running_worker_runs': running,
             'running_worker_runs_truncated': len(rows) > max_runs,
+            'running_model_calls': running_models,
+            'running_model_calls_truncated': len(model_rows) > max_runs,
             'pending_chief_reviews': list_interrupted_chief_reviews(store),
             'run_scan_limit': max_runs,
             'requires_owner_process_confirmation': True,

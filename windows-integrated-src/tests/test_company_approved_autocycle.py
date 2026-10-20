@@ -197,3 +197,68 @@ def test_auto_routing_prefers_model_connected_staff_over_unconfigured_profiles(t
         assert db.read_employee_model(assigned) is not None
     # No silent routing to an unconfigured draft despite its zero workload.
     assert db.read_employee_model(unbound) is None
+
+def test_owner_pinned_queue_readonly_and_rejects_changed_candidates(tmp_path, monkeypatch):
+    store = LocalStore(tmp_path / 'pinned-queue.sqlite3')
+    store.setup_owner('pinned_owner', 'pinned-test-password-2026')
+    ceo = store.add_employee_draft('pinned_chief', 'Chief')
+    staff = store.add_employee_draft('pinned_staff', 'Staff')
+    store.assign_reporting_line(ceo, 'ceo')
+    model = store.add_local_model(ModelConfig('SYNTHETIC', 'llamafile', sys.executable, '', 24))
+    store.set_employee_model(ceo, model)
+    store.set_employee_model(staff, model)
+    ids = [ops.create_task(store, 'Queue snapshot %d' % k) for k in range(3)]
+    for tid in ids:
+        store.auto_assign_task(tid)
+        store.approve_chief_task_order(tid, 'Owner approved')
+    assert [i['task_id'] for i in ops.list_approved_chief_queue_candidates(store)] == ids
+    assert all(store.list_task_runs(tid) == [] for tid in ids)
+    calls = []
+    monkeypatch.setattr('desktop.task_runtime.run_local_model',
+                        lambda *a, **k: calls.append('worker') or 'SYNTHETIC WORK')
+    monkeypatch.setattr('desktop.chief_task_runtime.collect_chief_task_result',
+                        lambda *a, **k: calls.append('chief') or 'SYNTHETIC REVIEW')
+    for wrong in ((), (True,), [ids[0]], (ids[0], ids[0]), tuple(reversed(ids))):
+        with pytest.raises(ValueError):
+            ops.execute_approved_chief_queue(store, expected_task_ids=wrong)
+    assert calls == []
+    store.logout()
+    reopened = LocalStore(store.path)
+    reopened.login('pinned_owner', 'pinned-test-password-2026')
+    assert [i['task_id'] for i in ops.list_approved_chief_queue_candidates(reopened)] == ids
+    result = ops.execute_approved_chief_queue(reopened, expected_task_ids=tuple(ids))
+    assert result['completed_cycles'] == 3 and result['task_ids'] == ids
+    assert calls == ['worker', 'chief'] * 3
+    for tid in ids:
+        assert reopened.read_task(tid)['status'] == 'in_progress'
+        art = reopened.list_task_artifacts(tid)[0]['id']
+        assert reopened.find_chief_task_report(art)['owner_decision'] == 'pending'
+
+
+def test_owner_queue_blocks_newly_substituted_task_after_first_success(tmp_path, monkeypatch):
+    db = LocalStore(tmp_path / 'changed-queue.sqlite3')
+    db.setup_owner('changed_owner', 'changed-test-password-2026')
+    ceo = db.add_employee_draft('changed_ceo', 'Chief')
+    staff = db.add_employee_draft('changed_worker', 'Worker')
+    db.assign_reporting_line(ceo, 'ceo')
+    model = db.add_local_model(ModelConfig('SYNTHETIC', 'llamafile', sys.executable, '', 24))
+    db.set_employee_model(ceo, model)
+    db.set_employee_model(staff, model)
+    ids = [ops.create_task(db, 'Approved job %d' % k) for k in range(3)]
+    for tid in ids[:2]:
+        db.auto_assign_task(tid)
+        ops.approve_chief_order(db, tid, 'approved')
+    monkeypatch.setattr('desktop.task_runtime.run_local_model', lambda *a, **kw: 'SYNTHETIC WORK')
+    invoked = []
+    def replace_after_first(*args, **kw):
+        invoked.append('chief')
+        if len(invoked) == 1:
+            db.set_task_status(ids[1], 'cancelled')
+            db.auto_assign_task(ids[2])
+            ops.approve_chief_order(db, ids[2], 'approved')
+        return 'SYNTHETIC CHIEF'
+    monkeypatch.setattr('desktop.chief_task_runtime.collect_chief_task_result', replace_after_first)
+    with pytest.raises(ValueError, match='승인 업무가 대기열 실행 중 변경'):
+        ops.execute_approved_chief_queue(db, expected_task_ids=tuple(ids[:2]))
+    assert invoked == ['chief'] and db.list_task_runs(ids[2]) == []
+    assert db.read_task(ids[2])['status'] == 'todo'

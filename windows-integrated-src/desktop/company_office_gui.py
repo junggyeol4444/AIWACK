@@ -375,8 +375,10 @@ class CompanyOffice:
             self.review_summary.set(
                 f"총 결과물 {data['artifacts']}건 · 검수 대기 {data['pending_reviews']}건"
                 f" · 총괄 검토 복구 {len(recover_state['pending_chief_reviews'])}건"
-                f" · 실행 중 감사 {len(recover_state['running_worker_runs'])}건"
+                f" · 실행 중 직원 {len(recover_state['running_worker_runs'])}건"
                 f"{' 이상 (조회 200건 초과)' if recover_state['running_worker_runs_truncated'] else ''}"
+                f" · 미종료 모델 호출 {len(recover_state['running_model_calls'])}건"
+                f"{' 이상 (조회 200건 초과)' if recover_state['running_model_calls_truncated'] else ''}"
                 " · 직원 자동 재실행 없음")
             self.proposal_summary.set(f"업무 제안 {len(proposals)}건 중 승인 대기 {data['pending_proposals']}건 · 소유자 승인 필수")
             self._say('실제 회사 데이터 연결됨 · 허위 AI 활동이나 매출을 표시하지 않습니다.')
@@ -510,19 +512,30 @@ class CompanyOffice:
         self._start(lambda: ops.execute_batch(self.store, max_tasks=3, cancel=self.cancel))
 
     def run_approved_queue(self):
-        """One owner confirmation runs at most 3 approved tasks and chief reviews."""
+        """Show exact owner-confirmed IDs before bounded subprocess execution."""
         if self.worker and self.worker.is_alive():
             self._say('진행 중인 AI 실행이 있어 자동 대기열을 시작하지 않습니다.')
             return
-        if not messagebox.askyesno(
-            '승인 업무 자동 회수',
-            '이미 소유자 지시 승인이 끝나고 직원 모델이 연결된 업무만 최대 3건 진행합니다.\n'
-            '직원 실행과 총괄 AI 회수는 자동이며, 보고서 수락·결과 승인·업무 완료는 자동으로 하지 않습니다.\n'
-            '도중 실패나 비상 정지 시 다음 업무로 진행하지 않습니다. 시작할까요?',
-            parent=self.root):
-            return
-        self._start(lambda:ops.execute_approved_chief_queue(
-            self.store,limit=3,cancel=self.cancel),after='chief_queue')
+        try:
+            candidates = ops.list_approved_chief_queue_candidates(self.store, limit=3)
+            if not candidates:
+                self._say('실행 가능한 소유자 승인·직원 모델 연결 업무가 없습니다.')
+                return
+            ids = tuple(int(row['task_id']) for row in candidates)
+            listing = '\n'.join(f"#{row['task_id']} {str(row['title'])[:65]}"
+                                  for row in candidates)
+            if not messagebox.askyesno(
+                '승인 업무 자동 회수',
+                f'다음 {len(candidates)}개 승인 업무만 실행합니다.\n{listing}\n'
+                '직원 실행과 총괄 AI 검토를 진행하지만 보고서 수락·결과 승인·업무 완료는 하지 않습니다.\n'
+                '대상이 변경되면 새 업무 실행을 중단합니다. 시작할까요?',
+                parent=self.root):
+                return
+            self._start(lambda: ops.execute_approved_chief_queue(
+                self.store, limit=3, cancel=self.cancel,
+                expected_task_ids=ids), after='chief_queue')
+        except (ValueError, PermissionError) as exc:
+            self._say('승인 업무 대기열 시작 실패: ' + str(exc))
 
     def ask_chief_order(self):
         """Request a real chief-model draft, NEVER dispatch or approve it automatically."""

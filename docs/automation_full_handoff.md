@@ -147,3 +147,15 @@
 - 동일 코드에서 [Windows 2022/2025 EXE 배포 실행](https://github.com/junggyeol4444/AIWACK/actions/runs/39353715118)과 [실제 GGUF 전 직원 호출/두 업무](https://github.com/junggyeol4444/AIWACK/actions/runs/39353715139)는 당시 **진행 중**, 결과 확인 전 PASS 금지.
 - 인수인계 문서만 갱신한 후속 main `0e144bb5c4f0bd7637afbb5c6e455bdb3c716267`의 [CI 39354006241](https://github.com/junggyeol4444/AIWACK/actions/runs/39354006241)도 **success**. 이는 기능 검증 범위를 추가로 넓힌 것은 아님.
 - 이번 실행의 저장소 비교 결과 `2f6e119c...` → `0e144bb5...`는 기존 원본 파일 **삭제 없이** `model_runtime.py`, `test_company_chief_review.py`, `test_local_models.py`, 이 인수인계 문서만 수정됨. 최신 Actions 상태는 새 회차마다 반드시 다시 조회한다.
+
+## 11. 2026-10-20 다중 미완료 항목 통합 개발·검증
+
+- 본 회차는 개별 기능 하나를 수정하고 검증한 뒤 다음으로 넘어가는 방식 대신, 기존 Windows 네이티브 프로젝트의 **여러 미완료 작업을 한 Git 커밋에 묶어** 개발하고 변경된 코드와 기존 복구·배치·모델 흐름을 함께 검증했다.
+- 변경 1: `company_operations.py`에 로그인한 소유자에게 현재 실행 가능한 총괄 승인/직원 모델 연결 업무 목록을 읽기 전용으로 보여주는 `list_approved_chief_queue_candidates` 추가. 단순 목록 조회는 AI를 실행하거나 DB를 변경하지 않는다.
+- 변경 2: `execute_approved_chief_queue`에 `expected_task_ids` 검증 추가. GUI의 실제 소유자 확인과 실행할 업무 번호를 고정해, 확인창 열린 도중 또는 배치의 첫 실행 후 다른 세션이 업무를 추가/삭제/교체하면 남은 업무 실행을 차단한다. 보고서·결과물 자동 승인 및 중복 직원 실행 불허 유지.
+- 변경 3: `inspect_recovery_state`에서 과거 `ai_model_call_history.status='running'` 기록을 별도 SQL 조건/최대 200건으로 읽기 전용 집계하여 총괄 호출/진단 중단 잔재를 놓치지 않도록 함. 소유자 확인 없이 종료, 재실행, 실패 상태로 덮어쓰기 금지.
+- 변경 4: `company_office_gui.py`의 승인 대기열 시작 팝업에 **정확한 승인 업무 ID·제목** 표시, 확인된 ID만 실행 함수로 전달. 결과물 보기 요약에 미종료 모델 호출 감사와 조회 상한 초과 상태 표시. 소유자 기존 흐름과 계정 저장 보존.
+- 기존 `tests/test_company_approved_autocycle.py`와 `tests/test_company_chief_review.py`에 경계 조건 테스트 3개 추가: read-only 승인 목록/재로그인/소유자 승인 정상 실행, 배치 중 대상 교체 후 다음 모델 차단, 미종료 모델 감사/프로그램 재시작.
+- 커밋 전 최신 실제 통합 소스 아티팩트 `AIWACK_Integrated_Source_windows-2022`를 풀어 원본 GUI/SQLite/직원 모델을 보존하고 이 4개 소스/테스트 파일을 한 번에 수정함. 실행: `python -m compileall -q desktop` 성공; `pytest tests/test_company_approved_autocycle.py tests/test_company_chief_review.py tests/test_local_models.py` **59 passed**; `python -m desktop.entry --self-test` 0; `PYTHONPATH=. xvfb-run -a python scripts/company_office_gui_smoke.py` PASS. 이 로컬 테스트는 리눅스 호환/합성 모델 시험이며, 사용자 Windows11·실제 GGUF 통합 시험을 대체하지 않는다. Python 전체 `pytest -q`는 3%에서 180초 타임아웃으로 완료 판정 불가. 더 넓은 선택 테스트도 65%에서 제한 시간 도달; PASS라 선언하지 않는다.
+- 실제 GitHub main의 테스트는 최신 수정 소스 커밋과 **동일 SHA**로 실행되는 Windows 2022/2025 GUI·EXE·실제 GGUF Actions를 별도 확인해 갱신. 이전 `335071010...`의 네 Actions [CI](https://github.com/junggyeol4444/AIWACK/actions/runs/39353715116), [EXE](https://github.com/junggyeol4444/AIWACK/actions/runs/39353715118), [회사 GUI](https://github.com/junggyeol4444/AIWACK/actions/runs/39353715141), [실제 GGUF](https://github.com/junggyeol4444/AIWACK/actions/runs/39353715139)는 이전 커밋에서 모두 PASS였음. **이번 새 소스의 PASS가 아님**.
+- T01~T20 전체 완료 판정 보류. 24시간 자율 반복/직원 31인 실질 협업/Stage63 고부하 병렬 추론/실제 외부 도구·거래/사용자 개인 Windows10·11 물리 장치 검증은 남음. 예약, 다른 프로젝트, 새 브랜치, 원본 삭제, 사용자 DB 초기화 없음.

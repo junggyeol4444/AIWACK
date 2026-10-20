@@ -481,3 +481,23 @@ def test_owner_confirmed_recovery_queue_completes_without_rerunning_workers(tmp_
     assert ops.list_interrupted_chief_reviews(reopened) == []
     assert all(reopened.find_chief_task_report(artifact_id)['owner_decision'] == 'pending'
                for _, artifact_id in tasks)
+
+def test_recovery_state_includes_unfinished_model_audits_without_changing_them(tmp_path, monkeypatch):
+    store, tasks = _recovery_queue_tasks(tmp_path, monkeypatch)
+    employee_id = store.list_employee_records()[-1]['id']
+    call_id, _ = store.begin_employee_model_call(employee_id, 'SYNTHETIC diagnostic audit')
+    with store._connect() as con:
+        assert con.execute('SELECT status FROM ai_model_call_history WHERE id=?',
+                           (call_id,)).fetchone()[0] == 'running'
+    state = ops.inspect_recovery_state(store, max_runs=1)
+    assert state['running_model_calls'][0]['call_id'] == call_id
+    assert state['running_model_calls_truncated'] is False
+    store.logout()
+    reopened = LocalStore(store.path)
+    reopened.login('batch_recovery_owner', 'test-batch-recovery-password-2026')
+    assert ops.inspect_recovery_state(reopened, max_runs=1)['running_model_calls'][0]['call_id'] == call_id
+    with reopened._connect() as con:
+        assert con.execute('SELECT status FROM ai_model_call_history WHERE id=?',
+                           (call_id,)).fetchone()[0] == 'running'
+    reopened.finish_employee_model_call(call_id, 'cancelled', error_kind='InterruptedError')
+    assert ops.inspect_recovery_state(reopened)['running_model_calls'] == []
