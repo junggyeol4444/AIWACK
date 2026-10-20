@@ -161,6 +161,42 @@ def write(w, x, y, value):
     pyautogui.write(value, interval=.008)
 
 
+
+def write_task_title(w, title):
+    """Find the visible white Tk work-entry by actual Windows pixels.
+
+    Do not bypass GUI via SQLite INSERT, Tk callbacks or guessed stale y pixels.
+    """
+    shot = pyautogui.screenshot().convert("RGB")
+    left, top = int(w.left), int(w.top)
+    samples = (left + 240, left + 350, left + 460)
+    if any(x < 0 or x >= shot.width for x in samples):
+        raise AssertionError("Work entry sample outside actual Windows screenshot")
+    segments = []
+    start = None
+    end = min(int(w.height) - 20, 675)
+    for y in range(445, end):
+        absolute = top + y
+        if absolute < 0 or absolute >= shot.height:
+            continue
+        colors = [shot.getpixel((x, absolute)) for x in samples]
+        bright = sum(min(rgb) >= 218 and max(rgb) - min(rgb) <= 32
+                     for rgb in colors) >= 2
+        if bright and start is None:
+            start = y
+        if not bright and start is not None:
+            segments.append((start, y - 1))
+            start = None
+    if start is not None:
+        segments.append((start, end - 1))
+    candidates = [(a, b) for a, b in segments if 12 <= b - a + 1 <= 60]
+    if len(candidates) != 1:
+        evidence("actual-task-entry-pixel-not-unique")
+        raise AssertionError("Expected exactly one actual white work-entry pixel region, got %r" % candidates)
+    a, b = candidates[0]
+    write(w, 240, (a + b) // 2, title)
+
+
 def confirm():
     # A separate actual human-facing Tk/Windows confirmation has focus.
     time.sleep(.5)
@@ -271,7 +307,7 @@ def perform(exe, model_cli, gguf):
 
         # Register/assign task using the visible task board, not SQL INSERTs.
         click(w, 424, 270)
-        write(w, 240, 614, TASK_TITLE)
+        write_task_title(w, TASK_TITLE)
         pyautogui.press("enter")
         wait_sql("SELECT title FROM company_tasks ORDER BY id DESC LIMIT 1", TASK_TITLE)
         task_id = read("SELECT id FROM company_tasks ORDER BY id DESC LIMIT 1")
@@ -284,7 +320,7 @@ def perform(exe, model_cli, gguf):
 
         # A second actual task is entered through the same Windows GUI,
         # and receives a different staff model via workload-based routing.
-        write(w, 240, 614, "Physical EXE second approved queue task")
+        write_task_title(w, "Physical EXE second approved queue task")
         pyautogui.press("enter")
         wait_sql("SELECT title FROM company_tasks ORDER BY id DESC LIMIT 1",
                  "Physical EXE second approved queue task")
