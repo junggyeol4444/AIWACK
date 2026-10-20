@@ -5,19 +5,30 @@ from __future__ import annotations
 def snapshot(store) -> dict:
     store.require_permission('company:manage')
     with store._connect() as con:
+        # 실제 모델 실행과 결과물 승인 수치를 별도로 집계하여 JOIN에 의한 중복 계산 방지.
         employee_rows=con.execute("""SELECT e.id,e.display_name,
           COALESCE(d.name,'미배정') AS department,
-          COUNT(r.id) AS total_runs,
-          COALESCE(SUM(CASE WHEN r.status='success' THEN 1 ELSE 0 END),0),
-          COALESCE(SUM(CASE WHEN r.status IN ('failure','timeout','interrupted') THEN 1 ELSE 0 END),0),
-          COALESCE(SUM(CASE WHEN r.status='cancelled' THEN 1 ELSE 0 END),0),
-          COALESCE(SUM(CASE WHEN r.status='running' THEN 1 ELSE 0 END),0),
-          COALESCE(SUM(CASE WHEN a.review_status='approved' THEN 1 ELSE 0 END),0)
+          COALESCE(r.total_runs,0),COALESCE(r.success,0),
+          COALESCE(r.fail,0),COALESCE(r.cancel,0),COALESCE(r.running,0),
+          COALESCE(a.approved,0)
           FROM ai_employee_profiles e
           LEFT JOIN company_departments d ON d.id=e.department_id
-          LEFT JOIN company_task_runs r ON r.employee_id=e.id
-          LEFT JOIN company_task_artifacts a ON a.run_id=r.id
-          GROUP BY e.id ORDER BY e.id""").fetchall()
+          LEFT JOIN (
+              SELECT employee_id,COUNT(*) AS total_runs,
+                SUM(CASE WHEN status='success' THEN 1 ELSE 0 END) AS success,
+                SUM(CASE WHEN status IN ('failure','timeout','interrupted') THEN 1 ELSE 0 END) AS fail,
+                SUM(CASE WHEN status='cancelled' THEN 1 ELSE 0 END) AS cancel,
+                SUM(CASE WHEN status='running' THEN 1 ELSE 0 END) AS running
+              FROM company_task_runs GROUP BY employee_id
+          ) r ON r.employee_id=e.id
+          LEFT JOIN (
+              SELECT r.employee_id,COUNT(*) AS approved
+              FROM company_task_artifacts a
+              JOIN company_task_runs r ON r.id=a.run_id
+              WHERE a.review_status='approved'
+              GROUP BY r.employee_id
+          ) a ON a.employee_id=e.id
+          ORDER BY e.id""").fetchall()
         statuses={row[0]:row[1] for row in con.execute(
             "SELECT status,COUNT(*) FROM company_tasks GROUP BY status")}
         actual=con.execute("SELECT COUNT(*) FROM ai_model_call_history WHERE status='success'").fetchone()[0]
