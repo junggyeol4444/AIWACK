@@ -19,7 +19,9 @@ if errorlevel 1 (
   pause
   exit /b 1
 )
-%PY% -m PyInstaller --noconfirm --clean --onefile --windowed --name AIWACK --paths . --add-data "docs/roadmap_100.csv;docs" desktop/entry.py
+REM Keep the same native company imports as the Windows 2022/2025 Actions EXE builder.
+REM The release must contain the company office, operations, and local model GUI.
+%PY% -m PyInstaller --noconfirm --clean --onefile --windowed --name AIWACK --paths . --hidden-import desktop.company_operations --hidden-import desktop.company_office_gui --hidden-import desktop.company_model_connect_ui --add-data "docs/roadmap_100.csv;docs" desktop/entry.py
 if errorlevel 1 ( echo Build failed. & pause & exit /b 1 )
 REM A Windows GUI-subsystem EXE may return before it exits in plain cmd.
 REM Start-Process -Wait checks the REAL EXE exit code (no internet needed).
