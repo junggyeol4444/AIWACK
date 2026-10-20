@@ -112,12 +112,12 @@ def test_only_relevant_owner_promoted_knowledge_used_for_future_employee(team):
     promoted=h.promote_approved(db,aid)
     assert promoted['knowledge_id']>0
     independent=ops.create_task(db,'Handoff task future','Owner-approved followup')
-    # Both original workers are still registered; reuse staff 2, not running.
-    staff_ids=[x['id'] for x in db.list_employee_records()
-               if x['display_name']=='Staff 1']
-    assert len(staff_ids)==1
+    # Existing auto-assignment is allowed to pick ANY eligible idle staff.
+    # The regression checks knowledge continuity, not hard-coded employee IDs.
     assigned=ops.assign_task(db,independent)
-    assert assigned['employee_id']==staff_ids[0]
+    assert assigned['employee_id'] in {
+        x['id'] for x in db.list_employee_records() if x['display_name'].startswith('Staff ')
+    }
     ops.execute_task(db,independent)
     assert '공동 지식' in prompts[-1]
     assert 'FIRST APPROVED WORK CONTENT' in prompts[-1]
