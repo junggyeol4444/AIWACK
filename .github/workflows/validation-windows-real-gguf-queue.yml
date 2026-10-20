@@ -5,6 +5,8 @@ on:
     paths:
       - '.github/workflows/validation-windows-real-gguf-queue.yml'
       - 'validation/windows_packaged_real_gguf_queue_e2e.py'
+      - 'validation/windows_real_parallel_company_e2e.py'
+      - 'validation/real_gguf_preflight.py'
       - 'validation/windows_built_exe_gui.py'
       - 'windows-integrated-src/**'
   workflow_dispatch:
