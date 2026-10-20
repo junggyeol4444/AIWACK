@@ -134,3 +134,18 @@ def test_emergency_stop_during_parallel_workers_never_saves_any_artifact(paralle
     # Both statuses are safe, but neither may be marked successful.
     assert set(statuses) <= {'failure', 'cancelled'}
     assert 'failure' in statuses
+
+def test_parallel_preview_skips_unfinished_dependencies_before_owner_confirmation(parallel_office):
+    store, ids, staff = parallel_office
+    # The second task cannot run until the first is separately approved done.
+    store.add_task_dependency(ids[1], ids[0])
+    third_employee = store.add_employee_draft('parallel_alternative', '대체 직원')
+    model_id = store.read_employee_model(staff[0])['model_id']
+    store.set_employee_model(third_employee, model_id)
+    third_id = ops.create_task(store, 'Independent third available task')
+    assert ops.assign_task(store, third_id)['employee_id'] == third_employee
+    ops.approve_chief_order(store, third_id, 'Owner signed third instruction')
+    preview = ops.list_approved_parallel_candidates(store)
+    assert [row['task_id'] for row in preview] == [ids[0], third_id]
+    assert [row['employee_id'] for row in preview] == [staff[0], third_employee]
+    assert all(store.list_task_runs(tid) == [] for tid in (*ids, third_id))

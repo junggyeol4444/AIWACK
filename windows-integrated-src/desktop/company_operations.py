@@ -274,6 +274,11 @@ def list_approved_parallel_candidates(store) -> list[dict]:
             continue
         if store.list_task_runs(task_id) or store.list_task_artifacts(task_id):
             continue
+        # Skip blocked dependency chains in the read-only preview as well.
+        # The SQL run reservation separately checks prerequisites again.
+        with store._connect() as con:
+            if store._pending_prerequisites(con, task_id):
+                continue
         route = store.read_task_routing(task_id)
         staff = route['employee_id']
         if not staff or int(staff) in chosen_staff or store.read_employee_model(int(staff)) is None:
