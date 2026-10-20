@@ -74,6 +74,9 @@ def test_department_chain_owner_approval_and_real_sqlite(tmp_path,monkeypatch):
     result=ops.execute_approved_chief_cycle(db,tasks[0])
     assert db.read_task_artifact(result['artifact_id'])['review_status']=='pending'
     db.review_task_artifact(result['artifact_id'],'approved')
+    with pytest.raises(ValueError, match='총괄 보고서'):
+        ops.finalize_approved_artifact(db,result['artifact_id'])
+    db.review_chief_task_report(result['report_id'],'accepted')
     ops.finalize_approved_artifact(db,result['artifact_id'])
     assert db.task_dependency_readiness(tasks[1])['ready']
     assert ops.execute_approved_chief_cycle(db,tasks[1])['owner_approval_required']
