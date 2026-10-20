@@ -17,6 +17,12 @@ jobs:
         run: python -m pip install -e '.[dev]'
       - name: Code / storage tests
         run: python -m pytest -q
+      - name: Install existing Windows native integrated source for regression tests
+        run: python -m pip install -e './windows-integrated-src[dev]'
+      - name: Native company recovery and local GGUF adapter regression tests
+        run: |
+          cd windows-integrated-src
+          python -m pytest -q tests/test_company_chief_review.py tests/test_local_models.py
       - name: Native app data self-test
         run: python -m desktop.entry --self-test
       - name: Start and click actual GUI under Xvfb
