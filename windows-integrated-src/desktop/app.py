@@ -265,6 +265,8 @@ class AIWACKWindow:
         self.tabs.add(tool_audit_tab, text="도구 사용·실패 기록")
         evidence_business_tab = tk.Frame(self.tabs, bg="#121c2d", padx=12, pady=16)
         self.tabs.add(evidence_business_tab, text="거래 증빙·실패 업무 개선")
+        staff_reorg_tab = tk.Frame(self.tabs, bg="#121c2d", padx=12, pady=16)
+        self.tabs.add(staff_reorg_tab, text="실제 직원 성과 기반 조직 개편")
         business_tab = tk.Frame(self.tabs, bg="#121c2d", padx=12, pady=16)
         self.tabs.add(business_tab, text="범용 사업 유형·사업 관리")
         discovery_tab = tk.Frame(self.tabs, bg="#121c2d", padx=12, pady=16)
@@ -339,6 +341,7 @@ class AIWACKWindow:
         self._service_drafts_panel(service_tab)
         self._tool_audit_panel(tool_audit_tab)
         self._evidence_business_panel(evidence_business_tab)
+        self._staff_reorg_panel(staff_reorg_tab)
         self._business_portfolio_panel(business_tab)
         self._business_discovery_panel(discovery_tab)
         self._market_evidence_panel(market_tab)
@@ -5527,6 +5530,67 @@ class AIWACKWindow:
             self.ev_message.set('실패 후속 기록 '+str(len(data))+'건 / 최근 '+
                    ', '.join('#'+str(v['id'])+':'+v['state'] for v in data[:9]))
         except (ValueError,PermissionError) as exc:self.ev_message.set('실패 감사 조회 실패: '+str(exc))
+
+    def _staff_reorg_panel(self,parent: tk.Frame) -> None:
+        """소유자 확인 후 실제 실패 모델 기록을 근거로 SQLite 직원을 재배치."""
+        self.store.require_permission('company:manage')
+        self.reorg_staff=tk.StringVar()
+        self.reorg_target=tk.StringVar()
+        self.reorg_run=tk.StringVar()
+        self.reorg_proposal=tk.StringVar()
+        self.reorg_reason=tk.StringVar()
+        self.reorg_feedback=tk.StringVar(value='실제 실패 근거와 기존 부서장 보고 관계를 먼저 확인하세요.')
+        card=self._panel(parent);card.pack(fill='both',expand=True)
+        self._label(card,'실제 직원 실패 증거 기반 부서 이동·업무 재배정',size=16,weight='bold').pack(anchor='w')
+        self._label(card,'직원·대상 부서·실패 모델 실행을 지정한 뒤 제안하고, 관리자 승인으로 직원 부서와 기존 배정을 변경합니다.',
+                    fg='#f7cb92',wraplength=880).pack(anchor='w',pady=8)
+        row=tk.Frame(card,bg='#1c2a40');row.pack(fill='x',pady=5)
+        for label,var in [('직원 ID',self.reorg_staff),('대상 부서 ID',self.reorg_target),
+                          ('실패 실행 ID',self.reorg_run)]:
+            self._label(row,label).pack(side='left',padx=(4,2))
+            tk.Entry(row,textvariable=var,width=8).pack(side='left',padx=(0,10))
+        tk.Button(row,text='근거 기반 이동 제안',command=self._reorg_propose).pack(side='left',padx=4)
+        row=tk.Frame(card,bg='#1c2a40');row.pack(fill='x',pady=5)
+        self._label(row,'제안 번호').pack(side='left')
+        tk.Entry(row,textvariable=self.reorg_proposal,width=9).pack(side='left',padx=4)
+        self._label(row,'소유자 사유').pack(side='left')
+        tk.Entry(row,textvariable=self.reorg_reason,width=46).pack(side='left',padx=4)
+        tk.Button(row,text='조직 이동 승인',command=lambda:self._reorg_decide('accepted')).pack(side='left',padx=2)
+        tk.Button(row,text='제안 반려',command=lambda:self._reorg_decide('rejected')).pack(side='left')
+        tk.Button(card,text='직원 조직 개편 감사 조회',command=self._reorg_history).pack(anchor='w',pady=5)
+        self._label(card,'실행 중인 직원 모델·부서장 보고 충돌 시 이동 금지. 기존 업무 배정은 취소 감사 후 수동 재배정하며 자동 권한 확대는 없습니다.',
+                    fg='#f7cb92',wraplength=900).pack(anchor='w',pady=4)
+        self._label(card,'',textvariable=self.reorg_feedback,fg='#8ee4b7',wraplength=900).pack(anchor='w',pady=5)
+
+    def _reorg_propose(self) -> None:
+        try:
+            result=self.store.propose_staff_department_transfer(int(self.reorg_staff.get()),
+                int(self.reorg_target.get()),int(self.reorg_run.get()),self.reorg_reason.get())
+            self.reorg_feedback.set('직원 부서 이동 제안 #'+str(result['id'])+
+                ' 저장. 실제 변경은 별도 관리자 수락 전까지 보류.')
+        except (ValueError,PermissionError,RuntimeError) as exc:
+            self.reorg_feedback.set('조직 이동 제안 실패: '+str(exc))
+
+    def _reorg_decide(self,decision:str) -> None:
+        try:
+            if not messagebox.askyesno('직원 조직 변경 관리자 검수',
+                 '실제 직원 부서가 변경되고 기존 배정은 감사 후 해제됩니다. 실행 중 모델과 관리자 보고 관계는 보호합니다. 진행할까요?'):
+                return
+            result=self.store.decide_staff_department_transfer(
+                int(self.reorg_proposal.get()),decision,self.reorg_reason.get())
+            self.reorg_feedback.set('조직 개편 '+result['decision']+
+                ' / 해제된 기존 업무 배정 '+str(result['assignments_released'])+
+                '건. 모델/도구 자동 실행 없음.')
+        except (ValueError,PermissionError,RuntimeError) as exc:
+            self.reorg_feedback.set('조직 개편 승인 실패: '+str(exc))
+
+    def _reorg_history(self) -> None:
+        try:
+            data=self.store.staff_department_transfer_audit()
+            self.reorg_feedback.set('실제 조직 개편 감사 '+str(len(data))+'건: '+
+                ', '.join('#'+str(v['id'])+':'+v['state'] for v in data[:10]))
+        except (ValueError,PermissionError) as exc:
+            self.reorg_feedback.set('감사 조회 실패: '+str(exc))
 
     def _business_portfolio_panel(self, parent: tk.Frame) -> None:
         """Stage61 owner-only local business portfolio; no business execution."""

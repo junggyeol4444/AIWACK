@@ -4704,6 +4704,19 @@ class LocalStore:
         from desktop.company_failure_followups import pending
         return pending(self, limit)
 
+    def propose_staff_department_transfer(self, employee_id: int, to_department_id: int,
+                                          failed_run_id: int, reason: str):
+        from desktop.company_staff_reallocation import propose
+        return propose(self, employee_id, to_department_id, failed_run_id, reason)
+
+    def decide_staff_department_transfer(self, proposal_id: int, decision: str, reason: str):
+        from desktop.company_staff_reallocation import decide
+        return decide(self, proposal_id, decision, reason)
+
+    def staff_department_transfer_audit(self, limit: int = 30):
+        from desktop.company_staff_reallocation import history
+        return history(self, limit)
+
     def record_hypothetical_finance(self,business_id,entry_key,kind,currency,amount_minor,note,order_id=None):
         self.require_permission('company:manage')
         from desktop.local_hypothetical_finance import record
