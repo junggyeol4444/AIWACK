@@ -124,11 +124,26 @@ def propose(store,source_task_id:int,*,cancel:threading.Event|None=None):
                 '관리자 승인 전에는 실행되지 않습니다.\n'
                 f'원본 업무: {str(task[2])[:120]} / {str(task[3])[:400]}\n'
                 '담당 부서: '+', '.join(name for _,name,_,_ in part))
-        raw,call_id=invoke_employee_model(store,chief,prompt,timeout=90,cancel=cancel,
-                                          required_tier='ceo',include_call_id=True)
-        if cancel is not None and cancel.is_set():
-            raise InterruptedError('총괄 모델 호출 후 관리자 취소로 초안을 폐기합니다.')
-        parsed=_parse_group(raw,part)
+        # Strictly bounded, auditable real-model retries for invalid output format.
+        # Do not synthesize, guess or auto-approve a malformed department plan.
+        for attempt in range(3):
+            if cancel is not None and cancel.is_set():
+                raise InterruptedError('취소된 총괄 재호출은 실행하지 않습니다.')
+            assert_running_allowed(store)
+            query=prompt if attempt==0 else prompt.replace(
+                '담당 부서: ',
+                '이전 출력은 부서별 정확한 형식을 충족하지 못했습니다. '
+                '각 부서명|업무 제목|작업 지시 형태로 정확히 세 줄 작성하세요.\n담당 부서: ')
+            raw,call_id=invoke_employee_model(store,chief,query,timeout=90,cancel=cancel,
+                                              required_tier='ceo',include_call_id=True)
+            if cancel is not None and cancel.is_set():
+                raise InterruptedError('총괄 모델 호출 후 취소된 초안은 저장하지 않습니다.')
+            try:
+                parsed=_parse_group(raw,part)
+                break
+            except ValueError as error:
+                if attempt==2:
+                    raise ValueError('실제 총괄 AI가 세 번 연속 필수 부서 형식을 충족하지 못해 초안을 중단합니다.') from error
         for dept,name,manager,staff in part:
             title,instruction=parsed[name]
             steps.append((dept,manager,'department_head',f'{name} 부서장 검토: {title}',

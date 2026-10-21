@@ -182,3 +182,32 @@ def test_tampered_approved_handoff_prevents_next_real_model_call(office,monkeypa
     assert hits==[1]
     assert db.list_task_runs(plan['steps'][1]['task_id'])==[]
     assert wide.verified_progress(db,plan['id'])['verified_completed_tasks']==0
+
+
+def test_real_chief_plan_bad_format_retry_is_audited_and_does_not_auto_approve(office,monkeypatch):
+    db,task,_=office
+    calls=[]
+    def local_answer(config,prompt,**kw):
+        calls.append(prompt)
+        if len(calls)==1:return 'invalid plan text'
+        names=prompt.rsplit('담당 부서: ',1)[1].split(', ')
+        return '\n'.join(f'{name}|승인 준비|{name} 업무 분석과 자료 정리' for name in names)
+    monkeypatch.setattr('desktop.employee_model_runtime.run_local_model',local_answer)
+    plan=wide.propose(db,task)
+    assert len(calls)==6 and len(plan['steps'])==30
+    assert '이전 출력은 부서별 정확한 형식' in calls[1]
+    chief=db.read_chief_profile()['employee_id']
+    assert len(db.list_employee_model_calls(chief))==6
+    assert len(db.list_tasks())==1
+
+def test_real_chief_three_invalid_answers_fail_closed_without_campaign(office,monkeypatch):
+    db,task,_=office
+    monkeypatch.setattr('desktop.employee_model_runtime.run_local_model',lambda *a,**kw:'invalid')
+    with pytest.raises(ValueError,match='세 번 연속'):
+        wide.propose(db,task)
+    chief=db.read_chief_profile()['employee_id']
+    assert len(db.list_employee_model_calls(chief))==3
+    assert len(db.list_tasks())==1
+    with db._connect() as con:
+        wide.initialize(con)
+        assert con.execute('SELECT COUNT(*) FROM aiwack_wide_campaigns').fetchone()[0]==0
