@@ -3591,6 +3591,16 @@ class LocalStore:
         from desktop.company_native_diagnostics import history
         return history(self, limit)
 
+    def inspect_and_cancel_stale_windows_tool(self, request_id: int,
+                                              owner_confirmed: bool, operator_note: str) -> dict:
+        from desktop.company_native_diagnostics import cancel_stale_run_after_owner_inspection
+        return cancel_stale_run_after_owner_inspection(self, request_id,
+                                                        owner_confirmed, operator_note)
+
+    def approved_windows_tool_recovery_history(self, limit: int = 30) -> list[dict]:
+        from desktop.company_native_diagnostics import recovery_history
+        return recovery_history(self, limit)
+
     def ai_tool_use_audit(self, request_id: int) -> list[dict]:
         self.require_permission('company:manage')
         from desktop.tool_approvals import audit

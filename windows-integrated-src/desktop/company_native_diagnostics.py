@@ -39,6 +39,20 @@ def initialize(con: sqlite3.Connection) -> None:
            OR (state IN ('failed','cancelled') AND result_json=''
                AND result_sha256='' AND length(error_code)>0 AND finished_at IS NOT NULL))
     )''')
+    # 관리자 검토로 취소한 실행은 재실행하지 않으며, 복구 기록을 불변 보존한다.
+    con.execute('''CREATE TABLE IF NOT EXISTS aiwack_native_tool_recoveries (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        execution_id INTEGER NOT NULL UNIQUE REFERENCES aiwack_native_tool_runs(id),
+        request_id INTEGER NOT NULL REFERENCES tool_use_requests(id),
+        elapsed_seconds INTEGER NOT NULL CHECK(elapsed_seconds >= 180),
+        owner_confirmed INTEGER NOT NULL CHECK(owner_confirmed=1),
+        operator_note TEXT NOT NULL CHECK(length(operator_note) BETWEEN 5 AND 200),
+        created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+    )''')
+    for operation in ('UPDATE','DELETE'):
+        con.execute(f'''CREATE TRIGGER IF NOT EXISTS aiwack_native_recovery_no_{operation.lower()}
+            BEFORE {operation} ON aiwack_native_tool_recoveries BEGIN
+            SELECT RAISE(ABORT,'관리자 복구 감사는 수정·삭제할 수 없습니다'); END''')
     con.execute('''CREATE TRIGGER IF NOT EXISTS aiwack_native_tool_no_delete
         BEFORE DELETE ON aiwack_native_tool_runs BEGIN
         SELECT RAISE(ABORT,'Windows 도구 감사 기록 삭제 금지'); END''')
@@ -161,6 +175,57 @@ def execute(store, request_id: int) -> dict:
                              FROM aiwack_native_tool_runs WHERE id=?''', (execution_id,)).fetchone()
     # 실패/취소 감사 기록을 COMMIT한 후 예외를 반환한다.
     return _row_to_result(row, False)
+
+
+def cancel_stale_run_after_owner_inspection(store, request_id: int,
+                                           owner_confirmed: bool,
+                                           operator_note: str) -> dict:
+    """180초가 넘은 명령 실행 감사만 명시적으로 취소하고, 절대로 재실행하지 않는다."""
+    store.require_permission('company:manage')
+    if type(request_id) is not int or request_id < 1:
+        raise ValueError('복구 요청 번호가 올바르지 않습니다.')
+    if owner_confirmed is not True:
+        raise PermissionError('소유자의 명시적 확인이 필요합니다.')
+    if not isinstance(operator_note, str) or not 5 <= len(operator_note.strip()) <= 200:
+        raise ValueError('복구 확인 사유는 5~200자여야 합니다.')
+    with store._connect() as con:
+        con.execute('BEGIN IMMEDIATE')
+        initialize(con)
+        row = con.execute('''SELECT id,state,CAST((julianday('now')-
+            julianday(created_at))*86400 AS INTEGER) AS elapsed_seconds
+            FROM aiwack_native_tool_runs WHERE request_id=?''', (request_id,)).fetchone()
+        if not row:
+            raise ValueError('기존 명령 실행 감사가 없는 요청은 복구할 수 없습니다.')
+        rid,state,elapsed = row
+        if state != 'running':
+            raise ValueError('이미 확정된 명령 실행은 복구하지 않습니다.')
+        if elapsed is None or elapsed < 180:
+            raise PermissionError('다른 Windows 창에서 실행 중일 수 있어 180초 이전 복구를 금지합니다.')
+        updated = con.execute('''UPDATE aiwack_native_tool_runs SET state='cancelled',
+            error_code='owner_inspected_stale_claim',finished_at=CURRENT_TIMESTAMP
+            WHERE id=? AND request_id=? AND state='running' ''',(rid,request_id))
+        if updated.rowcount != 1:
+            raise RuntimeError('명령 실행 소유권이 변경되어 복구를 중단했습니다.')
+        con.execute('''INSERT INTO aiwack_native_tool_recoveries
+            (execution_id,request_id,elapsed_seconds,owner_confirmed,operator_note)
+            VALUES(?,?,?,?,?)''',(rid,request_id,int(elapsed),1,operator_note.strip()))
+        return {'execution_id':int(rid),'request_id':request_id,
+                'state':'cancelled','elapsed_seconds':int(elapsed),
+                'execution_retried':False,'subprocess_termination_verified':False}
+
+
+def recovery_history(store, limit: int = 30) -> list[dict]:
+    store.require_permission('company:manage')
+    if type(limit) is not int or not 1 <= limit <= 100:
+        raise ValueError('복구 감사는 1~100건만 조회할 수 있습니다.')
+    with store._connect() as con:
+        initialize(con)
+        rows = con.execute('''SELECT id,execution_id,request_id,elapsed_seconds,
+            operator_note,created_at FROM aiwack_native_tool_recoveries
+            ORDER BY id DESC LIMIT ?''',(limit,)).fetchall()
+    return [{'id':int(i),'execution_id':int(e),'request_id':int(r),
+             'elapsed_seconds':int(t),'operator_note':note,'created_at':when,
+             'subprocess_termination_verified':False} for i,e,r,t,note,when in rows]
 
 
 def history(store, limit: int = 30) -> list[dict]:

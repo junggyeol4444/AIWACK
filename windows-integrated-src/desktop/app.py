@@ -4740,6 +4740,12 @@ class AIWACKWindow:
         self.tool_windows_version_button.pack(side='left',padx=3)
         tk.Button(readbar,text='Windows 명령 실행 감사',
             command=self._show_approved_windows_version_history).pack(side='left',padx=3)
+        recoverybar=tk.Frame(parent,bg='#121c2d');recoverybar.pack(anchor='w',fill='x',pady=3)
+        self.tool_windows_stale_button=tk.Button(recoverybar,
+            text='중단된 Windows 명령 실행 감사 복구',command=self._inspect_stale_windows_tool)
+        self.tool_windows_stale_button.pack(side='left',padx=3)
+        tk.Button(recoverybar,text='명령 복구 감사 기록',
+            command=self._show_windows_tool_recoveries).pack(side='left',padx=3)
         self._label(parent,'',textvariable=self.tool_use_feedback,bg='#121c2d',wraplength=940).pack(anchor='w')
         self._refresh_tool_use()
 
@@ -4836,6 +4842,34 @@ class AIWACKWindow:
             messagebox.showinfo('Windows 명령 실제 실행 감사',content)
         except (ValueError,PermissionError,RuntimeError) as exc:
             self.tool_use_feedback.set('Windows 명령 감사 조회 실패: '+str(exc))
+
+    def _inspect_stale_windows_tool(self) -> None:
+        try:
+            rid=self._selected_tool_use()
+            if not messagebox.askyesno('중단된 Windows 명령 복구',
+                    f'요청 #{rid}의 중단된 명령 실행 감사만 취소 상태로 확정합니다.\\n'
+                    '180초 이내의 다른 창 실행은 보호하며 명령은 다시 실행되지 않습니다.\\n'
+                    'OS 프로세스 종료를 보장하는 기능이 아닙니다. 직접 확인하셨습니까?'):
+                return
+            reason=simpledialog.askstring('관리자 복구 사유',
+                '실제 실행 상태와 다른 Windows 창을 확인한 내용을 5자 이상 입력하세요.')
+            if reason is None:
+                return
+            result=self.store.inspect_and_cancel_stale_windows_tool(rid,True,reason)
+            self.tool_use_feedback.set(f'요청 #{rid} 감사 복구: {result["state"]}, 재실행 없음')
+        except (ValueError,PermissionError,RuntimeError) as exc:
+            self.tool_use_feedback.set('Windows 중단 기록 복구 실패: '+str(exc))
+
+    def _show_windows_tool_recoveries(self) -> None:
+        try:
+            rows=self.store.approved_windows_tool_recovery_history(limit=20)
+            messagebox.showinfo('Windows 명령 수동 복구 감사',
+                '\\n'.join(f'#{r["id"]}: 요청 {r["request_id"]} / '
+                          f'감사 #{r["execution_id"]} / 경과 {r["elapsed_seconds"]}초 '
+                          f'/ 사유 {r["operator_note"]}' for r in rows)
+                or '수동 복구 감사 기록 없음')
+        except (ValueError,PermissionError,RuntimeError) as exc:
+            self.tool_use_feedback.set('Windows 복구 기록 조회 실패: '+str(exc))
 
     def _managed_documents_panel(self, parent: tk.Frame) -> None:
         self.document_name = tk.StringVar()

@@ -16,6 +16,7 @@ def test_employee_metrics_record_only_actual_runs_and_reviews(tmp_path,monkeypat
     before=metrics.snapshot(store)
     assert before['employees']==2
     assert before['recorded_successful_model_calls']==0
+    assert before['distinct_employees_with_successful_model_calls']==0
     assert all(e['observed_success_rate'] is None for e in before['staff'])
     first=ops.create_task(store,'Real saved staff output')
     assert ops.assign_task(store,first)['employee_id'] in staff
@@ -24,6 +25,7 @@ def test_employee_metrics_record_only_actual_runs_and_reviews(tmp_path,monkeypat
     art=ops.execute_task(store,first)['artifact_id']
     data=metrics.snapshot(store)
     assert data['recorded_successful_model_calls']==1
+    assert data['distinct_employees_with_successful_model_calls']==1
     assert sum(e['successful'] for e in data['staff'])==1
     assert data['pending_reviews']==1
     assert sum(e['owner_approved_artifacts'] for e in data['staff'])==0
@@ -32,6 +34,7 @@ def test_employee_metrics_record_only_actual_runs_and_reviews(tmp_path,monkeypat
     after=metrics.snapshot(store)
     assert sum(e['owner_approved_artifacts'] for e in after['staff'])==1
     assert after['pending_reviews']==0
+    assert after['all_31_model_calls_observed_in_sqlite'] is False
     assert '실제 판매·매출을 의미하지 않습니다' in metrics.text_report(store)
     store.logout()
     reopened=LocalStore(store.path)

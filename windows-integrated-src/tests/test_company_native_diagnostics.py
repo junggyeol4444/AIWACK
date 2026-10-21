@@ -170,3 +170,42 @@ def test_actual_windows_cmd_exe_version(approved_office):
     assert result['state'] == 'success'
     assert 'Windows' in result['result']['windows_version']
     assert result['external_action_performed']
+
+
+def test_owner_inspection_stale_claim_writes_immutable_recovery(approved_office, monkeypatch):
+    store, employee, request = approved_office
+    with store._connect() as con:
+        native.initialize(con)
+        con.execute("""INSERT INTO aiwack_native_tool_runs
+            (request_id,employee_id,tool_key,token,state,created_at)
+            VALUES(?,?,?,?, 'running',DATETIME('now','-240 seconds'))""",
+            (request,employee,native.TOOL_KEY,'a'*32))
+    monkeypatch.setattr(native,'_run_windows_version',
+                        lambda: pytest.fail('복구에서 기존 도구 재실행 금지'))
+    with pytest.raises(PermissionError):
+        store.inspect_and_cancel_stale_windows_tool(request,False,'관리자 확인 미완료')
+    result=store.inspect_and_cancel_stale_windows_tool(request,True,'다른 창과 실행 상태를 확인함')
+    assert result['state']=='cancelled' and result['execution_retried'] is False
+    with pytest.raises(RuntimeError,match='cancelled'):
+        store.execute_approved_windows_version_tool(request)
+    store.logout()
+    new=LocalStore(store.path)
+    new.login('owner','native-command-test-password')
+    audit=new.approved_windows_tool_recovery_history()
+    assert len(audit)==1 and audit[0]['request_id']==request
+    with new._connect() as con:
+        with pytest.raises(sqlite3.DatabaseError):
+            con.execute('DELETE FROM aiwack_native_tool_recoveries')
+
+
+def test_stale_recovery_protects_active_other_window(approved_office):
+    store,employee,request=approved_office
+    with store._connect() as con:
+        native.initialize(con)
+        con.execute("""INSERT INTO aiwack_native_tool_runs
+           (request_id,employee_id,tool_key,token,state)
+           VALUES(?,?,?,?, 'running')""",(request,employee,native.TOOL_KEY,'b'*32))
+    with pytest.raises(PermissionError,match='180초'):
+        store.inspect_and_cancel_stale_windows_tool(request,True,'확인한 사유를 기록함')
+    assert store.approved_windows_tool_recovery_history()==[]
+    assert store.approved_windows_version_tool_history()[0]['state']=='running'
