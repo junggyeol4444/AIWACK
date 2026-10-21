@@ -187,6 +187,38 @@ def bind_model(w, employee_index, exe):
     time.sleep(.7)
 
 
+def write_task_title(window, title):
+    """Find the real Tk work-title field by its visible Windows screenshot.
+
+    Unlike a fixed y coordinate, this remains valid when the task controls
+    move. Only physical PyAutoGUI input is permitted; SQLite stays read-only.
+    """
+    pic = pyautogui.screenshot().convert("RGB")
+    left, top = int(window.left), int(window.top)
+    positions = [left + x for x in (240, 350, 460)]
+    if any(x < 0 or x >= pic.width for x in positions):
+        raise AssertionError("Task-entry pixel samples are outside screenshot")
+    bands, first = [], None
+    for y in range(445, min(int(window.height) - 20, 675)):
+        sy = top + y
+        if sy < 0 or sy >= pic.height:
+            continue
+        colors = [pic.getpixel((x, sy)) for x in positions]
+        white = sum(min(c) >= 218 and max(c) - min(c) <= 32 for c in colors) >= 2
+        if white and first is None:
+            first = y
+        elif not white and first is not None:
+            bands.append((first, y - 1))
+            first = None
+    if first is not None:
+        bands.append((first, min(int(window.height) - 20, 675) - 1))
+    visible = [(a, b) for a, b in bands if 12 <= b - a + 1 <= 60]
+    if len(visible) != 1:
+        evidence("work-title-field-not-visible")
+        raise AssertionError("Expected a single visible white work-title input, got %r" % visible)
+    write(window, 240, (visible[0][0] + visible[0][1]) // 2, title)
+
+
 def wait_office_dashboard(window, timeout=80):
     """Observe the visible selected company-overview navigation button.
 
@@ -244,7 +276,7 @@ def perform(exe, stub):
 
         # Register/assign task using the visible task board, not SQL INSERTs.
         click(w, 424, 270)
-        write(w, 240, 614, TASK_TITLE)
+        write_task_title(w, TASK_TITLE)
         pyautogui.press("enter")
         wait_sql("SELECT title FROM company_tasks ORDER BY id DESC LIMIT 1", TASK_TITLE)
         task_id = read("SELECT id FROM company_tasks ORDER BY id DESC LIMIT 1")
