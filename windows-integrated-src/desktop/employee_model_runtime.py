@@ -14,7 +14,8 @@ from desktop.storage import LocalStore
 
 def invoke_employee_model(store: LocalStore, employee_id: int, prompt: str, *,
                           timeout: int = 60, cancel: threading.Event | None = None,
-                          required_tier: str | None = None) -> str:
+                          required_tier: str | None = None,
+                          include_call_id: bool = False) -> str | tuple[str, int]:
     """Owner-invoked LOCAL CLI run with start/end/error/cancel audit."""
     # Begin transaction before validating potentially moved/deleted runtime files.
     call_id,config=store.begin_employee_model_call(employee_id,prompt,required_tier=required_tier)
@@ -32,7 +33,7 @@ def invoke_employee_model(store: LocalStore, employee_id: int, prompt: str, *,
                 raise PermissionError('비상 정지가 적용되어 모델 응답을 폐기합니다.')
         status="success"
         output_chars=len(result)
-        return result
+        return (result, call_id) if include_call_id else result
     except InterruptedError:
         status="cancelled"
         error_kind="InterruptedError"

@@ -74,10 +74,13 @@ def list_opinions(con: sqlite3.Connection, meeting_id: int) -> list[dict]:
     _meeting(con, meeting_id)
     con.row_factory = sqlite3.Row
     return [dict(row) for row in con.execute('''SELECT o.id,o.meeting_id,o.agenda_id,a.position AS agenda_position,
-        a.topic,o.employee_id,e.display_name,o.stance,o.reasoning,o.evidence,o.alternative,o.created_at
+        a.topic,o.employee_id,e.display_name,o.stance,o.reasoning,o.evidence,o.alternative,o.created_at,
+        CASE WHEN ai.opinion_id IS NULL THEN 'owner_recorded' ELSE 'real_local_model' END AS origin,
+        ai.model_call_id
         FROM local_meeting_opinions o
         JOIN local_meeting_agenda a ON a.id=o.agenda_id
         JOIN ai_employee_profiles e ON e.id=o.employee_id
+        LEFT JOIN aiwack_real_meeting_model_opinions ai ON ai.opinion_id=o.id
         WHERE o.meeting_id=? ORDER BY a.position,o.employee_id''',(meeting_id,))]
 
 

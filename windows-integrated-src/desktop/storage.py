@@ -80,6 +80,8 @@ class LocalStore:
             initialize_meeting_opinions(con)
             from desktop.meeting_decisions import initialize as initialize_meeting_decisions
             initialize_meeting_decisions(con)
+            from desktop.company_meeting_ai import initialize as initialize_real_meeting_ai
+            initialize_real_meeting_ai(con)
             from desktop.employee_memory import initialize as initialize_employee_memory
             initialize_employee_memory(con)
             from desktop.company_knowledge import initialize as initialize_company_knowledge
@@ -3311,6 +3313,15 @@ class LocalStore:
         from desktop.meeting_opinions import add
         with self._connect() as con:
             return add(con, meeting_id, agenda_id, employee_id, stance, reasoning, evidence, alternative)
+
+    def run_real_meeting_employee_opinion(self, meeting_id: int, agenda_id: int,
+                                          employee_id: int, *, cancel=None) -> dict:
+        from desktop.company_meeting_ai import run_one
+        return run_one(self, meeting_id, agenda_id, employee_id, cancel=cancel)
+
+    def real_meeting_opinion_audit(self, meeting_id: int) -> list[dict]:
+        from desktop.company_meeting_ai import report
+        return report(self, meeting_id)
 
     def list_meeting_opinions(self, meeting_id: int) -> list[dict]:
         self.require_permission('agents:manage')
