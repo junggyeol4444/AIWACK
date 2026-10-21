@@ -43,3 +43,17 @@ def test_paused_company_never_autoruns_a_failed_followup(failed):
     db.emergency_stop_local(True,'관리자 재차 중단')
     with pytest.raises(PermissionError):
         db.decide_failed_employee_followup(proposal,'approved','중단 중 승인 금지')
+
+
+def test_owner_enabled_autopilot_creates_failed_run_followup_without_autorun(failed):
+    db, task = failed
+    from desktop import company_autopilot as autopilot
+    autopilot.configure(db, True, now=500)
+    tick=autopilot.run_once(db, now=500)
+    assert tick['executed'] is True
+    assert tick['failed_staff_followup_proposals']==1
+    assert db.failed_employee_followups()[0]['state']=='pending'
+    assert len(db.list_task_runs(task))==1
+    again=autopilot.run_once(db, now=500)
+    assert again['executed'] is False
+    assert len(db.failed_employee_followups())==1
