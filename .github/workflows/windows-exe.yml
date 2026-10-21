@@ -65,6 +65,7 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw 'Native AIWACK company GUI controls are clipped or non-functional' }
           python -m scripts.company_approved_tool_gui_smoke
           python -m scripts.company_real_meeting_ai_gui_smoke
+          python -m scripts.company_business_evidence_gui_smoke
           if ($LASTEXITCODE -ne 0) { throw 'Native approved SQLite read tool GUI click failed' }
       - name: Build verified native Windows desktop application
         shell: pwsh

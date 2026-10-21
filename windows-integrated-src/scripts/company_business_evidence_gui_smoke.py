@@ -60,7 +60,9 @@ with tempfile.TemporaryDirectory() as folder:
         result=store.signed_payment_reconciliation_summary()
         assert result['accepted_signed_net_minor']==110000
         assert result['real_bank_settlement_confirmed'] is False
-        employee=store.add_employee_draft('failed_gui_staff','실패 검사 직원')
+        origin=store.add_department('기존 직원 부서')
+        target=store.add_department('성과 검수 부서')
+        employee=store.add_employee_draft('failed_gui_staff','실패 검사 직원',department_id=origin)
         model=store.add_local_model(ModelConfig('fixture','llamafile',sys.executable,'',32))
         store.set_employee_model(employee,model)
         task=ops.create_task(store,'검수할 직원 실패 업무')
@@ -84,6 +86,29 @@ with tempfile.TemporaryDirectory() as folder:
         assert b and b.winfo_viewable()
         b.invoke();root.update()
         assert store.failed_employee_followups()[0]['followup_task_id'] is not None
+        failed_run_id=store.list_task_runs(task)[0]['id']
+        ui.reorg_staff.set(str(employee))
+        ui.reorg_target.set(str(target))
+        ui.reorg_run.set(str(failed_run_id))
+        ui.reorg_reason.set('실제 모델 실패 원인 검토 후 소유자 조직 개편')
+        for i in range(ui.tabs.index('end')):
+            if ui.tabs.tab(i,'text')=='실제 직원 성과 기반 조직 개편':
+                ui.tabs.select(i)
+                break
+        else:raise AssertionError('실제 조직 개편 GUI 탭 없음')
+        root.update()
+        b=button(root,'근거 기반 이동 제안')
+        assert b and b.winfo_viewable()
+        b.invoke();root.update()
+        assert len(store.staff_department_transfer_audit())==1
+        proposal=store.staff_department_transfer_audit()[0]
+        ui.reorg_proposal.set(str(proposal['id']))
+        b=button(root,'조직 이동 승인')
+        assert b and b.winfo_viewable()
+        b.invoke();root.update()
+        assert store.read_employee_record(employee)['department_id']==target
+        assert store.staff_department_transfer_audit()[0]['state']=='accepted'
+        print('NATIVE_TK_FAILED_STAFF_REASSIGNMENT_OWNER_APPROVAL_PASS')
         print('NATIVE_TK_RECEIPT_RECONCILIATION_AND_REAL_FAILURE_FOLLOWUP_PASS')
         print('SYNTHETIC_SIGNATURE_NOT_REAL_PROVIDER_VERIFICATION')
     finally:
