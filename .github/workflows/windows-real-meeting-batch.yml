@@ -1,0 +1,48 @@
+name: AIWACK Windows real meeting multi-agent native regression
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'windows-integrated-src/desktop/company_meeting_ai.py'
+      - 'windows-integrated-src/desktop/storage.py'
+      - 'windows-integrated-src/desktop/app.py'
+      - 'windows-integrated-src/tests/test_company_meeting_ai.py'
+      - 'windows-integrated-src/scripts/company_real_meeting_ai_gui_smoke.py'
+      - '.github/workflows/windows-real-meeting-batch.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  native-windows-meeting-test:
+    name: Native meeting batch tests (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 12
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-2022, windows-2025]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install current original Windows native project
+        shell: pwsh
+        run: |
+          python -m pip install -e './windows-integrated-src[dev]'
+          if ($LASTEXITCODE -ne 0) { throw 'Original native install failed' }
+      - name: Verify Windows EXE path validation, SQLite model batch and owner controls
+        shell: pwsh
+        run: |
+          Set-Location windows-integrated-src
+          python -m pytest -q tests/test_company_meeting_ai.py
+          if ($LASTEXITCODE -ne 0) { throw 'Actual Windows meeting-model regression failed' }
+      - name: Exercise Korean Tk GUI button and persistent per-agent audit on Windows
+        shell: pwsh
+        run: |
+          Set-Location windows-integrated-src
+          python -m scripts.company_real_meeting_ai_gui_smoke
+          if ($LASTEXITCODE -ne 0) { throw 'Native Windows GUI model-batch smoke failed' }
