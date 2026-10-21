@@ -532,3 +532,36 @@
 ### 다음 실행
 - 위 두 문서 전체, original_project_spec.txt 15장, T01_T20_FINAL_ACCEPTANCE_MATRIX.md, 최신 main 누적 전체 소스와 GitHub Actions부터 재확인.
 - 이후 Windows 신규 기능 실사용 오류 스크린샷/로그 확인, T05 전체 실협업 및 나머지 T01~T20 원본 범위의 다기능 묶음 구현·통합·수정·재검증 계속.
+
+
+## 2026-10-21 / 19회차 — 원본 미완료 범위 다중 실제 개발 (T04/T11~T17)
+
+### 사용자 지시·금지사항 원문 유지
+- 본 회차는 직전 18회차의 회의 단일 기능 수준을 넘어서, 원본 15장 기획의 미완료 **업무 자동 개선·거래/정산 증빙·실제 직원 조직 이동** 3개 묶음을 먼저 기존 Windows 10/11 네이티브 소스에 구현한 뒤 통합 검사·오류 수정·재검증했다.
+- GitHub main 누적 최신 전체 소스를 보존한다. 새 HTML/WebUI·대체 앱 금지. 관리자 한글 Tk GUI, SQLite, 실제 GGUF 호출 경로, 기존 사업·직원·승인·비상정지·권한을 삭제/우회하지 않았다. 다른 프로젝트와 기존 예약 임의 수정, 드라이브 연결 요구 없음. SHA/HEAD 자체를 개발 성과로 보고하지 않는다.
+- 실제 외부 결제사 자격증명·라이브 주문·결제·계약을 사용하지 않았고, 시험용 서명과 합성 모델 오류는 실제 거래·실패 현장 증거가 아님을 GUI·리포트에 명시했다.
+
+### 개발 묶음 A — 실직원 실패 원본 업무→자율 제안→승인된 실제 개선 업무 (T04/T14/T18)
+- 신규 기존 네이티브 모듈 `desktop/company_failure_followups.py` 실제 회사 업무의 `company_task_runs.status=failure/timeout/interrupted`와 직원 ID·원업무를 조회, SQLite 원자적 중복 방지로 각각 **실패 실행 1건당 관리자 개선 후보 1건** 저장. 추정/가정 모델 실패를 삽입하지 않는다.
+- 기존 `company_autopilot.run_once` 실제 소유자 허용 주기마다 위 실패 기록을 탐지·제안 생성(자동 모델 호출/무단 재실행/자동 승인 없음). 소유자 승인 시 `company_tasks`와 업무 상태 이력에 **진짜 새 후속 업무** 생성, 원본 실패 업무는 다시 실행하지 않음. 비상정지/중복 승인/두 EXE 동시 SQLite 경합 차단.
+- 기존 `LocalStore` 및 한글 GUI에서 실패 후보 검색·승인·반려·조회. 테스트 `tests/test_company_failure_followups.py`는 원본 실패→제안→후속 작업 및 자동 주기의 재검사 검증.
+
+### 개발 묶음 B — 외부 거래 원문→서명 수신→관리자 대사→환불/비용 구분 (T11/T12/T13/T16)
+- 신규 모듈 `desktop/company_payment_reconciliation.py`: 사용자 제공 서명 비밀키로 원본 JSON HMAC SHA256 확인, 실제 `managed_businesses`와 사업 ID 연결, 외부 이벤트/거래 키 중복 충돌 차단, KRW 정수 금액 검증, 원정산 거래보다 큰 환불과 중복 정산 승인 금지. 수락/반려·비상정지·SQLite 감사/재로그인 유지.
+- `local_hypothetical_finance`의 **가정 매출**과 분리한 별도 실증 준비 원장. `accepted_signed_net_minor` 등은 **소유자가 승인한 서명 검토 금액**이지, 은행/PG의 독립 확인 또는 실매출이 아니다. `real_bank_settlement_confirmed=False`, `external_provider_connected=False` 유지. 실제 결제사 HMAC 규격/계정 연동·테스트 결제·주문/취소/정산/세무는 남아 있음.
+- 감사 레코드 UPDATE/DELETE 보호 트리거와 검증 테스트 추가. 사용자 GUI에 증빙 파일 선택·서명 키 메모리 전용 입력·승인·반려·환불 대사 및 경고 연결.
+
+### 개발 묶음 C — 실제 실패 직원의 부서 이동/기존 배정 안전 해제 (T15/T16)
+- 신규 모듈 `desktop/company_staff_reallocation.py`는 **동일 직원의 실제 실패 실행 ID**를 근거로 이동 제안, 승인 전 소속 불변, 관리자 수락 시 `ai_employee_profiles.department_id` 변경 및 `_clear_task_assignment_in_tx`로 기존 배정 취소/업무 감사. 실제 수행 중 모델·부서장/하위 관리자·보고 관계 충돌 및 비상정지 중 이동 차단.
+- SQLite 감사 원본/결정 변경·삭제 방지 트리거. 한국어 기존 Tk GUI에 직원/부서/실패 실행번호 입력→제안→별도 수락/반려→이동 이력 조회 버튼 연결. 자동 권한 확대/도구 부여·직원 모델 재실행 없음.
+- `LocalStore`, Windows build bat 및 CI/Windows 2022/2025 EXE/실제 GGUF hidden-import에 세 모듈 포함.
+
+### 실제 검증·실패·오류 수정/재검증
+- 신규 소스 로컬 테스트에서 거래 번호 길이 제한에 맞지 않던 초기 테스트 오류를 수정, 검증된 정산/환불·증빙 중복·비상정지·재로그인 및 실패 후속/실직원 이동 **초기 5 PASS + T15 2 PASS**.
+- 기존 자동운영/협업/운영진단/직원성과 포함 로컬 관련 회귀 **47 PASS/1 SKIP**, 원문 변경 보호 테스트 보강 뒤 **50 PASS/1 SKIP**. 일부 초기 임시 로컬 복사본의 테스트 항목/필드명이 원격 코드와 달라 2건 실패한 기록을 분석하여 원격 실제 API를 따르는 통합 테스트로 수정. 전체 원본 프로그램 모든 테스트 합격 아님.
+- Linux Xvfb 기존 **한글 Tk 실제 버튼→서명 수신→소유자 검수→실패 제안→후속 업무 생성**, 그리고 **직원 소속 변경 소유자 수락→실제 SQLite 감사** 일괄 성공. 표시: `NATIVE_TK_RECEIPT_RECONCILIATION_AND_REAL_FAILURE_FOLLOWUP_PASS`, `NATIVE_TK_FAILED_STAFF_REASSIGNMENT_OWNER_APPROVAL_PASS`. 모의 PG 서명/모의 로컬 모델 실패 이용, Windows10/11 실사용·실결제/실매출 확인 아님.
+- main `556897ac` CI **#39531490730 SUCCESS**: 종전 테스트 138 PASS, 기존 네이티브+신규 259 PASS/1 SKIP, 위 Tk GUI 2개 PASS 확인. 전체 소스 ZIP 생성 #39531490546 SUCCESS. Windows EXE와 실제 GGUF 해당 코드 워크플로는 확인 시 진행 중.
+- 중간 `922174d8`, `b58ff3ce` CI/Windows FAIL은 **새 테스트 파일이 아직 커밋되기 전 워크플로가 실행된 시점의 missing file**로, 원본 보안 검사 제거/우회 없이 각각 신규 테스트를 main에 반영해 해소. 실패 이력 삭제하지 않음.
+- 보강: 서명 거래 증빙 원문과 확정된 직원 이동의 SQLite 불변 보호 트리거 및 강제 UPDATE/DELETE 거부 회귀 `b8b26a54`. 실제 허용된 자율 실행 tick이 실패 증빙 1건만 제안하고 모델/기존 업무를 재실행하지 않는 회귀 `f779f6ca`. 이 **마지막 두 패치의 최신 동일 코드 Windows CI/EXE/GGUF는 아직 최종 완료로 확인하지 않았으므로 SUCCESS 주장 금지**.
+- 신규 본문 커밋(모두 main): `1f209e76`(실패 자동 제안 모듈), `453460e2`(서명 거래/환불 감사), `922174d8`(LocalStore/GUI/자율주기/Windows 빌드 통합), `07c5f03f`(신규 회귀), `f366d1b8`(네이티브 Tk GUI 검사), `eefd16ba`/ `b58ff3ce`/ `167a271f`(실제 조직 이동 모듈/GUI/회귀), `556897ac`(3기능 GUI 합동 검사), `b8b26a54`(원본/결정 감사 보호), `f779f6ca`(자율 중복 개선 차단).
+- 다음 회차: 최신 main CI/실제 Windows EXE 및 GGUF 검증의 동일 SHA 4종 완료 결과 확인. FAIL 정확한 Windows 로그/화면/SQLite 근거로 수정. 원본 남은 T01~T20: 31명 전원 **실제 공동업무** 및 15개 부서 전체 연계, Windows10/11 **실제 24시간 독립 실행**, 실제 외부 도구·상품/서비스·고객·PG 결제/환불/정산·실매출·재무·지속 전략/운영 검증. Mock·서명 수신·단순 모델 probe를 실사용 완료로 재해석하지 말 것.
