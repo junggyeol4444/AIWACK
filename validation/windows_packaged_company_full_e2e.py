@@ -288,7 +288,8 @@ def perform(exe, stub):
         evidence("worker-assigned-through-exe")
 
         # Physically ask chief. Before explicit owner approval no order/run exists.
-        click(w, 125, 653)
+        # Current 1040x720 physical work screen: chief-order button y=610..643.
+        click(w, 125, 626)
         prompt = find_dialog("총괄 AI → 직원 업무 지휘", timeout=20)
         evidence("chief-objective-dialog")
         pyautogui.write(OBJECTIVE, .01)
@@ -342,12 +343,12 @@ def perform(exe, stub):
         click(w, 175, 480)
         wait_office_dashboard(w)
         evidence("reopened-exe-before-recovery-staff-artifact-persisted")
-        # Physical mouse: result tab, persisted worker artifact row, new owner
-        # recovery button. This path reruns ONLY the chief model and prompts
+        # Physical mouse: result tab, persisted worker artifact row, actual owner
+        # recovery button at screen y=565..599, not the old y=640. This path reruns ONLY the chief model and prompts
         # for owner authorization; employee must never be started twice.
         click(w, 556, 270)
         click(w, 155, 482)
-        click(w, 530, 640)
+        click(w, 530, 572)
         confirm()
         wait_sql("SELECT owner_decision FROM company_chief_task_reports WHERE artifact_id=?",
                  "pending", (artifact_id,), timeout=90)
@@ -382,8 +383,8 @@ def perform(exe, stub):
         evidence("owner-approved-artifact-still-in-progress")
         click(w, 165, 483)
         # Actual Windows screenshot: final owner-finish blue button occupies
-        # screen y=625..657; win title top=9. Click inside, not on border.
-        click(w, 130, 636)
+        # screen y=566..599 (current 1040x720 result panel). Click center.
+        click(w, 130, 572)
         evidence("owner-finalize-task-button-physically-clicked")
         confirm()
         evidence("owner-finalize-task-confirmed")
