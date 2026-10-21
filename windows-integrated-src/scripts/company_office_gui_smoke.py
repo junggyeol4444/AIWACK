@@ -55,7 +55,7 @@ with tempfile.TemporaryDirectory() as directory:
             return None
         for view,labels in [
             ('work',['비상 정지','31명 승인 연속 운영','운영 기록 확인','직원 실제 업무 성과']),
-            ('planning',['사내 자율 운영 켜기','사내 자율 운영 끄기','자율 운영 실행 감사',
+            ('planning',['사내 자율 운영 켜기','사내 자율 운영 끄기','자율 운영 실행 감사','중단된 AI 실행 수기 복구',
                          '승인 AI 자동 실행 켜기','승인 AI 자동 실행 끄기']),
             ('results',['승인','수정 요청','반려','승인 결과로 업무 완료',
                         '총괄 AI 회수 검토','총괄 보고서 보기',

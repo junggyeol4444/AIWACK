@@ -6,6 +6,7 @@ All run buttons delegate to the existing authenticated local-model runtime.
 from __future__ import annotations
 
 import queue
+import secrets
 import threading
 import tkinter as tk
 from tkinter import messagebox, simpledialog, ttk
@@ -33,6 +34,7 @@ class CompanyOffice:
         self.cancel = threading.Event()
         self.worker = None
         self.generation = app._session_generation
+        self._continuity_session_id = secrets.token_hex(16)
         self.status = tk.StringVar(value='회사 운영 데이터 연결 중')
         self.title = tk.StringVar()
         self.goal_title = tk.StringVar()
@@ -245,6 +247,7 @@ class CompanyOffice:
         self._action(monitor,'사내 자율 운영 켜기',self.enable_autopilot,compact=True)
         self._action(monitor,'사내 자율 운영 끄기',self.disable_autopilot,compact=True)
         self._action(monitor,'자율 운영 실행 감사',self.show_autopilot_history,compact=True)
+        self._action(monitor,'중단된 AI 실행 수기 복구',self.recover_stale_autopilot,compact=True)
         model_monitor=tk.Frame(card,bg=CARD)
         model_monitor.pack(fill='x',pady=(2,0))
         self._action(model_monitor,'승인 AI 자동 실행 켜기',self.enable_approved_autorun,compact=True)
@@ -1015,6 +1018,12 @@ class CompanyOffice:
                                     f"{state['interval_seconds']//60}분 주기 · 실행 감사 {state['runs']}건")
         except (PermissionError,ValueError,RuntimeError,OSError,InterruptedError) as exc:
             self._say('자율 운영 검사 실패: '+str(exc)[:170])
+        # This callback only records a heartbeat while the real authenticated GUI is alive.
+        try:
+            from desktop import company_continuity
+            company_continuity.record_gui_heartbeat(self.store,self._continuity_session_id)
+        except (PermissionError,ValueError,OSError) as exc:
+            self._say('실제 GUI 운영 감사 실패: '+str(exc)[:120])
         if self.generation == self.app._session_generation:
             self.root.after(30000,self._autopilot_poll)
 
@@ -1068,6 +1077,34 @@ class CompanyOffice:
         except (ValueError,PermissionError) as exc:
             self._say('실제 AI 자동 실행 해제 실패: '+str(exc))
 
+    def recover_stale_autopilot(self):
+        """Explicit owner review of stale audit, never automatic model restart."""
+        from desktop import company_continuity
+        try:
+            rows=company_continuity.recent_stale_claims(self.store)
+            if not rows:
+                self._say('180초 이상 중단된 운영·모델 기록 없음')
+                return
+            self._text_dialog('중단 실행 수기 복구 후보',
+                '\n'.join(f"{r['kind']} #{r['run_id']} / {r['elapsed_seconds']}초" for r in rows[:20]))
+            kind=simpledialog.askstring('복구 분류','tick(운영) 또는 model(모델) 입력:',parent=self.root)
+            if kind is None:return
+            run_id=simpledialog.askinteger('복구 번호','기존 실행 ID:',parent=self.root,minvalue=1)
+            if run_id is None:return
+            if not any(r['kind']==kind and r['run_id']==run_id for r in rows):
+                raise ValueError('실제 180초 이상 중단된 감사 목록에 없는 항목')
+            if not messagebox.askyesno('실제 프로세스 확인 필요',
+                '다른 Windows EXE 창과 GGUF 명령 프로세스를 직접 확인했습니까?\n'
+                '실제 프로세스를 강제 종료하거나 다시 시작하지 않고 감사 상태만 실패로 확정합니다.',
+                parent=self.root):return
+            note=simpledialog.askstring('수기 복구 사유','직접 확인한 근거(5~200자):',parent=self.root)
+            if note is None:return
+            result=company_continuity.inspect_and_close_stale(
+                self.store,kind,run_id,note,owner_confirmed=True)
+            self._say(f"수기 복구 감사 #{result['audit_id']} 영속 저장. 모델 자동 재시작 없음.")
+        except (ValueError,PermissionError,RuntimeError,OSError) as exc:
+            self._say('안전한 복구 거부: '+str(exc)[:170])
+
     def show_autopilot_history(self):
         from desktop import company_autopilot
         try:
@@ -1081,13 +1118,19 @@ class CompanyOffice:
                 detail.extend(f"업무 #{m['task_id']} · {m['state']} · 오류 {m['error_kind'] or '-'}"
                               for m in models)
             diag=company_autopilot.operational_diagnostics(self.store)
+            from desktop import company_continuity
+            gui=company_continuity.observed_gui_continuity(self.store)
+            recovery=company_continuity.read_recovery_audit(self.store,limit=20)
             detail.extend([
                 '--- 실제 SQLite 운영 지속성 진단 ---',
                 f"자동 운영 허용: {diag['enabled']} / 모델 별도 허용: {diag['model_policy_enabled']}",
                 f"최근 24시간 실제 기록된 성공/실패 주기: {diag['observed_success_ticks_last_24h']}/{diag['observed_failed_ticks_last_24h']}",
                 f"미완료 주기/모델 기록: {diag['unfinished_tick_records']}/{diag['unfinished_model_records']}",
                 f"다음 실행 지연 경고: {diag['tick_overdue']} / 비상정지: {diag['emergency_stop']}",
-                '실제 Windows 24시간 연속 실행 증명: 미검증(기록만으로 인증하지 않음)'])
+                f"인증된 GUI 폴링 감사 {gui['observed_heartbeat_rows']}건 / 독립 세션 {gui['distinct_gui_sessions']}개",
+                f"단일 세션 24시간 연속성 감사: {gui['observed_uninterrupted_gui_24h']} / 90초 넘는 공백 {gui['observed_gaps_gt_90s']}건",
+                f"소유자 수기 중단 복구 감사 {len(recovery)}건 (모델 자동 재실행 없음)",
+                '실제 Windows 24시간 연속 실행 최종 인증: 미검증(SQLite만으로는 판단 불가)'])
             self._text_dialog('사내 자율 운영 감사', '\n'.join(detail))
         except (ValueError,PermissionError) as exc:
             self._say('자율 운영 기록 조회 오류: '+str(exc))
