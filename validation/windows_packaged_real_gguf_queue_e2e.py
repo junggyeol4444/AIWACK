@@ -584,8 +584,8 @@ def perform(exe, model_cli, gguf):
         # the project explicitly does not yet block external services.
         click(w, 424, 270)
         # Windows 2025 screenshot: red "비상 정지" button is screen
-        # x=532..608, y=639..670 (window-relative center 562,646).
-        click(w, 562, 646)
+        # x=532..608, y=610..642 (window-relative center 562,626).
+        click(w, 562, 626)
         confirm()
         wait_sql("SELECT stopped FROM local_emergency_control WHERE id=1", 1)
         wait_sql("SELECT state FROM local_emergency_control_events ORDER BY id DESC LIMIT 1", 1)
