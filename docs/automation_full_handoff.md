@@ -621,3 +621,30 @@
 ### 계속 해야 하는 원본 미완료
 - 전 직원·총괄 각각의 실제 GGUF로 30개 승인 업무 **전체를 완료하는 Windows 최종 실증**, 실제 24시간 Windows 사용자 환경 무인 운영, 외부 도구를 이용한 실제 상품·서비스/고객·계약·결제·환불·정산·실매출, 평가·조직개편 및 T01~T20 최종 인수는 아직 완료로 주장하지 않는다.
 - 다음 개발도 본 원문/전체 원본 계획·T01~T20과 latest main 소스/Actions를 먼저 읽어 기능 구현→전체 통합 검증→실제 Windows GGUF 오류 수정→재검증을 수행한다.
+
+
+## 2026-10-21 22회차 — 15부서·31명 실협업 승인 결과물 전달 무결성·감사 개발
+
+### 지시/원본 제약 유지
+- 대상은 junggyeol4444/AIWACK main 기존 Windows 10/11 네이티브 EXE/Tk 한글 GUI, SQLite, GGUF 모델 및 1~21회차 전체 누적 코드. 새 HTML/WebUI/대체 앱·드라이브 연결 요구 금지. 다른 프로젝트/예약 임의 변경 없음.
+- 연관 기능 구현 → 기존과 신규 기능 통합 검사 → 오류 수정 → 전체 재검증. 완료되지 않은 T01~T20이나 실제 GGUF 30개 업무를 성공으로 표현하지 않음. SHA/HEAD는 덮어쓰기 방지 식별값일 뿐 사용자 성과가 아님.
+
+### main에 누적 실제 구현
+- 기존 desktop/company_wide_campaign.py에 assert_handoff_ready 추가: 승인된 15부서·30단계 캠페인의 후속 직원 실행 이전에 직전 부서 업무 done, 동일 직원의 AI 모델 성공 호출, 관리자 결과물 승인, 동일 총괄 AI 모델 검수와 관리자 보고서 수락, 두 SHA256 원본문 무결성까지 교차 확인. 기존 업무를 실수로 done 처리했거나 결과물을 SQL로 변조해도 다음 직원 모델 실행 차단.
+- 원자적 실행 경로 LocalStore.begin_task_execution의 기존 BEGIN IMMEDIATE 내부에서 이 검사를 의무 호출. 일반 업무의 권한을 바꾸지 않고, 원래 회사 전체 협업의 모든 GUI/실행 진입점에 같은 보증 적용.
+- 회사 지식 전달의 기존 dependency_context를 사용하되 다음 직원 실제 모델 prompt에 직전 업무 ID+승인 결과물 ID의 출처가 존재하는지 재확인, 너무 길어 빠지면 실행 중단. 이전 직원 문서의 명령은 현재 지시가 아닌 신뢰할 수 없는 참고 자료로만 사용.
+- 부서별 실제 완료·승인·SHA 교차검증 read-only verified_progress와 LocalStore.verified_full_company_progress 추가: 검증된 완료/30, 실제 참여 직원, 승인 완료 부서/15, 다음 업무, 아직 승인 대기인 단계 구분. 단 SQLite만으로 실제 GGUF 모델 파일 진품까지 확인했다는 뜻은 아니므로 actual_gguf_binary_verified는 False.
+- 기존 15부서·31명 한글 GUI 탭의 감사·진행 상태 버튼에서 실제 검증 완료/30·15부서·다음 업무를 표시. 원본 GUI/Windows EXE·모델 경로 유지.
+- 신규 두 회귀 테스트: 관리자 승인된 앞 부서 모델 결과가 실제 후속 직원 prompt에 출처와 본문으로 들어가는지 검사, 승인 완료 후 결과물 본문 SHA를 변조하면 다음 실제 모델 호출과 새 실행 감사 자체가 생성되지 않음을 검사. 기존 30업무 전체 순차 승인 synthetic 회귀 그대로 유지.
+- 한글 Tk GUI smoke도 계획 승인→첫 업무 Pending 시 0/30→관리자 결과물 승인·총괄 보고서 수락·완료 후 1/30→종료/재로그인 후 1/30 보존까지 확장.
+- GitHub main 누적 소스 변경 커밋: 363476c3(모델 실행 직전 승인된 실직원/총괄 인수인계 검사), c7ccd00d(실제 프롬프트 전달 및 변조 차단 회귀), 89a58260(실제 Tk GUI 검수·재로그인 smoke). 원래 앱, 저장소, 회사 전체 캠페인, 기존 테스트/GUI script 내에서 수정.
+
+### 실제 통합 검사 결과 및 미검증 구분
+- 기존 관련 12개 테스트 PASS, 수정 후 핵심 14 PASS, 확대된 실무 관련 7모듈 회귀 84 PASS. 로컬 desktop/storage/app/test Python 구문 파싱 PASS.
+- Linux Xvfb 실제 한글 Tk GUI 로그인·결과물 검수·재로그인: NATIVE_TK_WIDE_HANDOFF_OWNER_REVIEW_AND_PROGRESS_PASS / NATIVE_TK_WIDE_15_DEPARTMENT_31_ROLE_CAMPAIGN_GUI_PASS. 모델 응답은 명확히 synthetic fixture이며 실제 Windows GGUF 성공 증빙이 아님.
+- GitHub 동일 기능 CI #39548638077 SUCCESS: 기본 138 PASS + 네이티브 271 PASS, 1 SKIP. 새 GUI smoke가 추가된 89a58260의 Windows EXE·GGUF·CI 최신 결과는 완료되기 전에는 PASS를 주장하지 말 것.
+- 이전 ff6d9bed에서 Windows EXE 시작·GUI SQLite 로그인 재진입·실제 GGUF 시나리오 SUCCESS 확인. 다만 그 검증은 30개 전체 실GGUF 업무와 각 단계 30회 사용자 결과물 승인 전체 합격 증거가 아님.
+
+### 남은 원본 개발/검증을 삭제하지 않는다
+- 31명/15부서 실제 로컬 GGUF 30개 협업 업무 생성·모델 실행·부서 간 전달·총괄 보고서·30건 관리자 승인 Windows 실제 E2E 전부, 24시간 Windows 10/11 무인 운영·장애 복구, 실제 외부 도구를 이용한 상품/고객/계약/판매·PG 결제·환불·정산·재무, T01~T20 최종 인수 계속 미완료.
+- 다음 실행은 최신 main 전체 소스·기획/본 누적 인수인계·Actions 로그부터 다시 확인하고, Windows EXE/실GGUF 실패 로그를 수정 후 전부 재검증, 실제 30단계 GGUF 끝까지 실행 검증 경로와 남은 24h/사업·매출 기능들을 계속 구현. 단위 테스트 하나의 성공을 전체 완성으로 재해석 금지.
