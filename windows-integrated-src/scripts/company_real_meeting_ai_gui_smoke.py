@@ -1,5 +1,7 @@
 """Real Tk button -> SQLite model audit; model response synthetic for GUI regression."""
 import json
+import os
+import sys
 import tempfile
 import time
 import tkinter as tk
@@ -29,8 +31,10 @@ with tempfile.TemporaryDirectory() as workdir:
         exe.write_bytes(b'fixture')
         weights=Path(workdir)/'fake.gguf'
         weights.write_bytes(b'GGUF')
-        mid=store.add_local_model(ModelConfig('gui-test-model','llama_cpp',str(exe),str(weights),64))
+        configured_cli=sys.executable if os.name=='nt' else str(exe)
+        mid=store.add_local_model(ModelConfig('gui-test-model','llama_cpp',configured_cli,str(weights),64))
         store.set_employee_model(worker,mid)
+        store.set_employee_model(coworker,mid)
         meeting=store.create_meeting('회의 모델 GUI','수기 입력과 다른 모델 출처')
         agenda=store.add_meeting_agenda(meeting,'결과 검수')
         for eid in (worker,coworker):
@@ -64,6 +68,22 @@ with tempfile.TemporaryDirectory() as workdir:
         assert '모델 감사' in ui.opinion_feedback.get()
         assert len(store.list_employee_model_calls(worker))==1
         assert not store.list_meeting_decisions(meeting)
+        # A second physical GUI button now runs remaining real attendees as one batch.
+        assert ui.real_meeting_attendees_button.winfo_viewable()
+        assert ui.real_meeting_attendees_button.winfo_rootx() + \
+            ui.real_meeting_attendees_button.winfo_width() <= root.winfo_rootx() + root.winfo_width()
+        ui.real_meeting_attendees_button.invoke()
+        until=time.monotonic()+14
+        while time.monotonic()<until:
+            root.update()
+            if len(store.real_meeting_opinion_audit(meeting))==2 and '성공 1명' in ui.opinion_feedback.get():
+                break
+            time.sleep(.05)
+        root.update()
+        assert len(store.real_meeting_opinion_audit(meeting))==2, ui.opinion_feedback.get()
+        assert len(store.list_employee_model_calls(coworker))==1
+        assert not store.list_meeting_decisions(meeting)
+        print('NATIVE_TK_MULTI_DEPARTMENT_REAL_MODEL_BATCH_SQLITE_PASS')
         print('NATIVE_TK_REAL_MEETING_OPINION_BUTTON_SQLITE_AUDIT_PASS')
         print('MODEL_RESPONSE_SYNTHETIC_GUI_CHECK_ONLY')
     finally:

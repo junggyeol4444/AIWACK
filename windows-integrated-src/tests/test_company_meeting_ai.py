@@ -1,6 +1,8 @@
 """Actual SQLite meeting workflow tests; mocked model text is not real GGUF evidence."""
 import json
 import sqlite3
+import os
+import sys
 import threading
 import pytest
 from desktop.storage import LocalStore
@@ -20,7 +22,10 @@ def case(tmp_path,monkeypatch):
     cli.write_bytes(b'mock')
     weights=tmp_path/'local.gguf'
     weights.write_bytes(b'GGUF')
-    model=db.add_local_model(ModelConfig('meeting-model','llama_cpp',str(cli),str(weights),64))
+    # Keep Windows executable validation strict. This test mocks only inference,
+    # so use the real Python EXE rather than a fake extensionless Windows binary.
+    configured_cli=sys.executable if os.name=='nt' else str(cli)
+    model=db.add_local_model(ModelConfig('meeting-model','llama_cpp',configured_cli,str(weights),64))
     db.set_employee_model(a,model)
     db.set_employee_model(b,model)
     mid=db.create_meeting('출시 회의','다른 부서 의견')
@@ -137,3 +142,45 @@ def test_real_local_cli_subprocess_audit_survives_restart(tmp_path):
     db=LocalStore(db.path)
     db.login('local-cli-owner','local-cli-password-2026')
     assert len(db.real_meeting_opinion_audit(meeting))==1
+
+
+def test_real_multi_department_batch_model_inference_and_restart(case):
+    db,mid,agenda,a,b=case
+    result=db.run_real_meeting_attendees(mid,agenda)
+    assert result['attendees']==2
+    assert len(result['succeeded'])==2
+    assert result['all_attendees_verified'] is True
+    assert result['automatic_owner_decision'] is False
+    assert len(db.real_meeting_opinion_audit(mid))==2
+    assert len(db.list_meeting_decisions(mid))==0
+    replay=db.run_real_meeting_attendees(mid,agenda)
+    assert replay['succeeded']==[]
+    assert replay['skipped_previously_recorded']==[a,b]
+    db.logout()
+    fresh=LocalStore(db.path)
+    fresh.login('meeting-owner','meeting-test-password-2026')
+    assert len(fresh.real_meeting_opinion_audit(mid))==2
+
+
+def test_manual_opinion_is_not_a_verified_model_call(case):
+    db,mid,agenda,a,b=case
+    db.add_meeting_opinion(mid,agenda,a,'보류','관리자 입력 의견: 자료 부족','','')
+    result=db.run_real_meeting_attendees(mid,agenda)
+    assert result['all_attendees_verified'] is False
+    assert result['skipped_manual_opinion']==[a]
+    assert len(result['succeeded'])==1
+    assert len(db.real_meeting_opinion_audit(mid))==1
+
+
+def test_batch_cancel_after_first_actual_call_preserves_partial_audit(case,monkeypatch):
+    db,mid,agenda,a,b=case
+    cancel=threading.Event()
+    def call_then_cancel(*args,**kwargs):
+        cancel.set()
+        return json.dumps({'stance':'보류','reasoning':'취소와 동시에 생성된 응답'},ensure_ascii=False)
+    monkeypatch.setattr(runtime,'run_local_model',call_then_cancel)
+    result=db.run_real_meeting_attendees(mid,agenda,cancel=cancel)
+    assert result['cancelled'] is True
+    assert result['all_attendees_verified'] is False
+    assert result['succeeded']==[]
+    assert db.real_meeting_opinion_audit(mid)==[]
