@@ -6,6 +6,7 @@ on:
     paths:
       - '.github/workflows/publish-verified-windows-source.yml'
       - 'windows-integrated-src/**'
+      - 'validation/**'
   workflow_dispatch:
 
 permissions:
