@@ -6,6 +6,7 @@ on:
       - '.github/workflows/validation-windows-real-gguf-queue.yml'
       - 'validation/windows_packaged_real_gguf_queue_e2e.py'
       - 'validation/windows_real_parallel_company_e2e.py'
+      - 'validation/windows_real_30_step_campaign_e2e.py'
       - 'validation/real_gguf_preflight.py'
       - 'validation/windows_built_exe_gui.py'
       - 'windows-integrated-src/**'
@@ -16,7 +17,7 @@ jobs:
   real-gguf-approved-company-queue-exe:
     name: Real GGUF approved two-task chief-worker queue (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
-    timeout-minutes: 45
+    timeout-minutes: 120
     strategy:
       fail-fast: false
       matrix:
@@ -119,6 +120,12 @@ jobs:
           $evidence = Join-Path $env:RUNNER_TEMP 'aiwack-native-parallel-evidence'
           python validation/windows_real_parallel_company_e2e.py $env:AIWACK_REAL_LLAMA_CLI $env:AIWACK_REAL_GGUF_FILE $evidence
           if ($LASTEXITCODE -ne 0) { throw 'Real concurrent GGUF workers/chief/persistence validation failed' }
+      - name: Actual full 15-department 31-role 30-step GGUF backend attempt
+        shell: pwsh
+        run: |
+          $evidence = Join-Path $env:RUNNER_TEMP 'aiwack-real-30-step-evidence'
+          python validation/windows_real_30_step_campaign_e2e.py $env:AIWACK_REAL_LLAMA_CLI $env:AIWACK_REAL_GGUF_FILE $evidence
+          if ($LASTEXITCODE -ne 0) { throw 'Full 30-step genuine GGUF backend failed. Inspect per-step evidence.' }
       - name: Save real EXE screen captures and errors
         if: always()
         uses: actions/upload-artifact@v4
@@ -126,6 +133,7 @@ jobs:
           name: aiwack-real-gguf-queue-windows-evidence-${{ matrix.os }}
           path: |
             ${{ runner.temp }}/aiwack-real-gguf-queue-evidence/
+            ${{ runner.temp }}/aiwack-real-30-step-evidence/
             ${{ runner.temp }}/aiwack-native-parallel-evidence/
             ${{ runner.temp }}/aiwack-llama-preflight.txt
             ${{ runner.temp }}/aiwack-llama-preflight-b11748.txt
