@@ -43,7 +43,7 @@ def verify(cli:Path,gguf:Path,evidence:Path):
         people=store.list_employee_records()
         if len(people)!=31:raise AssertionError('Need real 31 agent profiles')
         model=store.add_local_model(ModelConfig('Official local GGUF', 'llama_cpp',
-                                               str(cli),str(gguf),48))
+                                               str(cli),str(gguf),256))
         for e in people:store.set_employee_model(e['id'],model)
         task=ops.create_task(store,'15부서 실제 GGUF 고객 지원 프로젝트',
                              '고객지원 정책과 문서 작성 및 품질 점검')
