@@ -3319,6 +3319,12 @@ class LocalStore:
         from desktop.company_meeting_ai import run_one
         return run_one(self, meeting_id, agenda_id, employee_id, cancel=cancel)
 
+    def run_real_meeting_attendees(self, meeting_id: int, agenda_id: int, *,
+                                   cancel=None, timeout: int=90, max_employees: int=30) -> dict:
+        from desktop.company_meeting_ai import run_attendees
+        return run_attendees(self,meeting_id,agenda_id,cancel=cancel,
+                             timeout=timeout,max_employees=max_employees)
+
     def real_meeting_opinion_audit(self, meeting_id: int) -> list[dict]:
         from desktop.company_meeting_ai import report
         return report(self, meeting_id)

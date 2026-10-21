@@ -126,6 +126,85 @@ def run_one(store, meeting_id: int, agenda_id: int, employee_id: int,
                 decision_created=False,external_action_performed=False)
 
 
+
+def run_attendees(store, meeting_id: int, agenda_id: int, *,
+                  cancel: threading.Event | None = None,
+                  timeout: int = 90, max_employees: int = 30) -> dict:
+    """Run EVERY eligible meeting attendee's assigned real local model once.
+
+    A bounded, owner-invoked operation, NOT an automatic owner decision.
+    Failed employees remain visible and can be re-run explicitly. Existing
+    opinions are retained and never overwritten. Cancelling stops new calls.
+    """
+    store.require_permission('company:manage')
+    store.require_permission('agents:manage')
+    _id(meeting_id, '회의')
+    _id(agenda_id, '안건')
+    if type(max_employees) is not int or not 2 <= max_employees <= 30:
+        raise ValueError('한 번의 회의에서 2~30명만 호출할 수 있습니다.')
+    if type(timeout) is not int or not 1 <= timeout <= 120:
+        raise ValueError('모델별 호출 제한 시간은 1~120초입니다.')
+    if cancel is not None and cancel.is_set():
+        raise InterruptedError('취소된 회의는 실행하지 않습니다.')
+    with store._connect() as con:
+        initialize(con)
+        meeting=read_meeting(con, meeting_id)
+        if stopped(con):
+            raise PermissionError('비상정지 중 회의 참석자를 호출할 수 없습니다.')
+        if meeting['status']!='scheduled' or not any(a['id']==agenda_id for a in meeting['agenda']):
+            raise ValueError('예정된 회의의 실제 안건을 지정해야 합니다.')
+        active=[a['employee_id'] for a in meeting['attendees'] if a['lifecycle']=='draft']
+        if len(active)!=len(meeting['attendees']):
+            raise ValueError('비활성 참석자를 포함한 회의는 실행할 수 없습니다.')
+        if not 2<=len(active)<=max_employees:
+            raise ValueError('회의 참석자 수가 실행 상한과 맞지 않습니다.')
+        if con.execute('SELECT 1 FROM local_meeting_decisions WHERE agenda_id=?',(agenda_id,)).fetchone():
+            raise ValueError('이미 결정된 안건은 실행하지 않습니다.')
+        previous={int(r[0]) for r in con.execute(
+            'SELECT employee_id FROM local_meeting_opinions WHERE meeting_id=? AND agenda_id=?',
+            (meeting_id,agenda_id))}
+        previous_model={int(r[0]) for r in con.execute(
+            '''SELECT o.employee_id FROM local_meeting_opinions o
+              JOIN aiwack_real_meeting_model_opinions audit ON audit.opinion_id=o.id
+              WHERE o.meeting_id=? AND o.agenda_id=?''', (meeting_id,agenda_id))}
+    attempted=[]
+    skipped=[]
+    previous_manual=[]
+    failed=[]
+    for employee_id in active:
+        if cancel is not None and cancel.is_set():
+            break
+        if employee_id in previous:
+            if employee_id in previous_model:
+                skipped.append(employee_id)
+            else:
+                # Existing manual entry must not count as model participation.
+                previous_manual.append(employee_id)
+            continue
+        try:
+            result=run_one(store,meeting_id,agenda_id,employee_id,
+                           cancel=cancel,timeout=timeout)
+            attempted.append({'employee_id':employee_id,'opinion_id':result['opinion_id'],
+                              'model_call_id':result['model_call_id']})
+        except InterruptedError:
+            # The cancelled model must not be treated as an accepted opinion.
+            break
+        except PermissionError:
+            # Owner logout, account rights change, or emergency stop must abort
+            # the remaining queue instead of silently claiming completion.
+            raise
+        except (ValueError,RuntimeError,TimeoutError,OSError,sqlite3.Error) as exc:
+            # A single bad/absent model cannot fabricate successful attendance.
+            failed.append({'employee_id':employee_id,'reason':type(exc).__name__})
+    cancelled=(cancel is not None and cancel.is_set())
+    return {'meeting_id':meeting_id,'agenda_id':agenda_id,'attendees':len(active),
+            'succeeded':attempted,'skipped_previously_recorded':skipped,
+            'failed':failed,'skipped_manual_opinion':previous_manual,'cancelled':cancelled,
+            'all_attendees_verified':(not cancelled and not failed and not previous_manual and
+                len(attempted)+len(skipped)==len(active)),
+            'automatic_owner_decision':False,'actual_external_work':False}
+
+
 def report(store, meeting_id: int) -> list[dict]:
     store.require_permission('agents:manage')
     _id(meeting_id,'회의')
