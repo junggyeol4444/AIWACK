@@ -565,3 +565,30 @@
 - 보강: 서명 거래 증빙 원문과 확정된 직원 이동의 SQLite 불변 보호 트리거 및 강제 UPDATE/DELETE 거부 회귀 `b8b26a54`. 실제 허용된 자율 실행 tick이 실패 증빙 1건만 제안하고 모델/기존 업무를 재실행하지 않는 회귀 `f779f6ca`. 이 **마지막 두 패치의 최신 동일 코드 Windows CI/EXE/GGUF는 아직 최종 완료로 확인하지 않았으므로 SUCCESS 주장 금지**.
 - 신규 본문 커밋(모두 main): `1f209e76`(실패 자동 제안 모듈), `453460e2`(서명 거래/환불 감사), `922174d8`(LocalStore/GUI/자율주기/Windows 빌드 통합), `07c5f03f`(신규 회귀), `f366d1b8`(네이티브 Tk GUI 검사), `eefd16ba`/ `b58ff3ce`/ `167a271f`(실제 조직 이동 모듈/GUI/회귀), `556897ac`(3기능 GUI 합동 검사), `b8b26a54`(원본/결정 감사 보호), `f779f6ca`(자율 중복 개선 차단).
 - 다음 회차: 최신 main CI/실제 Windows EXE 및 GGUF 검증의 동일 SHA 4종 완료 결과 확인. FAIL 정확한 Windows 로그/화면/SQLite 근거로 수정. 원본 남은 T01~T20: 31명 전원 **실제 공동업무** 및 15개 부서 전체 연계, Windows10/11 **실제 24시간 독립 실행**, 실제 외부 도구·상품/서비스·고객·PG 결제/환불/정산·실매출·재무·지속 전략/운영 검증. Mock·서명 수신·단순 모델 probe를 실사용 완료로 재해석하지 말 것.
+
+
+## 2026-10-21 / 20회차 — 다부서 실제 모델 협업 개발·Windows 오류 수정·전체 회귀
+
+### 유지한 최우선 사용자 지시
+- 기존 AIWACK Windows 10/11 네이티브 EXE·한글 GUI·SQLite·실제 로컬 GGUF 모델 코드의 누적 개발만 한다. HTML/WebUI/대체 프로젝트, 무단 원본 삭제/재해석, Drive 요구, 다른 프로젝트나 기존 예약 설정의 임의 변경 금지.
+- 원본 기획의 미완료 기능을 관련 묶음으로 먼저 개발한 다음 기존·신규 통합 검증, 실패 로그 수정, 전체 재검증. T01~T20 미완료를 성급하게 완료로 기록하지 않는다. Windows EXE/GGUF에서 실행하지 않은 기능은 성공이라 쓰지 않는다.
+- SHA/HEAD는 손실/충돌 방지 확인만 수행하며 성과는 실제 소스·검증 결과로 보고한다.
+
+### 실제 기존 소스 개발·수정
+1. 이전 Windows EXE 실증 #39531914704: Windows 2022/2025에서 신규 회의 테스트 6건이 확장자 없는 fixture 모델 실행파일 등록으로 오류 발생(172 PASS/4 SKIP/6 ERROR). Windows EXE/.COM 보안 검사를 없애지 않고, Windows 테스트 경로는 sys.executable 실제 Python .exe로, Linux는 로컬 fixture 파일로 구분하도록 기존 test_company_meeting_ai.py와 company_real_meeting_ai_gui_smoke.py 수정.
+2. 기존 desktop/company_meeting_ai.py의 실제 로컬 직원 모델 호출을 활성 회의 참석자 2~30명 일괄 실행으로 확장. 각 직원 배정 모델 순차 호출→독립 SQLite 감사·의견 결과 저장, 기존 의견/수동 입력 중복 구분, 수기 의견을 실제 모델 성공으로 허위 계산하지 않음. 실패/취소·비상정지 보호, 관리자 결정이나 외부 도구/거래 자동 실행 없음. 최대 인원은 원래 회의 초대 상한 30명 유지.
+3. 기존 desktop/storage.py와 desktop/app.py에 실제 다부서 모델 그룹 호출·소유자 확인·비동기 스레드·취소 토큰·GUI 성공/실패/수기 분리 표시 연결. 기존 단일 직원 버튼/수기 회의/SQLite 관리자 승인 변경 없이 유지. GUI 확인 문구의 줄바꿈 오류까지 수정.
+4. 그룹 중복 실행/취소/재로그인/수기 모델 출처 오인방지 신규 테스트 3건 및 한글 Tk GUI 그룹 버튼 실제 호출→SQLite 결과 2명 검증 추가. Windows 2022/2025에서 해당 테스트와 실제 GUI를 빨리 실행할 전용 검증 GitHub Actions 파일 windows-real-meeting-batch.yml 추가(기존 전체 GGUF/E2E 테스트 삭제하지 않음).
+
+### 이번 실행 실제 검증 및 남은 오류
+- 로컬 기존 원본 루트 전체 138 PASS (23.26초).
+- 로컬 기존+신규 Windows 네이티브 관련 29개 모듈 265 PASS/1 SKIP (101.10초).
+- Python desktop/scripts/tests 컴파일 PASS. Linux Xvfb 로그인/직원/재로그인 smoke PASS, 사업·실패 개선·직원 부서 이동 GUI smoke PASS, 신규 한글 Tk 다부서 모델 그룹 버튼 실제 클릭→SQLite 감사 PASS. 모델 응답 합성 fixture 이용, 진짜 GGUF 그룹 실행 합격 증거로 삼지 않음.
+- GitHub main CI #39540243794 SUCCESS: 원본 138 PASS + 네이티브 265 PASS/1 SKIP + 신규 그룹 Tk GUI 모델 감사 marker 확인.
+- 실제 Github main 누적 코드 변경 9a029a19(Windows 모델 fixture와 GUI 회귀), 6c0e9a4c(그룹 모델 실행·SQLite), e6069bf7 및 19a162cc(한글 GUI 그룹 호출·문구 수정), 2141aacb(Windows 2022/2025 빠른 그룹 테스트). 수정된 모든 5개 기존 앱·회귀 파일 Git blob 값 로컬 통합 테스트 파일과 대조해 동일함 확인.
+- 이전 실제 Windows GGUF #39531914618: Windows 2022 공식 llama.cpp CPU b11433/b11748 각각 llama-completion.exe와 llama-cli.exe 4개 조합 모두 returncode 0xC0000374 힙손상. 진짜 추론을 하려면 무결한 종료가 필요하므로 stdout 출력을 성공으로 오인하지 않고 FAIL 보존. 같은 실행 Windows 2025 GGUF PASS. 공식 런타임의 2022 힙손상 원인은 확인되지 않아 해결 주장하지 않음.
+- 최신 전체 Windows EXE, Windows GGUF 및 Windows 2022/2025 회의 그룹 빠른 검사 #39540471949는 마지막 조회 당시 큐 상태. 결과 확정 전 새 그룹 기능 실제 Windows 정상이라고 주장 금지.
+
+### 원본 미완료 계속
+- 31명 전원/15개 부서의 진짜 공동 프로젝트 실행과 결과물 상호 검수(단일 회의 참석은 원래 상한 30명, 여러 회의/업무 통합 필요), 실제 Windows 10/11 24시간 무인 운영, 승인된 외부 도구, 실상품/고객/판매/PG 결제·취소/환불·실매출/정산/회계, 사업 평가·조직변경/장애복구 등 원본 T01~T20 최종 인수 미완료.
+- 다음 실행은 전체 원문+최신 main+실제 Actions 먼저 읽고, 신규 Windows 실행 오류/실제 GGUF 힙손상 증거 수정 및 미완료 다부서 실업무/사업/24시간 자율 운영 구현을 묶어서 지속. 작은 증명이나 CI 숫자를 전체 완성으로 표현 금지.
