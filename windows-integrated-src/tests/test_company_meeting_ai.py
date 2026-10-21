@@ -109,3 +109,31 @@ def test_owner_decision_still_separate(case):
     with pytest.raises(ValueError,match='이미 결정'):
         db.run_real_meeting_employee_opinion(mid,agenda,b)
     assert db.list_tasks()==[]
+
+
+@pytest.mark.skipif(__import__('os').name == 'nt', reason='Linux subprocess fixture; Windows GGUF is a separate EXE action')
+def test_real_local_cli_subprocess_audit_survives_restart(tmp_path):
+    """Actually launches a local subprocess; fixture is not a genuine GGUF model."""
+    db=LocalStore(tmp_path/'actual_local_cli_meeting.sqlite3')
+    db.setup_owner('local-cli-owner','local-cli-password-2026')
+    dep=db.add_department('실행 테스트')
+    a=db.add_employee_draft('local_cli_staff1','실행 직원1',department_id=dep)
+    b=db.add_employee_draft('local_cli_staff2','실행 직원2',department_id=dep)
+    cli=tmp_path/'local-llama-cli-fixture'
+    cli.write_text("#!/usr/bin/env python3\nimport json\nprint(json.dumps(dict(stance='보류',reasoning='미검증 사실은 채택할 수 없습니다.')))\n",encoding='utf8')
+    cli.chmod(0o700)
+    weights=tmp_path/'fixture.gguf'
+    weights.write_bytes(b'GGUF\x03\x00\x00\x00')
+    model=db.add_local_model(ModelConfig('real-process-fixture','llama_cpp',str(cli),str(weights),48))
+    db.set_employee_model(a,model)
+    meeting=db.create_meeting('로컬 프로세스 회의')
+    agenda=db.add_meeting_agenda(meeting,'확인 항목')
+    for staff in (a,b):db.add_meeting_attendee(meeting,staff)
+    db.set_meeting_status(meeting,'scheduled')
+    result=db.run_real_meeting_employee_opinion(meeting,agenda,a)
+    assert result['origin']=='real_local_model'
+    assert db.list_employee_model_calls(a)[0]['status']=='success'
+    db.logout()
+    db=LocalStore(db.path)
+    db.login('local-cli-owner','local-cli-password-2026')
+    assert len(db.real_meeting_opinion_audit(meeting))==1
