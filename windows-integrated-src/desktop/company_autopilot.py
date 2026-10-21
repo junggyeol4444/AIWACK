@@ -94,11 +94,14 @@ def run_once(store, *, now=None):
         counts['schedule_created']=len(store.run_due_recurring_schedules(now=stamp))
         if _paused(store): raise InterruptedError('소유자가 실행을 중지했습니다.')
         counts['event_created']=len(store.dispatch_local_events(limit=10))
+        if _paused(store): raise InterruptedError('소유자가 실행을 중지했습니다.')
+        failure_followups_created=len(store.scan_failed_employee_work(limit=31)['created'])
     except Exception as exc:
         _finish(store,run_id,'failed',counts,type(exc).__name__)
         raise
     _finish(store,run_id,'success',counts,'')
-    return {'executed':True,'id':run_id,**counts,'model_called':False,
+    return {'executed':True,'id':run_id,**counts,
+            'failed_staff_followup_proposals':failure_followups_created,'model_called':False,
             'owner_approval_required':True,'external_actions':False}
 
 

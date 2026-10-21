@@ -263,6 +263,8 @@ class AIWACKWindow:
         self.tabs.add(service_tab, text="외부 연동 초안 (오프라인)")
         tool_audit_tab = tk.Frame(self.tabs, bg="#121c2d", padx=12, pady=16)
         self.tabs.add(tool_audit_tab, text="도구 사용·실패 기록")
+        evidence_business_tab = tk.Frame(self.tabs, bg="#121c2d", padx=12, pady=16)
+        self.tabs.add(evidence_business_tab, text="거래 증빙·실패 업무 개선")
         business_tab = tk.Frame(self.tabs, bg="#121c2d", padx=12, pady=16)
         self.tabs.add(business_tab, text="범용 사업 유형·사업 관리")
         discovery_tab = tk.Frame(self.tabs, bg="#121c2d", padx=12, pady=16)
@@ -336,6 +338,7 @@ class AIWACKWindow:
         self._media_adapter_panel(media_tab)
         self._service_drafts_panel(service_tab)
         self._tool_audit_panel(tool_audit_tab)
+        self._evidence_business_panel(evidence_business_tab)
         self._business_portfolio_panel(business_tab)
         self._business_discovery_panel(discovery_tab)
         self._market_evidence_panel(market_tab)
@@ -5430,6 +5433,100 @@ class AIWACKWindow:
             self.tool_audit_feedback.set(f"기록 #{result['event_id']} → {result['action']} · 재실행 없음")
         except (ValueError, PermissionError) as exc:
             self.tool_audit_feedback.set(f'실패 처리 거부: {exc}')
+
+    def _evidence_business_panel(self, parent: tk.Frame) -> None:
+        """Provider-signature format readiness and actual failed staff follow-ups; no fake sales."""
+        self.store.require_permission('company:manage')
+        self.ev_payment_file=tk.StringVar()
+        self.ev_signature=tk.StringVar()
+        self.ev_secret=tk.StringVar()
+        self.ev_event_id=tk.StringVar()
+        self.ev_followup_id=tk.StringVar()
+        self.ev_review_note=tk.StringVar()
+        self.ev_message=tk.StringVar(value='실제 공급자 계정·결제 API 미연동. 수기 서명 확인과 입금 확인은 구별합니다.')
+        frame=self._panel(parent);frame.pack(fill='both',expand=True)
+        self._label(frame,'외부 거래 서명 증빙 검토 · 직원 실패 후속 개선',size=16,weight='bold').pack(anchor='w')
+        self._label(frame,'서명 검증된 JSON 파일을 SQLite로 가져옵니다. 은행 입금, 결제, 주문, 실매출을 자동으로 인정하지 않습니다.',
+                    fg='#f7cb92',wraplength=900).pack(anchor='w',pady=(6,9))
+        row=tk.Frame(frame,bg='#1c2a40');row.pack(fill='x',pady=4)
+        self._label(row,'JSON 증빙 파일').pack(side='left')
+        tk.Entry(row,textvariable=self.ev_payment_file,width=53).pack(side='left',padx=4)
+        tk.Button(row,text='파일 선택',command=lambda:self.ev_payment_file.set(
+            filedialog.askopenfilename(title='서명된 JSON 외부 거래 증빙',filetypes=[('JSON','*.json')]))).pack(side='left')
+        row=tk.Frame(frame,bg='#1c2a40');row.pack(fill='x',pady=3)
+        self._label(row,'SHA256 HMAC 서명').pack(side='left')
+        tk.Entry(row,textvariable=self.ev_signature,width=68).pack(side='left',padx=4)
+        row=tk.Frame(frame,bg='#1c2a40');row.pack(fill='x',pady=3)
+        self._label(row,'제공자 서명키(메모리 전용)').pack(side='left')
+        tk.Entry(row,textvariable=self.ev_secret,width=34,show='●').pack(side='left',padx=4)
+        tk.Button(row,text='서명 검증·증빙 수신',command=self._payment_evidence_import).pack(side='left')
+        row=tk.Frame(frame,bg='#1c2a40');row.pack(fill='x',pady=6)
+        self._label(row,'증빙 ID').pack(side='left')
+        tk.Entry(row,textvariable=self.ev_event_id,width=8).pack(side='left',padx=3)
+        self._label(row,'검수 사유').pack(side='left')
+        tk.Entry(row,textvariable=self.ev_review_note,width=41).pack(side='left',padx=4)
+        tk.Button(row,text='증빙 수락',command=lambda:self._payment_evidence_review('accepted')).pack(side='left')
+        tk.Button(row,text='증빙 반려',command=lambda:self._payment_evidence_review('rejected')).pack(side='left')
+        tk.Button(frame,text='서명 수신·환불 대사 현황',command=self._payment_evidence_summary).pack(anchor='w',pady=4)
+        row=tk.Frame(frame,bg='#1c2a40');row.pack(fill='x',pady=6)
+        tk.Button(row,text='실제 실패 업무 개선 후보 검색',command=self._failed_work_scan).pack(side='left')
+        self._label(row,'개선 제안 ID').pack(side='left',padx=4)
+        tk.Entry(row,textvariable=self.ev_followup_id,width=8).pack(side='left')
+        tk.Button(row,text='후속 업무 생성 승인',command=lambda:self._failed_work_review('approved')).pack(side='left',padx=4)
+        tk.Button(row,text='개선 제안 반려',command=lambda:self._failed_work_review('rejected')).pack(side='left')
+        tk.Button(frame,text='실제 실패·후속 업무 감사 조회',command=self._failed_work_audit).pack(anchor='w',pady=4)
+        self._label(frame,'자동 개선 후보 생성은 실제 모델 실패 기록 기준. 소유자 승인 전 실행·재배정 없음.',
+                    fg='#f7cb92',wraplength=890).pack(anchor='w',pady=4)
+        self._label(frame,'',textvariable=self.ev_message,fg='#8ee4b7',wraplength=900).pack(anchor='w',pady=5)
+
+    def _payment_evidence_import(self) -> None:
+        try:
+            if not messagebox.askyesno('서명된 거래 증빙','제공자가 발행한 서명/원문을 수신할까요? 실제 결제·입금은 확인되지 않습니다.'):return
+            path=Path(self.ev_payment_file.get())
+            if not path.is_file() or path.stat().st_size>8192:raise ValueError('거래 증빙 파일 크기·경로 오류')
+            result=self.store.ingest_signed_payment_evidence(
+                path.read_bytes(),self.ev_signature.get(),self.ev_secret.get())
+            self.ev_message.set('서명된 증빙 수신: #'+str(result['id'])+' / 중복: '+str(result['duplicate'])+' (실제 입금 미검증)')
+        except (ValueError,OSError,PermissionError) as exc:self.ev_message.set('거래 증빙 수신 실패: '+str(exc))
+        finally:self.ev_secret.set('')
+
+    def _payment_evidence_review(self, decision: str) -> None:
+        try:
+            if not messagebox.askyesno('외부 거래 증빙 검수','수락해도 실제 입금 완료를 뜻하지 않습니다. 진행할까요?'):return
+            r=self.store.review_signed_payment_evidence(int(self.ev_event_id.get()),decision,self.ev_review_note.get())
+            self.ev_message.set('거래 증빙 '+r['decision']+' (독립 제공자 확인·실제 매출 미검증)')
+        except (ValueError,PermissionError) as exc:self.ev_message.set('거래 검수 실패: '+str(exc))
+
+    def _payment_evidence_summary(self) -> None:
+        try:
+            r=self.store.signed_payment_reconciliation_summary()
+            self.ev_message.set('서명 수신 '+str(r['events'])+'건 / 검수 대기 '+str(r['pending'])+
+                 '건 / 수락된 서명 정산 '+str(r['accepted_signed_settlements_minor'])+'원, 환불 '+
+                 str(r['accepted_signed_refunds_minor'])+'원 / 실제 은행 정산 미검증')
+        except (ValueError,PermissionError) as exc:self.ev_message.set('대사 조회 실패: '+str(exc))
+
+    def _failed_work_scan(self) -> None:
+        try:
+            result=self.store.scan_failed_employee_work()
+            self.ev_message.set('실제 실패 기록 개선 후보 '+str(len(result['created']))+
+                                '건 생성. 업무 실행·재시작은 소유자 승인 전 차단.')
+        except (ValueError,PermissionError) as exc:self.ev_message.set('실패 감사 조회 실패: '+str(exc))
+
+    def _failed_work_review(self,decision: str) -> None:
+        try:
+            if not messagebox.askyesno('실패 업무 개선 검수','기존 실패 업무는 자동 재실행하지 않습니다. 진행할까요?'):return
+            value=self.store.decide_failed_employee_followup(
+                int(self.ev_followup_id.get()),decision,self.ev_review_note.get())
+            self.ev_message.set('실패 업무 개선 '+value['decision']+' / 새 후속 업무 '+
+                                str(value['new_task_id'])+' (모델 자동 실행 없음)')
+        except (ValueError,PermissionError) as exc:self.ev_message.set('실패 개선 결정 실패: '+str(exc))
+
+    def _failed_work_audit(self) -> None:
+        try:
+            data=self.store.failed_employee_followups()
+            self.ev_message.set('실패 후속 기록 '+str(len(data))+'건 / 최근 '+
+                   ', '.join('#'+str(v['id'])+':'+v['state'] for v in data[:9]))
+        except (ValueError,PermissionError) as exc:self.ev_message.set('실패 감사 조회 실패: '+str(exc))
 
     def _business_portfolio_panel(self, parent: tk.Frame) -> None:
         """Stage61 owner-only local business portfolio; no business execution."""

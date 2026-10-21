@@ -4676,6 +4676,34 @@ class LocalStore:
         with self._connect() as con:
             return history(con,ticket_id)
 
+    def ingest_signed_payment_evidence(self, raw: bytes, signature: str, shared_secret: str):
+        from desktop.company_payment_reconciliation import ingest
+        return ingest(self, raw, signature, shared_secret)
+
+    def review_signed_payment_evidence(self, event_id: int, decision: str, note: str):
+        from desktop.company_payment_reconciliation import review
+        return review(self, event_id, decision, note)
+
+    def signed_payment_reconciliation_summary(self, business_id: int | None = None):
+        from desktop.company_payment_reconciliation import summary
+        return summary(self, business_id)
+
+    def list_signed_payment_events(self, limit: int = 30):
+        from desktop.company_payment_reconciliation import pending_events
+        return pending_events(self, limit)
+
+    def scan_failed_employee_work(self, limit: int = 31):
+        from desktop.company_failure_followups import scan
+        return scan(self, limit)
+
+    def decide_failed_employee_followup(self, proposal_id: int, decision: str, note: str):
+        from desktop.company_failure_followups import decide
+        return decide(self, proposal_id, decision, note)
+
+    def failed_employee_followups(self, limit: int = 40):
+        from desktop.company_failure_followups import pending
+        return pending(self, limit)
+
     def record_hypothetical_finance(self,business_id,entry_key,kind,currency,amount_minor,note,order_id=None):
         self.require_permission('company:manage')
         from desktop.local_hypothetical_finance import record
