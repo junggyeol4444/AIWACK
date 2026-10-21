@@ -508,3 +508,27 @@
 - 총괄 AI 지시 버튼 좌표 `(125,653)→(125,626)`, 총괄 중단 검토 복구 `(530,640)→(530,572)`, 소유자 최종 업무 완료 `(130,636)→(130,572)`를 기존 실제 Windows GUI 스크린샷 근거로 교정. 물리 PyAutoGUI 검사/SQLite 독립 확인 및 소유자 승인 절차 그대로 유지. 코드 `db0226134b62705c831c3a2ecb32f5979f7ee8f3` main 커밋. 새 동일 코드 Windows EXE 재검증 아직 완료하지 않았으면 **미검증** 유지.
 - 전체 누적 원본 소스/검증 포함 ZIP GitHub Actions #39520263385 SUCCESS (artifact #12310263364), 프로젝트 1199개 추적 파일 검증용 아카이브를 추가한 새 배포 방식.
 - 사용자 지시 및 금지사항은 위 기존 원문과 동일. 개발 순서는 관련 기능 묶음 구현→통합검증→오류 수정→재검증, 한국어 기존 EXE/GUI·SQLite·GGUF·31명/15부서 보존, 원본 기획/한글 GUI/Windows10·11 기준, main 최종. 다른 프로젝트 및 예약 설정을 바꾸지 않음. 남은 T01~T20·24시간·실거래/재무/상품/서비스·31명 **실협업**을 원본 그대로 미완료로 인계.
+
+## 2026-10-21 / 18회차 — 기존 Windows 네이티브 AI 회의 실제 로컬 모델 통합 및 누적 개발
+
+### 지시·금지사항 유지
+- 대상은 junggyeol4444/AIWACK main 기존 누적 Windows 10/11 네이티브 Tkinter/SQLite/EXE. 기존 1~17회차 소스와 원문을 보존하고 HTML/WebUI/대체 프로그램/드라이브 연결을 요구하지 않는다.
+- 연관 기능 다수 먼저 개발·연결 → 기존 기능 및 신규 기능 통합 검증 → 발견 오류 수정 → 전체 재검증. SHA/HEAD는 코드 손실 방지 식별용일 뿐 성과가 아니다. 예약·다른 프로젝트 임의 변경 없음.
+- 원본 15장 및 T01~T20은 여전히 미완료. 31명 전원 실제 공동업무, 15부서 협업 전체, 실제 24시간, 도구·사업·상품·판매·결제·환불·정산·재무·평가·조직 변경·장애 복구 등 최종 완료로 주장하지 않는다.
+
+### 이번 main 누적 개발
+- 기존 Stage44~46 수기 회의/안건/의견/결정·후속 업무에 관리자 명시 클릭의 실제 로컬 AI 직원 의견 호출 기능 추가. 예정 회의, 참석·안건, 활성 직원·모델 할당, 비상정지, 취소, 중복 제출 및 이미 승인된 회의 안건 차단.
+- 신규 기존 폴더 소스: windows-integrated-src/desktop/company_meeting_ai.py. 기존 employee_model_runtime 호출 성공과 employee_id/model_id/model_call_id를 대조하고, 실제 모델의 구조화 답변/해시/모델 감사 연결을 SQLite 트랜잭션 및 불변 트리거로 기록. AI 모델의 외부 사실 주장은 검증됨으로 표시하지 않는다.
+- 기존 employee_model_runtime.py에 기존 반환 타입 보존하며 호출 ID 선택적 반환 기능. storage.py는 기존 DB 초기화 및 회의 AI 실행/감사 조회 연결, meeting_opinions.py는 수기 대 실제 AI 출처를 분리.
+- 기존 app.py 한글 회의 탭에 소유자 확인·취소 토큰·별도 실행 스레드 및 의견/SQLite 감사/GUI 출처 갱신 추가. 빌드 bat 및 Windows EXE/GUI/GGUF Actions hidden import 추가.
+- Windows/Tk 소스와 tests/test_company_meeting_ai.py 및 scripts/company_real_meeting_ai_gui_smoke.py를 main에 반영. 주요 코드 누적 커밋: 6bf17bc5, 23aee6f0, c44130d5, c8c561e1, b1449e83, 258427b4.
+
+### 검증 (모의 및 실제 구분)
+- 로컬 신규/기존 회의·모델 테스트 74 PASS. Linux 네이티브 Tk GUI 버튼 클릭→SQLite 의견 생성/감사 테스트 PASS (모델 응답 합성 데이터). 별도 Linux 실제 로컬 subprocess 호출·SQLite 재로그인 감사 테스트 PASS (시험용 CLI, 실제 GGUF 아님).
+- 확대 로컬 통합은 실행 시간 제한으로 부분 진행 후 중단. 전체 완료 주장 금지.
+- 중간 c44130d5 CI는 테스트 파일 생성 전 실행됐으므로 신규 테스트 파일 없음으로 FAIL. 파일 반영 후 c8c561e1 GitHub CI #39527753027 SUCCESS, 252 PASS / 1 SKIP. Linux CI Xvfb 단계에 새 회의 버튼 smoke가 누락됨을 발견하고 258427b4에서 추가.
+- 258427b4 이후 동일 누적 소스 기준 Windows EXE 실제 GUI 클릭/재로그인, 실제 GGUF 및 신규 회의 화면 Xvfb 검증은 Actions 완료 결과를 각각 확인해야 한다. 과거 Windows 성공을 신규 모델 회의 성공으로 둔갑시키지 않는다.
+
+### 다음 실행
+- 위 두 문서 전체, original_project_spec.txt 15장, T01_T20_FINAL_ACCEPTANCE_MATRIX.md, 최신 main 누적 전체 소스와 GitHub Actions부터 재확인.
+- 이후 Windows 신규 기능 실사용 오류 스크린샷/로그 확인, T05 전체 실협업 및 나머지 T01~T20 원본 범위의 다기능 묶음 구현·통합·수정·재검증 계속.
