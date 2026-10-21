@@ -1509,6 +1509,8 @@ class LocalStore:
             pending = self._pending_prerequisites(con, task_id)
             if pending:
                 raise ValueError(f"미완료 선행 업무: {', '.join(map(str, pending))}")
+            from desktop.company_wide_campaign import assert_handoff_ready
+            handoff_proof = assert_handoff_ready(con,task_id)
             running_count = con.execute("SELECT COUNT(*) FROM company_task_runs WHERE status='running'").fetchone()[0]
             if running_count >= MAX_PARALLEL_TASK_RUNS:
                 raise ValueError("동시 실행 한도(2개)에 도달했습니다. 실행을 종료하거나 중단 기록을 복구하세요.")
@@ -1564,7 +1566,12 @@ class LocalStore:
                     raise ValueError('승인된 지시가 로컬 모델 입력 한도를 초과했습니다.')
             # An earlier worker's result is context, never a new instruction.
             from desktop.company_handoffs import dependency_context
-            prompt+=dependency_context(con,task_id,budget=min(700,max(0,3000-len(prompt))))
+            dependency_text=dependency_context(con,task_id,budget=min(700,max(0,3000-len(prompt))))
+            if handoff_proof is not None:
+                expected=f"[업무 #{handoff_proof['previous_task_id']}·승인 결과물 #{handoff_proof['artifact_id']}]"
+                if expected not in dependency_text:
+                    raise ValueError('검증된 선행 부서 결과가 직원 모델 입력 범위에 포함되지 않았습니다.')
+            prompt+=dependency_text
             from desktop.company_handoffs import curated_company_context
             prompt+=curated_company_context(con,str(task[2]),
                                              budget=min(450,max(0,3000-len(prompt))))
@@ -4739,6 +4746,10 @@ class LocalStore:
     def approve_full_company_campaign(self, campaign_id: int) -> dict:
         from desktop.company_wide_campaign import approve
         return approve(self,campaign_id)
+
+    def verified_full_company_progress(self, campaign_id: int) -> dict:
+        from desktop.company_wide_campaign import verified_progress
+        return verified_progress(self,campaign_id)
 
     def read_full_company_campaign(self, campaign_id: int) -> dict:
         from desktop.company_wide_campaign import read

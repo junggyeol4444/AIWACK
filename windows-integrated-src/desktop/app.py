@@ -5780,7 +5780,11 @@ class AIWACKWindow:
     def _wide_show(self):
         try:
             result=self.store.read_full_company_campaign(int(self.wide_plan.get()))
-            self.wide_status.set('31 AI 회사 협업: '+result['state']+' / 15개 부서 / 30개 역할')
+            evidence=self.store.verified_full_company_progress(result['id'])
+            self.wide_status.set('31 AI 회사 협업: '+result['state']+
+                ' / 승인·무결성 검증 '+str(evidence['verified_completed_tasks'])+
+                '/30 · '+str(evidence['verified_distinct_departments'])+'/15부서'
+                ' / 다음 업무 '+str(evidence['next_task_id']))
             self._wide_write('\n'.join(f"#{s['ordinal']} {s['department']} "
                 f"{s['role']} 직원 {s['employee_id']} 업무 {s['task_id']} "
                 f"상태 {s['task_status']}" for s in result['steps']))

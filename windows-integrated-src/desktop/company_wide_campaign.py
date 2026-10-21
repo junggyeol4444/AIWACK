@@ -233,6 +233,86 @@ def approve(store,campaign_id:int):
     return read(store,campaign_id)
 
 
+
+def assert_handoff_ready(con, task_id: int) -> dict | None:
+    """Fail closed on incomplete or tampered real cross-department handoffs."""
+    row=con.execute("""SELECT s.campaign_id,s.ordinal
+        FROM aiwack_wide_campaign_steps s
+        JOIN aiwack_wide_campaigns c ON c.id=s.campaign_id AND c.state='approved'
+        WHERE s.task_id=?""",(task_id,)).fetchone()
+    if row is None or int(row[1])==1:return None
+    previous=con.execute("""SELECT s.task_id,t.status
+        FROM aiwack_wide_campaign_steps s JOIN company_tasks t ON t.id=s.task_id
+        WHERE s.campaign_id=? AND s.ordinal=?""",(row[0],row[1]-1)).fetchone()
+    if not previous or previous[1]!='done':
+        raise ValueError('회사 전체 협업의 직전 단계가 관리자 검수로 완료되지 않았습니다.')
+    proof=con.execute("""SELECT a.id,a.body,a.sha256,a.review_status,
+          r.status,h.status,h.employee_id,r.employee_id,
+          rep.owner_decision,rep.body,rep.sha256,
+          ord.chief_employee_id,rep.chief_employee_id
+        FROM company_task_artifacts a
+        JOIN company_task_runs r ON r.id=a.run_id AND r.task_id=a.task_id
+        JOIN ai_model_call_history h ON h.id=r.model_call_id AND h.model_id=r.model_id
+        JOIN company_chief_task_dispatches disp ON disp.run_id=r.id
+        JOIN company_chief_task_orders ord ON ord.id=disp.order_id
+        JOIN company_chief_task_reports rep ON rep.artifact_id=a.id AND rep.order_id=ord.id
+        WHERE a.task_id=? ORDER BY a.id DESC LIMIT 1""",(previous[0],)).fetchone()
+    if (proof is None or proof[3]!='approved' or proof[4]!='success'
+          or proof[5]!='success' or int(proof[6])!=int(proof[7])
+          or proof[8]!='accepted' or int(proof[11])!=int(proof[12])):
+        raise ValueError('직전 부서 결과의 실제 직원/총괄 모델·관리자 승인 증거가 부족합니다.')
+    if (hashlib.sha256(str(proof[1]).encode('utf8')).hexdigest()!=proof[2]
+          or hashlib.sha256(str(proof[9]).encode('utf8')).hexdigest()!=proof[10]):
+        raise ValueError('직전 부서의 승인 결과물 또는 총괄 검토 SHA256 무결성 오류')
+    return {'previous_task_id':int(previous[0]),'artifact_id':int(proof[0]),
+            'artifact_sha256':str(proof[2]),'chief_report_sha256':str(proof[10])}
+
+
+def verified_progress(store, campaign_id: int) -> dict:
+    """Read-only evidence dashboard; simulated calls are not attested genuine GGUF."""
+    plan=read(store,campaign_id)
+    verified=[]
+    waiting=[]
+    next_task=None
+    with store._connect() as con:
+        for row in plan['steps']:
+            task=row['task_id']
+            if not task:
+                waiting.append({'ordinal':row['ordinal'],'state':'awaiting_campaign_approval'})
+                continue
+            if row['task_status']!='done' and next_task is None:
+                next_task=int(task)
+            a=con.execute("""SELECT a.id,a.sha256,a.body,a.review_status,
+                r.status,h.status,h.employee_id,rep.owner_decision,rep.sha256,rep.body
+                FROM company_task_artifacts a
+                JOIN company_task_runs r ON r.id=a.run_id AND r.task_id=a.task_id
+                JOIN ai_model_call_history h ON h.id=r.model_call_id
+                  AND h.employee_id=r.employee_id AND h.model_id=r.model_id
+                JOIN company_chief_task_reports rep ON rep.artifact_id=a.id
+                WHERE a.task_id=? ORDER BY a.id DESC LIMIT 1""",(task,)).fetchone()
+            good=bool(a and row['task_status']=='done' and a[3]=='approved'
+                    and a[4]=='success' and a[5]=='success'
+                    and int(a[6])==int(row['employee_id']) and a[7]=='accepted'
+                    and hashlib.sha256(str(a[2]).encode('utf8')).hexdigest()==a[1]
+                    and hashlib.sha256(str(a[9]).encode('utf8')).hexdigest()==a[8])
+            if good:
+                verified.append({'ordinal':row['ordinal'],'employee_id':row['employee_id'],
+                                 'department':row['department'],'artifact_id':int(a[0])})
+            else:
+                waiting.append({'ordinal':row['ordinal'],'state':row['task_status'],
+                                'owner_artifact_and_chief_review_required':row['task_status']=='in_progress'})
+    departments={v['department'] for v in verified}
+    return {'campaign_id':campaign_id,'state':plan['state'],
+            'verified_completed_tasks':len(verified),'total_tasks':30,
+            'verified_distinct_workers':len({v['employee_id'] for v in verified}),
+            'verified_distinct_departments':len(departments),
+            'next_task_id':next_task,'verified_evidence':verified,
+            'pending':waiting,'all_30_tasks_evidence_verified':len(verified)==30,
+            'actual_gguf_binary_verified':False,
+            'owner_approval_was_required':True,'automatic_approval':False}
+
+
+
 def run_next(store,campaign_id:int,*,cancel:threading.Event|None=None):
     """One approved employee model and chief review; owner must review both separately."""
     from desktop.company_operations import execute_approved_chief_cycle
