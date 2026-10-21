@@ -75,12 +75,28 @@ jobs:
           python -c "import zipfile,sys; z=zipfile.ZipFile(sys.argv[1]); f=[v.filename for v in z.infolist() if not v.is_dir()]; print('Native source ZIP verified:',len(f)); assert len(f)==int(sys.argv[2])" "$archive" "$($paths.Count)"
           if ($LASTEXITCODE -ne 0) { throw 'ZIP entries do not match the tracked source inventory' }
 
-      - name: Publish complete source ZIP and inventory
+      - name: Export full cumulative GitHub project including real E2E validators
+        shell: pwsh
+        run: |
+          $full = Join-Path $env:GITHUB_WORKSPACE 'artifacts/AIWACK_MAIN_전체프로젝트_검증포함.zip'
+          git archive --format=zip "--output=$full" HEAD
+          if ($LASTEXITCODE -ne 0 -or !(Test-Path -LiteralPath $full)) {
+            throw 'Cannot export complete cumulative main project'
+          }
+          $tracked = @(git ls-tree -r --name-only HEAD)
+          if ($LASTEXITCODE -ne 0) { throw 'Cannot list complete project files' }
+          $tracked | Out-File 'artifacts/AIWACK_MAIN_전체프로젝트_파일목록.txt' -Encoding utf8
+          python -c "import sys,zipfile; z=zipfile.ZipFile(sys.argv[1]); a=set(x.filename for x in z.infolist() if not x.is_dir()); req={'windows-integrated-src/desktop/entry.py','windows-integrated-src/desktop/storage.py','validation/windows_packaged_real_gguf_queue_e2e.py','validation/windows_packaged_company_full_e2e.py','.github/workflows/windows-exe.yml','.github/workflows/ci.yml'}; assert req<=a,sorted(req-a); assert len(a)==int(sys.argv[2]),(len(a),sys.argv[2]);print('ALL TRACKED GITHUB SOURCE AND VALIDATORS:',len(a))" "$full" "$($tracked.Count)"
+          if ($LASTEXITCODE -ne 0) { throw 'Complete project ZIP validation failed' }
+
+      - name: Publish complete native source, full project and inventories
         uses: actions/upload-artifact@v4
         with:
           name: AIWACK_MAIN_cumulative_native_source
           path: |
             artifacts/AIWACK_MAIN_누적_전체소스.zip
             artifacts/AIWACK_MAIN_누적_소스파일목록.txt
+            artifacts/AIWACK_MAIN_전체프로젝트_검증포함.zip
+            artifacts/AIWACK_MAIN_전체프로젝트_파일목록.txt
           if-no-files-found: error
           retention-days: 30
