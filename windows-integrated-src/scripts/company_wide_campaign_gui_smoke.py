@@ -76,12 +76,26 @@ with tempfile.TemporaryDirectory() as temp:
         artifacts=store.list_task_artifacts(first['task_id'])
         assert len(artifacts)==1
         assert artifacts[0]['review_status']=='pending'
+        ui._wide_show()
+        root.update()
+        assert '0/30' in ui.wide_status.get(),ui.wide_status.get()
+        report=store.find_chief_task_report(artifacts[0]['id'])
+        assert report and report['owner_decision']=='pending'
+        store.review_task_artifact(artifacts[0]['id'],'approved')
+        store.review_chief_task_report(report['id'],'accepted')
+        ops.finalize_approved_artifact(store,artifacts[0]['id'])
+        ui._wide_show()
+        root.update()
+        assert '1/30' in ui.wide_status.get(),ui.wide_status.get()
+        assert store.verified_full_company_progress(plan)['verified_completed_tasks']==1
         root.destroy()
         store.logout()
         reloaded=LocalStore(store.path)
         reloaded.login('owner','company-campaign-password-2026')
         after=reloaded.read_full_company_campaign(plan)
         assert after['state']=='approved' and len(after['steps'])==30
+        assert reloaded.verified_full_company_progress(plan)['verified_completed_tasks']==1
+        print('NATIVE_TK_WIDE_HANDOFF_OWNER_REVIEW_AND_PROGRESS_PASS')
         print('NATIVE_TK_WIDE_15_DEPARTMENT_31_ROLE_CAMPAIGN_GUI_PASS')
         print('NATIVE_TK_CAMPAIGN_MODEL_RESPONSES_ARE_SYNTHETIC_FIXTURES')
     finally:
