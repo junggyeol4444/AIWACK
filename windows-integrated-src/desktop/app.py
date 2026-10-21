@@ -4159,7 +4159,7 @@ class AIWACKWindow:
                 meeting=meeting_read(con,meeting_id)
             if not messagebox.askyesno('참석 직원 실제 로컬 모델 협업',
                 f'회의 #{meeting_id} 안건 #{agenda_id}의 활성 참석자 '
-                f'{len(meeting["attendees"])}명에 대해 각각 로컬 모델을 실행할까요?\\n'
+                f'{len(meeting["attendees"])}명에 대해 각각 로컬 모델을 실행할까요?\n'
                 '직원별 결과가 저장되며 취소·실패는 성공으로 계산되지 않습니다. '
                 '관리자 의사결정/외부 결제·도구 실행은 하지 않습니다.'):
                 return
