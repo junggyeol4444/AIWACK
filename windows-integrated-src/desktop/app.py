@@ -4094,6 +4094,9 @@ class AIWACKWindow:
         buttons.pack(fill="x",pady=6)
         self.opinion_submit_button=tk.Button(buttons,text="의견 저장 (변경 불가)",command=self._submit_meeting_opinion)
         self.opinion_submit_button.pack(side="left",padx=4)
+        self.real_meeting_ai_button=tk.Button(buttons,text="선택 직원 실제 로컬 AI 의견 생성",
+                        command=self._run_real_meeting_ai_opinion)
+        self.real_meeting_ai_button.pack(side="left",padx=4)
         self.opinion_refresh_button=tk.Button(buttons,text="안건별 의견 비교·새로고침",command=self._refresh_meeting_opinions)
         self.opinion_refresh_button.pack(side="left",padx=4)
         tk.Label(parent,textvariable=self.opinion_feedback,bg="#121c2d",fg="white",wraplength=900,justify="left").pack(anchor="w",pady=3)
@@ -4105,8 +4108,8 @@ class AIWACKWindow:
         self.opinion_comparison_tree.pack(fill="x",pady=4)
         self.opinion_comparison_tree.bind("<<TreeviewSelect>>",self._select_opinion_agenda)
         self.opinion_detail_tree=ttk.Treeview(parent,columns=("agenda","employee","stance","reason","source","alternative"),show="headings",height=7)
-        for key,caption,width in (("agenda","안건",55),("employee","직원",100),("stance","입장",60),
-                                  ("reason","의견 근거",250),("source","출처",125),("alternative","대안",125)):
+        for key,caption,width in (("agenda","안건",55),("employee","직원",100),("stance","입장/출처",95),
+                                  ("reason","의견 근거",225),("source","출처",125),("alternative","대안",125)):
             self.opinion_detail_tree.heading(key,text=caption)
             self.opinion_detail_tree.column(key,width=width,stretch=(key=="reason"))
         self.opinion_detail_tree.pack(fill="both",expand=True,pady=5)
@@ -4131,6 +4134,61 @@ class AIWACKWindow:
         self._refresh_meeting_opinions()
         self.opinion_feedback.set(f"의견 #{identifier} 저장. 수정·삭제 불가 / 의견 비교는 결정이나 승인이 아닙니다.")
 
+    def _run_real_meeting_ai_opinion(self) -> None:
+        """Owner click, local model subprocess, audited SQLite and GUI-thread result."""
+        try:
+            if self._model_running:
+                raise ValueError('이미 로컬 AI 모델이 실행 중입니다.')
+            meeting_id=int(self.opinion_meeting_id.get())
+            agenda_id=int(self.opinion_agenda_id.get())
+            employee_id=int(self.opinion_employee_id.get())
+            if not messagebox.askyesno('실제 로컬 직원 AI 회의 의견',
+                    f'직원 #{employee_id}의 로컬 모델로 회의 #{meeting_id}, 안건 #{agenda_id} '
+                    '의견을 1회 생성·불변 감사할까요?\n'
+                    'AI 의견은 관리자 결정, 외부 사실 검증이나 실행 승인이 아닙니다.'):
+                return
+            self.store.require_permission('company:manage')
+        except (ValueError,PermissionError) as exc:
+            self.opinion_feedback.set('실제 회의 모델 호출 거부: '+str(exc))
+            return
+        self._model_running=True
+        generation=self._session_generation
+        cancel=threading.Event()
+        self._model_cancel=cancel
+        replies=queue.Queue()
+        self.real_meeting_ai_button.configure(state='disabled')
+        self.opinion_feedback.set('실제 직원 로컬 AI를 실행 중입니다. 호출과 결과가 SQLite 감사에 기록됩니다.')
+        def worker():
+            try:
+                result=self.store.run_real_meeting_employee_opinion(
+                    meeting_id,agenda_id,employee_id,cancel=cancel)
+                replies.put((True,result))
+            except (ValueError,PermissionError,TimeoutError,InterruptedError,RuntimeError,OSError) as exc:
+                replies.put((False,str(exc)))
+        self._model_thread=threading.Thread(target=worker,daemon=True)
+        self._model_thread.start()
+        def poll():
+            if generation != self._session_generation or not self.store.is_authenticated:
+                return
+            try:
+                success,result=replies.get_nowait()
+            except queue.Empty:
+                if self.root.winfo_exists():
+                    self.root.after(100,poll)
+                return
+            self._model_running=False
+            self._model_cancel=None
+            self._model_thread=None
+            self.real_meeting_ai_button.configure(state='normal')
+            if success:
+                self._refresh_meeting_opinions()
+                self.opinion_feedback.set(
+                    f'실제 AI 의견 #{result["opinion_id"]} · 모델 감사 #{result["model_call_id"]} 저장. '
+                    '관리자 승인과 사실 검증은 별도입니다.')
+            else:
+                self.opinion_feedback.set('실제 직원 AI 회의 의견 실패: '+str(result))
+        self.root.after(100,poll)
+
     def _refresh_meeting_opinions(self) -> None:
         # Blank existing meeting data first, so invalid selections cannot leak stale results.
         for tree in (self.opinion_comparison_tree,self.opinion_detail_tree):
@@ -4148,7 +4206,8 @@ class AIWACKWindow:
                 '있음' if agenda['has_differing_opinions'] else '없음'))
             for opinion in agenda['opinions']:
                 self.opinion_detail_tree.insert('','end',values=(agenda['position'],opinion['display_name'],
-                    opinion['stance'],opinion['reasoning'].replace('\n',' '),opinion['evidence'],opinion['alternative']))
+                    opinion['stance']+('·AI' if opinion['origin']=='real_local_model' else '·수기'),
+                    opinion['reasoning'].replace('\n',' '),opinion['evidence'],opinion['alternative']))
         count=sum(len(a['opinions']) for a in summary['agenda'])
         missing=sum(len(a['missing_attendees']) for a in summary['agenda'])
         self.opinion_feedback.set(f"회의 #{summary['meeting_id']} ({summary['status']}) | 의견 {count}건 / 미등록 {missing}건. {summary['note']}")
