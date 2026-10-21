@@ -127,3 +127,58 @@ def test_entire_31_role_chain_requires_30_distinct_model_worker_reviews(office,m
     assert summary['full_31_participation_verified'] is True
     assert len(db.list_task_runs())==30
     # This is a STRUCTURAL regression with synthetic model text, not 31 real GGUF inferences.
+
+
+def test_verified_progress_handoff_real_approval_and_worker_prompt(office,monkeypatch):
+    """Owner-accepted output must appear as untrusted context in the next model prompt."""
+    db,task,_=office
+    plan=wide.approve(db,wide.propose(db,task)['id'])
+    before=wide.verified_progress(db,plan['id'])
+    assert before['verified_completed_tasks']==0
+    assert before['next_task_id']==plan['steps'][0]['task_id']
+    assert before['all_30_tasks_evidence_verified'] is False
+    seen=[]
+    def worker(config,prompt,**kw):
+        seen.append(prompt)
+        return '승인된 실제 직원 결과: 이전 부서 시험 내용 및 증빙'
+    monkeypatch.setattr('desktop.task_runtime.run_local_model',worker)
+    monkeypatch.setattr('desktop.chief_task_runtime.collect_chief_task_result',
+                        lambda *a,**k:'총괄 검토 시험 응답')
+    first=wide.run_next(db,plan['id'])['work']
+    assert wide.verified_progress(db,plan['id'])['verified_completed_tasks']==0
+    db.review_task_artifact(first['artifact_id'],'approved')
+    db.review_chief_task_report(first['report_id'],'accepted')
+    ops.finalize_approved_artifact(db,first['artifact_id'])
+    progress=wide.verified_progress(db,plan['id'])
+    assert progress['verified_completed_tasks']==1
+    assert progress['verified_distinct_workers']==1
+    assert progress['next_task_id']==plan['steps'][1]['task_id']
+    assert progress['verified_evidence'][0]['artifact_id']==first['artifact_id']
+    next_result=wide.run_next(db,plan['id'])
+    assert next_result['step']==2 and len(seen)==2
+    assert f"[업무 #{plan['steps'][0]['task_id']}·승인 결과물 #{first['artifact_id']}]" in seen[1]
+    assert '승인된 실제 직원 결과' in seen[1]
+    assert '신뢰할 수 없는 데이터' in seen[1]
+    assert wide.verified_progress(db,plan['id'])['verified_completed_tasks']==1
+
+
+def test_tampered_approved_handoff_prevents_next_real_model_call(office,monkeypatch):
+    db,task,_=office
+    plan=wide.approve(db,wide.propose(db,task)['id'])
+    hits=[]
+    monkeypatch.setattr('desktop.task_runtime.run_local_model',
+        lambda *a,**kw:(hits.append(1) or '정상 회사 업무 결과물'))
+    monkeypatch.setattr('desktop.chief_task_runtime.collect_chief_task_result',
+                        lambda *a,**k:'총괄 AI 감사 모델 결과')
+    first=wide.run_next(db,plan['id'])['work']
+    db.review_task_artifact(first['artifact_id'],'approved')
+    db.review_chief_task_report(first['report_id'],'accepted')
+    ops.finalize_approved_artifact(db,first['artifact_id'])
+    with db._connect() as con:
+        con.execute('UPDATE company_task_artifacts SET body=? WHERE id=?',
+                    ('다른 창에서 손상된 직원 보고서',first['artifact_id']))
+    with pytest.raises(ValueError,match='무결성'):
+        wide.run_next(db,plan['id'])
+    assert hits==[1]
+    assert db.list_task_runs(plan['steps'][1]['task_id'])==[]
+    assert wide.verified_progress(db,plan['id'])['verified_completed_tasks']==0
