@@ -268,6 +268,8 @@ class AIWACKWindow:
         self.tabs.add(evidence_business_tab, text="거래 증빙·실패 업무 개선")
         staff_reorg_tab = tk.Frame(self.tabs, bg="#121c2d", padx=12, pady=16)
         self.tabs.add(staff_reorg_tab, text="실제 직원 성과 기반 조직 개편")
+        full_company_tab = tk.Frame(self.tabs, bg="#121c2d", padx=12, pady=16)
+        self.tabs.add(full_company_tab, text="15부서·31명 실제 회사 협업")
         business_tab = tk.Frame(self.tabs, bg="#121c2d", padx=12, pady=16)
         self.tabs.add(business_tab, text="범용 사업 유형·사업 관리")
         discovery_tab = tk.Frame(self.tabs, bg="#121c2d", padx=12, pady=16)
@@ -343,6 +345,7 @@ class AIWACKWindow:
         self._tool_audit_panel(tool_audit_tab)
         self._evidence_business_panel(evidence_business_tab)
         self._staff_reorg_panel(staff_reorg_tab)
+        self._full_company_panel(full_company_tab)
         self._business_portfolio_panel(business_tab)
         self._business_discovery_panel(discovery_tab)
         self._market_evidence_panel(market_tab)
@@ -5660,6 +5663,128 @@ class AIWACKWindow:
                 ', '.join('#'+str(v['id'])+':'+v['state'] for v in data[:10]))
         except (ValueError,PermissionError) as exc:
             self.reorg_feedback.set('감사 조회 실패: '+str(exc))
+
+    def _full_company_panel(self,parent: tk.Frame) -> None:
+        """Original company 1 chief + 15 department heads + 15 staff, real work path."""
+        self.wide_source=tk.StringVar()
+        self.wide_plan=tk.StringVar()
+        self.wide_status=tk.StringVar(value='실제 15부서 총괄 AI 5회 계획 생성 → 관리자 승인 → 직원 30개 순차 업무.')
+        card=self._panel(parent);card.pack(fill='both',expand=True)
+        self._label(card,'15개 부서 · 31명 AI 실제 회사 협업',size=17,weight='bold').pack(anchor='w')
+        self._label(card,'총괄 AI 1명 + 각 부서장/직원 30명. 참여 인원·모델 배정이 실제로 필요합니다. '
+            '결과 검수와 업무 완료는 관리자만 수행하며 자동 대외 거래는 없습니다.',
+            fg='#f7cb92',wraplength=900).pack(anchor='w',pady=5)
+        row=tk.Frame(card,bg='#1c2a40');row.pack(fill='x',pady=6)
+        self._label(row,'기준 업무 ID').pack(side='left')
+        tk.Entry(row,textvariable=self.wide_source,width=9).pack(side='left',padx=5)
+        self.wide_propose_button=tk.Button(row,text='총괄 AI 15부서 실제 계획 생성',
+            command=self._wide_propose)
+        self.wide_propose_button.pack(side='left',padx=3)
+        self._label(row,'협업 계획 ID').pack(side='left',padx=5)
+        tk.Entry(row,textvariable=self.wide_plan,width=9).pack(side='left',padx=3)
+        row=tk.Frame(card,bg='#1c2a40');row.pack(fill='x',pady=5)
+        tk.Button(row,text='30업무 관리자 승인·배정',command=self._wide_approve).pack(side='left',padx=3)
+        self.wide_execute_button=tk.Button(row,text='다음 직원·총괄 실제 모델 실행',
+            command=self._wide_execute)
+        self.wide_execute_button.pack(side='left',padx=3)
+        tk.Button(row,text='실제 30단계 감사·진행 상태',command=self._wide_show).pack(side='left',padx=3)
+        self._label(card,'',textvariable=self.wide_status,fg='#8ee4b7',wraplength=900).pack(anchor='w',pady=6)
+        self.wide_results=tk.Text(card,height=15,width=112,wrap='word')
+        self.wide_results.pack(fill='both',expand=True,pady=6)
+        self.wide_results.insert('end','각 단계의 직원 모델 호출·총괄 결과 검토 후 결과물과 보고서를 '
+            '기존 AI 회사 운영센터에서 관리자가 별도 승인해야 다음 단계로 진행할 수 있습니다.\n')
+        self.wide_results.configure(state='disabled')
+
+    def _wide_write(self,text):
+        self.wide_results.configure(state='normal')
+        self.wide_results.delete('1.0','end')
+        self.wide_results.insert('end',text)
+        self.wide_results.configure(state='disabled')
+
+    def _wide_background(self,action,call):
+        try:
+            if self._model_running:raise ValueError('다른 모델이 실행 중입니다.')
+            self.store.require_permission('company:manage')
+            self.store.require_permission('agents:manage')
+        except (ValueError,PermissionError) as exc:
+            self.wide_status.set(str(exc));return
+        self._model_running=True
+        self.wide_propose_button.configure(state='disabled')
+        self.wide_execute_button.configure(state='disabled')
+        generation=self._session_generation
+        cancel=threading.Event()
+        self._model_cancel=cancel
+        replies=queue.Queue()
+        self.wide_status.set(action+' 실행 중: 기존 승인/비상정지 검사를 유지합니다.')
+        def worker():
+            try:replies.put((True,call(cancel)))
+            except Exception as exc:replies.put((False,type(exc).__name__+': '+str(exc)))
+        self._model_thread=threading.Thread(target=worker,daemon=True)
+        self._model_thread.start()
+        def poll():
+            if generation!=self._session_generation or not self.store.is_authenticated:return
+            try:ok,result=replies.get_nowait()
+            except queue.Empty:
+                if self.root.winfo_exists():self.root.after(120,poll)
+                return
+            self._model_running=False
+            self._model_cancel=None
+            self._model_thread=None
+            self.wide_propose_button.configure(state='normal')
+            self.wide_execute_button.configure(state='normal')
+            if not ok:
+                self.wide_status.set(action+' 실패: '+str(result));return
+            if action=='총괄 계획':
+                self.wide_plan.set(str(result['id']))
+                self.wide_status.set('15부서 30역할 실제 총괄 모델 초안 저장. 관리자 승인 전 실행 없음.')
+                self._wide_write('\n'.join(f"#{s['ordinal']} {s['department']} {s['role']} "
+                    f"직원 {s['employee_id']} / {s['title']}" for s in result['steps']))
+            else:
+                self.wide_status.set('한 단계 실제 직원·총괄 실행. 결과물·보고서를 별도로 검수하세요.')
+                self._wide_write(str(result))
+        self.root.after(120,poll)
+
+    def _wide_propose(self):
+        try:
+            task=int(self.wide_source.get())
+            if not messagebox.askyesno('31명 실제 회사 협업',
+                  '총괄 로컬 모델을 실제로 5회 실행해 15부서 계획을 작성합니다. '
+                  '모든 직원 모델이 배정돼 있어야 합니다. 실행할까요?'):return
+            self._wide_background('총괄 계획',lambda cancel:
+                self.store.propose_full_company_campaign(task,cancel=cancel))
+        except ValueError as exc:self.wide_status.set(str(exc))
+
+    def _wide_approve(self):
+        try:
+            plan=int(self.wide_plan.get())
+            if not messagebox.askyesno('30개 직원 업무 관리자 승인',
+                    '15개 부서의 부서장·직원 업무 30개와 순서·지시를 SQLite에 실제 생성합니다. '
+                    '관리자의 개별 결과물 검수 전 자동 완료되지 않습니다. 승인할까요?'):return
+            result=self.store.approve_full_company_campaign(plan)
+            self.wide_status.set('관리자 승인 완료: 30개 실제 업무와 선행 의존성 생성')
+            self._wide_write('\n'.join(f"#{s['ordinal']} 업무 {s['task_id']} 직원 "
+                f"{s['employee_id']} / {s['title']}" for s in result['steps']))
+        except (ValueError,PermissionError,RuntimeError) as exc:
+            self.wide_status.set('계획 승인 실패: '+str(exc))
+
+    def _wide_execute(self):
+        try:
+            plan=int(self.wide_plan.get())
+            if not messagebox.askyesno('실제 모델 업무 실행',
+                '다음 한 직원과 총괄 AI의 실제 로컬 모델을 호출합니다. '
+                '이전 업무의 직원 결과물·총괄 보고서 관리자의 승인이 필요합니다. 실행할까요?'):return
+            self._wide_background('직원·총괄 실제 업무',lambda cancel:
+                self.store.run_full_company_next(plan,cancel=cancel))
+        except ValueError as exc:self.wide_status.set(str(exc))
+
+    def _wide_show(self):
+        try:
+            result=self.store.read_full_company_campaign(int(self.wide_plan.get()))
+            self.wide_status.set('31 AI 회사 협업: '+result['state']+' / 15개 부서 / 30개 역할')
+            self._wide_write('\n'.join(f"#{s['ordinal']} {s['department']} "
+                f"{s['role']} 직원 {s['employee_id']} 업무 {s['task_id']} "
+                f"상태 {s['task_status']}" for s in result['steps']))
+        except (ValueError,PermissionError) as exc:self.wide_status.set(str(exc))
 
     def _business_portfolio_panel(self, parent: tk.Frame) -> None:
         """Stage61 owner-only local business portfolio; no business execution."""

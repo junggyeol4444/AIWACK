@@ -6,6 +6,37 @@ or a mocked finance record as proof of 31 live collaborating agents.
 from __future__ import annotations
 
 
+def _wide_accepted_evidence(store):
+    """Only owner-accepted real worker/chief audits count in company-wide coverage."""
+    from desktop.company_department_progress import verified_wide_result
+    workers,departments,chiefs=set(),set(),set()
+    with store._connect() as con:
+        if not con.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='aiwack_wide_campaign_steps'").fetchone():
+            return workers,departments,chiefs,[],0
+        rows=con.execute('''SELECT s.campaign_id,s.task_id,s.employee_id,s.department_id,
+              p.chief_employee_id,s.chief_model_call_id,t.status
+              FROM aiwack_wide_campaign_steps s
+              JOIN aiwack_wide_campaigns p ON p.id=s.campaign_id AND p.state='approved'
+              LEFT JOIN company_tasks t ON t.id=s.task_id
+              ORDER BY s.campaign_id,s.ordinal''').fetchall()
+        by_campaign={}
+        for cid,task,employee,dept,chief,call,status in rows:
+            cid=int(cid)
+            counter=by_campaign.setdefault(cid,{'steps':0,'verified_steps':0})
+            counter['steps']+=1
+            if task is None or status!='done':continue
+            chief_call=con.execute('''SELECT 1 FROM ai_model_call_history WHERE id=?
+                 AND employee_id=? AND status='success' AND output_chars>0''',
+                 (call,chief)).fetchone()
+            if chief_call and verified_wide_result(con,cid,int(task),int(employee)):
+                workers.add(int(employee));departments.add(int(dept));chiefs.add(int(chief))
+                counter['verified_steps']+=1
+    plans=[dict(plan_id=cid,steps=v['steps'],verified_steps=v['verified_steps'],
+                fully_reviewed=v['verified_steps']==v['steps'],kind='15-department-campaign')
+           for cid,v in sorted(by_campaign.items())]
+    return workers,departments,chiefs,plans,len(rows)
+
+
 def snapshot(store) -> dict:
     store.require_permission('company:manage')
     from desktop.company_department_collaboration import initialize
@@ -82,14 +113,20 @@ def snapshot(store) -> dict:
                              verified_steps=approved_steps,
                              distinct_verified_workers=len(plan_staff),
                              fully_reviewed=bool(selected) and approved_steps==len(selected)))
-    # 직원 역할의 증거와 총괄 역할의 증거를 별도로 합산한다.
-    reviewed_workers=verified_staff_roles
-    participants=accepted_staff|accepted_chiefs
-    complete_workers=(len(reviewed_workers)>=31 and len(accepted_departments)>=15)
+    # Blueprint is ONE chief and THIRTY department heads/staff (15 departments).
+    # Requiring 31 non-chief workers would make T05 acceptance impossible.
+    wide_workers,wide_depts,wide_chiefs,wide_plans,wide_steps=_wide_accepted_evidence(store)
+    reviewed_workers=verified_staff_roles | wide_workers
+    accepted_departments.update(wide_depts)
+    accepted_chiefs.update(wide_chiefs)
+    accepted_staff.update(wide_workers)
+    participants=accepted_staff | accepted_chiefs
+    complete_workers=(total_employees>=31 and len(participants)>=31 and
+        len(reviewed_workers)>=30 and len(accepted_departments)>=15 and bool(accepted_chiefs))
     # An accepted chief report is evidence of a review, not a claim that the
     # employee and chief ran concurrently or that a real external sale occurred.
     return dict(employee_profiles=total_employees,model_bound_employees=bound_employees,
-                approved_plans=len(plans),approved_plan_steps=len(steps),
+                approved_plans=len(plans)+len(wide_plans),approved_plan_steps=len(steps)+wide_steps,
                 observed_successful_workers=len(successful_staff),
                 verified_owner_accepted_workers=len(accepted_staff),
                 verified_chief_reviewers=len(accepted_chiefs),
@@ -98,7 +135,7 @@ def snapshot(store) -> dict:
                 distinct_verified_departments=len(accepted_departments),
                 full_15_department_coverage_verified=len(accepted_departments)>=15,
                 full_31_participation_verified=complete_workers,
-                plans=per_plan,real_sales_verified=False,
+                plans=per_plan+wide_plans,real_sales_verified=False,
                 source='SQLite worker/model audits, approved order dispatches, owner reviews, accepted chief reports')
 
 
@@ -111,7 +148,7 @@ def text_report(store) -> str:
         f"직원 결과물+소유자 승인+총괄 수락 직원 {data['verified_owner_accepted_workers']}명",
         f"수락된 총괄 검토자 {data['verified_chief_reviewers']}명",
         f"실제 승인 근거가 연결된 서로 다른 AI 참여자(총괄 포함) {data['distinct_verified_participants']}명",
-        f"실제 승인된 직원 AI(총괄 제외) {data['distinct_verified_workers']}명 / 목표 31명",
+        f"실제 승인된 부서장·직원 AI(총괄 제외) {data['distinct_verified_workers']}명 / 목표 30명",
         f"검증된 부서 {data['distinct_verified_departments']}곳 / 목표 15곳",
         '31명 전원 협업 최종 실증: '+('증거 충족(실 GGUF/Windows 별도 검증 필요)' if data['full_31_participation_verified'] else '미완료')]
     for plan in data['plans'][-15:]:

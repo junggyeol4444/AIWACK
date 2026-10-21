@@ -886,6 +886,10 @@ class LocalStore:
                 CREATE INDEX IF NOT EXISTS ai_model_call_history_employee
                 ON ai_model_call_history(employee_id, id DESC)
             """)
+            # Existing Windows DBs obtain the 15-department campaign schema on startup.
+            # This is additive; no prior tables or user records are overwritten.
+            from desktop.company_wide_campaign import initialize as initialize_wide_campaign
+            initialize_wide_campaign(con)
 
     def has_owner(self) -> bool:
         with self._connect() as con:
@@ -1515,7 +1519,12 @@ class LocalStore:
                 JOIN ai_employee_model_assignments em ON em.employee_id=e.id
                 JOIN ai_local_models m ON m.id=em.model_id
                 LEFT JOIN ai_reporting_lines r ON r.employee_id=e.id
-                WHERE a.task_id=? AND (r.tier IS NULL OR r.tier='staff')""",
+                WHERE a.task_id=? AND (r.tier IS NULL OR r.tier='staff' OR
+                    (r.tier='department_head' AND EXISTS (
+                      SELECT 1 FROM aiwack_wide_campaign_steps ws
+                      JOIN aiwack_wide_campaigns wp ON wp.id=ws.campaign_id AND wp.state='approved'
+                      WHERE ws.task_id=a.task_id AND ws.employee_id=e.id
+                        AND ws.role='department_head')))""",
                 (task_id,)).fetchone()
             if row is None or row[1] != 'draft':
                 raise ValueError("활성 담당 AI 직원과 로컬 모델 배정이 모두 필요합니다.")
@@ -4722,6 +4731,22 @@ class LocalStore:
     def staff_department_transfer_audit(self, limit: int = 30):
         from desktop.company_staff_reallocation import history
         return history(self, limit)
+
+    def propose_full_company_campaign(self, source_task_id: int, *, cancel=None) -> dict:
+        from desktop.company_wide_campaign import propose
+        return propose(self,source_task_id,cancel=cancel)
+
+    def approve_full_company_campaign(self, campaign_id: int) -> dict:
+        from desktop.company_wide_campaign import approve
+        return approve(self,campaign_id)
+
+    def read_full_company_campaign(self, campaign_id: int) -> dict:
+        from desktop.company_wide_campaign import read
+        return read(self,campaign_id)
+
+    def run_full_company_next(self, campaign_id: int, *, cancel=None) -> dict:
+        from desktop.company_wide_campaign import run_next
+        return run_next(self,campaign_id,cancel=cancel)
 
     def record_hypothetical_finance(self,business_id,entry_key,kind,currency,amount_minor,note,order_id=None):
         self.require_permission('company:manage')

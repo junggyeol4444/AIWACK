@@ -153,6 +153,7 @@ def assert_collaboration_completion(con, task_id: int) -> None:
 
     SQLite BEGIN IMMEDIATE 트랜잭션 안에서만 호출. 일반 업무에는 영향 없음.
     """
+    assert_wide_completion(con, task_id)
     if not con.execute("""SELECT 1 FROM sqlite_master WHERE type='table'
                           AND name='aiwack_department_plan_steps'""").fetchone():
         return
@@ -174,6 +175,7 @@ def assert_collaboration_prerequisites(con, task_id: int) -> None:
     GUI만 막으면 기존 '선택 업무 실행', 자동 대기열, 병렬 실행 경로로
     선행 업무를 건너뛸 수 있으므로 공통 SQLite 경계에서 확인한다.
     """
+    assert_wide_prerequisites(con, task_id)
     if not con.execute("""SELECT 1 FROM sqlite_master WHERE type='table'
                           AND name='aiwack_department_plan_steps'""").fetchone():
         return
@@ -202,3 +204,53 @@ def assert_collaboration_prerequisites(con, task_id: int) -> None:
             raise ValueError('선행 부서 업무가 아직 완료되지 않았습니다.')
         if not verified_collaboration_result(con, plan_id, prior_task, prior_worker):
             raise ValueError('선행 부서의 실제 직원 성공·소유자 승인 결과물·총괄 검토 기록이 필요합니다.')
+
+
+def verified_wide_result(con, campaign_id: int, task_id: int, employee_id: int) -> bool:
+    """A real worker inference and the same chief's accepted report are mandatory."""
+    found=con.execute('''SELECT 1 FROM aiwack_wide_campaigns p
+       JOIN aiwack_wide_campaign_steps s ON s.campaign_id=p.id
+       JOIN company_task_runs r ON r.task_id=s.task_id AND r.employee_id=s.employee_id
+          AND r.status='success'
+       JOIN ai_model_call_history h ON h.id=r.model_call_id
+          AND h.employee_id=r.employee_id AND h.status='success'
+       JOIN company_task_artifacts a ON a.run_id=r.id AND a.task_id=r.task_id
+          AND a.review_status='approved'
+       JOIN company_chief_task_dispatches d ON d.run_id=r.id
+       JOIN company_chief_task_orders o ON o.id=d.order_id AND o.task_id=r.task_id
+          AND o.worker_employee_id=r.employee_id AND o.chief_employee_id=p.chief_employee_id
+       JOIN company_chief_task_reports c ON c.artifact_id=a.id
+          AND c.order_id=o.id AND c.chief_employee_id=p.chief_employee_id
+          AND c.owner_decision='accepted'
+       WHERE p.id=? AND p.state='approved' AND s.task_id=? AND s.employee_id=? LIMIT 1''',
+        (campaign_id,task_id,employee_id)).fetchone()
+    return found is not None
+
+
+def assert_wide_prerequisites(con, task_id: int):
+    """Shared BEGIN IMMEDIATE entrypoint, not merely an optional GUI warning."""
+    if not con.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='aiwack_wide_campaign_steps'").fetchone():
+        return
+    step=con.execute('SELECT campaign_id,ordinal FROM aiwack_wide_campaign_steps WHERE task_id=?',
+                     (task_id,)).fetchone()
+    if not step:return
+    campaign_id,ordinal=step
+    plan=con.execute('SELECT state FROM aiwack_wide_campaigns WHERE id=?',(campaign_id,)).fetchone()
+    if not plan or plan[0]!='approved':raise ValueError('관리자 승인 전 31 AI 협업 실행 금지')
+    previous=con.execute('''SELECT s.task_id,s.employee_id,t.status
+        FROM aiwack_wide_campaign_steps s LEFT JOIN company_tasks t ON t.id=s.task_id
+        WHERE s.campaign_id=? AND s.ordinal<? ORDER BY s.ordinal''',(campaign_id,ordinal)).fetchall()
+    if len(previous)!=ordinal-1:raise ValueError('31 AI 협업 선행 단계가 누락됐습니다.')
+    for prior_task,prior_employee,state in previous:
+        if prior_task is None or state!='done' or not verified_wide_result(
+                con,campaign_id,int(prior_task),int(prior_employee)):
+            raise ValueError('선행 부서 직원·총괄 실행 및 관리자 수락 증거가 필요합니다.')
+
+
+def assert_wide_completion(con, task_id: int):
+    if not con.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='aiwack_wide_campaign_steps'").fetchone():return
+    step=con.execute('SELECT campaign_id,employee_id FROM aiwack_wide_campaign_steps WHERE task_id=?',
+                     (task_id,)).fetchone()
+    if not step:return
+    if not verified_wide_result(con,int(step[0]),task_id,int(step[1])):
+        raise ValueError('31 AI 협업 완료에는 실제 모델 성공·소유자 결과물 승인·총괄 검수 수락이 필요합니다.')
