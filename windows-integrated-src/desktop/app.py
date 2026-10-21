@@ -5,6 +5,7 @@ No HTTP server is started. This is a runnable prototype shell, not an AI company
 from __future__ import annotations
 
 import csv
+import sqlite3
 import threading
 import queue
 from pathlib import Path
@@ -4103,6 +4104,10 @@ class AIWACKWindow:
         self.real_meeting_ai_button=tk.Button(buttons,text="선택 직원 실제 로컬 AI 의견 생성",
                         command=self._run_real_meeting_ai_opinion)
         self.real_meeting_ai_button.pack(side="left",padx=4)
+        self.real_meeting_attendees_button=tk.Button(buttons,
+            text="참석 직원 전체 로컬 AI 의견 수집 (최대 30명)",
+            command=self._run_real_meeting_attendees)
+        self.real_meeting_attendees_button.pack(side="left",padx=4)
         self.opinion_refresh_button=tk.Button(buttons,text="안건별 의견 비교·새로고침",command=self._refresh_meeting_opinions)
         self.opinion_refresh_button.pack(side="left",padx=4)
         tk.Label(parent,textvariable=self.opinion_feedback,bg="#121c2d",fg="white",wraplength=900,justify="left").pack(anchor="w",pady=3)
@@ -4140,6 +4145,68 @@ class AIWACKWindow:
         self._refresh_meeting_opinions()
         self.opinion_feedback.set(f"의견 #{identifier} 저장. 수정·삭제 불가 / 의견 비교는 결정이나 승인이 아닙니다.")
 
+    def _run_real_meeting_attendees(self) -> None:
+        """One consented batch of actual assigned local GGUF/CLI workers."""
+        try:
+            if self._model_running:
+                raise ValueError('이미 다른 로컬 모델을 호출 중입니다.')
+            meeting_id=int(self.opinion_meeting_id.get())
+            agenda_id=int(self.opinion_agenda_id.get())
+            self.store.require_permission('company:manage')
+            self.store.require_permission('agents:manage')
+            with self.store._connect() as con:
+                from desktop.meetings import read as meeting_read
+                meeting=meeting_read(con,meeting_id)
+            if not messagebox.askyesno('참석 직원 실제 로컬 모델 협업',
+                f'회의 #{meeting_id} 안건 #{agenda_id}의 활성 참석자 '
+                f'{len(meeting["attendees"])}명에 대해 각각 로컬 모델을 실행할까요?\\n'
+                '직원별 결과가 저장되며 취소·실패는 성공으로 계산되지 않습니다. '
+                '관리자 의사결정/외부 결제·도구 실행은 하지 않습니다.'):
+                return
+        except (ValueError,PermissionError) as exc:
+            self.opinion_feedback.set('전체 참석자 호출 거부: '+str(exc))
+            return
+        self._model_running=True
+        generation=self._session_generation
+        cancel=threading.Event()
+        self._model_cancel=cancel
+        responses=queue.Queue()
+        self.real_meeting_attendees_button.configure(state='disabled')
+        self.real_meeting_ai_button.configure(state='disabled')
+        self.opinion_feedback.set('참석자 전체 로컬 모델 실행 중: 직원별 감사와 SQLite 의견을 기록합니다.')
+        def worker():
+            try:
+                responses.put((True,self.store.run_real_meeting_attendees(
+                    meeting_id,agenda_id,cancel=cancel)))
+            except (ValueError,PermissionError,TimeoutError,InterruptedError,
+                    RuntimeError,OSError,sqlite3.Error) as exc:
+                responses.put((False,str(exc)))
+        self._model_thread=threading.Thread(target=worker,daemon=True)
+        self._model_thread.start()
+        def poll():
+            if generation!=self._session_generation or not self.store.is_authenticated:
+                return
+            try:
+                ok,result=responses.get_nowait()
+            except queue.Empty:
+                if self.root.winfo_exists(): self.root.after(100,poll)
+                return
+            self._model_running=False
+            self._model_cancel=None
+            self._model_thread=None
+            self.real_meeting_attendees_button.configure(state='normal')
+            self.real_meeting_ai_button.configure(state='normal')
+            if ok:
+                self._refresh_meeting_opinions()
+                self.opinion_feedback.set(
+                    f'실제 직원 모델 성공 {len(result["succeeded"])}명, '
+                    f'실패 {len(result["failed"])}명, '
+                    f'기존 의견 건너뜀 {len(result["skipped_previously_recorded"])}명, '
+                    f'취소 {result["cancelled"]}. 관리자 최종 승인/외부 활동 없음.')
+            else:
+                self.opinion_feedback.set('전체 로컬 AI 회의 호출 실패: '+str(result))
+        self.root.after(100,poll)
+
     def _run_real_meeting_ai_opinion(self) -> None:
         """Owner click, local model subprocess, audited SQLite and GUI-thread result."""
         try:
@@ -4163,6 +4230,7 @@ class AIWACKWindow:
         self._model_cancel=cancel
         replies=queue.Queue()
         self.real_meeting_ai_button.configure(state='disabled')
+        self.real_meeting_attendees_button.configure(state='disabled')
         self.opinion_feedback.set('실제 직원 로컬 AI를 실행 중입니다. 호출과 결과가 SQLite 감사에 기록됩니다.')
         def worker():
             try:
@@ -4186,6 +4254,7 @@ class AIWACKWindow:
             self._model_cancel=None
             self._model_thread=None
             self.real_meeting_ai_button.configure(state='normal')
+            self.real_meeting_attendees_button.configure(state='normal')
             if success:
                 self._refresh_meeting_opinions()
                 self.opinion_feedback.set(
