@@ -56,3 +56,18 @@ def test_invalid_signature_conflict_stopped_and_duplicate_settlement(ctx):
     store.emergency_stop_local(True,'외부 거래 검증 일시 중단')
     with pytest.raises(PermissionError):
         signed(store,body(b,'expense-0003','expense','ex-0003',200))
+
+
+def test_signed_payment_original_fields_cannot_be_rewritten(ctx):
+    import sqlite3
+    store,b=ctx
+    event=signed(store,body(b,'settlement-lock','settlement','tx-lock1',5000))
+    with store._connect() as con:
+        with pytest.raises(sqlite3.DatabaseError):
+            con.execute('UPDATE aiwack_provider_payment_events SET amount_minor=99999 WHERE id=?',(event['id'],))
+        with pytest.raises(sqlite3.DatabaseError):
+            con.execute('DELETE FROM aiwack_provider_payment_events WHERE id=?',(event['id'],))
+    finance.review(store,event['id'],'accepted','관리자 금액 확인 후 승인')
+    with store._connect() as con:
+        with pytest.raises(sqlite3.DatabaseError):
+            con.execute("UPDATE aiwack_provider_payment_events SET owner_decision='rejected' WHERE id=?",(event['id'],))

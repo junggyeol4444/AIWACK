@@ -18,6 +18,17 @@ def initialize(con):
       BEFORE DELETE ON aiwack_staff_transfer_reviews BEGIN
       SELECT RAISE(ABORT,'직원 조직 변경 감사 삭제 금지'); END""")
 
+    con.execute("""CREATE TRIGGER IF NOT EXISTS aiwack_staff_transfer_guard_update
+       BEFORE UPDATE ON aiwack_staff_transfer_reviews
+       WHEN OLD.state!='pending' OR NEW.state NOT IN ('accepted','rejected')
+         OR NEW.id!=OLD.id OR NEW.employee_id!=OLD.employee_id
+         OR NEW.from_department IS NOT OLD.from_department
+         OR NEW.to_department!=OLD.to_department OR NEW.source_run_id!=OLD.source_run_id
+         OR NEW.proposal_note!=OLD.proposal_note OR NEW.created_at!=OLD.created_at
+         OR NEW.decided_at IS NULL OR length(NEW.decision_note)<5
+         OR length(NEW.decision_note)>200 OR NEW.assignments_released<0
+       BEGIN SELECT RAISE(ABORT,'직원 이동 근거 및 확정 기록 수정 금지'); END""")
+
 def _id(value):
     if type(value) is not int or value<=0:
         raise ValueError('직원·부서·실행 번호는 양의 정수입니다.')

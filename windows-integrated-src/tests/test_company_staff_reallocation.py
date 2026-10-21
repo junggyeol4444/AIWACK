@@ -53,3 +53,16 @@ def test_invented_evidence_rejected_stop_blocks_and_rejection_preserves_staff(co
     db.emergency_stop_local(False,'소유자 재개')
     db.decide_staff_department_transfer(p['id'],'rejected','기존 부서에서 재검토')
     assert db.read_employee_record(staff)['department_id']==old
+
+
+def test_staff_transfer_evidence_is_write_once(company):
+    import sqlite3
+    db,staff,source,target,task,run=company
+    proposal=db.propose_staff_department_transfer(staff,target,run,'실제 직원 모델 실패 기반 이직 증거')
+    with db._connect() as con:
+        with pytest.raises(sqlite3.DatabaseError):
+            con.execute('UPDATE aiwack_staff_transfer_reviews SET employee_id=? WHERE id=?',(staff+99,proposal['id']))
+    db.decide_staff_department_transfer(proposal['id'],'rejected','관리자 부서 이동 보류 결정')
+    with db._connect() as con:
+        with pytest.raises(sqlite3.DatabaseError):
+            con.execute("UPDATE aiwack_staff_transfer_reviews SET state='accepted' WHERE id=?",(proposal['id'],))

@@ -30,6 +30,17 @@ def initialize(con):
     con.execute("""CREATE TRIGGER IF NOT EXISTS aiwack_payment_no_delete
          BEFORE DELETE ON aiwack_provider_payment_events BEGIN
          SELECT RAISE(ABORT,'거래 증빙 삭제 금지'); END""")
+    con.execute("""CREATE TRIGGER IF NOT EXISTS aiwack_payment_guard_update
+      BEFORE UPDATE ON aiwack_provider_payment_events
+      WHEN OLD.owner_decision!='pending' OR NEW.owner_decision NOT IN ('accepted','rejected')
+      OR NEW.id!=OLD.id OR NEW.provider!=OLD.provider OR NEW.event_id!=OLD.event_id
+      OR NEW.transaction_id!=OLD.transaction_id OR NEW.business_id!=OLD.business_id
+      OR NEW.event_type!=OLD.event_type OR NEW.related_transaction!=OLD.related_transaction
+      OR NEW.currency!=OLD.currency OR NEW.amount_minor!=OLD.amount_minor
+      OR NEW.event_sha256!=OLD.event_sha256 OR NEW.authenticated!=OLD.authenticated
+      OR NEW.received_at!=OLD.received_at OR NEW.decided_at IS NULL
+      OR length(NEW.decision_note)<5 OR length(NEW.decision_note)>200
+      BEGIN SELECT RAISE(ABORT,'서명 거래 원문을 변경할 수 없습니다'); END""")
     con.execute('CREATE INDEX IF NOT EXISTS aiwack_payment_by_business ON aiwack_provider_payment_events(business_id,id)')
 
 def _ident(value):
