@@ -464,3 +464,28 @@
 - 새 소스 내보내기는 오직 **현재 `main`의 Git 추적 파일을 통째로 `git archive`** 하여 ZIP과 전체 파일목록을 Github Actions artifact로 내보냄. 소스 수 감소/핵심 모듈 누락/컴파일 실패는 FAIL. `main` 소스를 변경하거나 과거 아카이브로 되돌리지 않음.
 - 실제 전자상거래 실매출·결제·31명 전원 GGUF·사용자 Windows 10/11 24시간 운영/T01~T20 최종 합격은 **미완료**. 직전 보존된 CI PASS는 Python 및 일부 Windows 경로 검증 결과일 뿐이며, 최신 GGUF·Windows EXE 잔여 실행은 후속 Actions 결과 확인 필요.
 - 원본 기획안/금지사항/이전 개발 인수인계 원문 유지. 다른 프로젝트와 예약에는 변경 없음.
+
+
+## 2026-10-21 — 17회차 누적 Windows 네이티브 실제 개발·통합·Windows 증빙
+
+### 사용자 기존 지시 및 기존 프로그램 보존
+- 현재까지 누적된 `main/windows-integrated-src/` 전체 소스에서 개발을 계속하고 테스트·인수인계 원문을 삭제하지 않았다. `main`은 최종, HTML/WebUI 대체·드라이브 연결·다른 프로젝트·예약 임의 변경 금지. SHA나 HEAD 조회 자체는 기능 개발 결과가 아니므로 손실/충돌 예방 목적에만 사용한다.
+- 원본 기획 T01~T20을 축소하지 않는다. 연관 기능을 묶어 구현→기존/신규 통합 검증→오류 수정→전체 재검증. Windows 10/11 실제 PC 24시간 검증 및 판매·결제·실매출·31인 전원 실협업은 아직 최종 통과 아님.
+
+### 실제 main 반영 소스·기능
+1. Windows 2022/2025 실패 스크린샷 39514467491에서 회사 조직 15부서·31명 직원·2명 모델 연결까지 실제 GUI 진행했지만, 업무 등록이 0건이었다. 원인은 실제 업무 입력창과 고정 좌표 y=614 불일치. `validation/windows_packaged_company_full_e2e.py`를 기존 GUI 화면 픽셀에서 보이는 업무 입력창을 찾고 물리 입력하도록 수정. `cd01d78c21e6d4c66ab972c6d91511c1a7b97168`.
+2. 실제 GGUF run #39514467510에서 Windows 양쪽 31명 직원에 **각각 로컬 GGUF 모델 호출 성공 감사 기록**까지 확인. 이는 31명의 단순 GGUF 호출 검증이며 31명 전원 협업·사업 업무 합격 증거가 아니다. 이후 물리 비상정지 버튼 클릭 y=646이 실제 붉은 버튼 y=610~643 바깥을 클릭해 DB `stopped`가 0인 채 E2E FAIL. 검사 좌표를 실제 화면의 y=626으로 수정. `7ec7c280d1a8f207557af7bf586c4110fecf9d85`. 안전 검사 삭제·비상정지 기능 우회 없음.
+3. **기존 Windows 네이티브 기능 확대**: 소유자가 명시적으로 확인한 180초 이상 오래된 Windows 명령 실행 예약만 `cancelled`로 확정, 동일 명령 자동 재실행 금지. 다른 EXE 창의 실행 중인 명령은 보호, 프로세스 실제 종료를 보장했다고 주장하지 않음. SQLite 트랜잭션/영속 감사 테이블 `aiwack_native_tool_recoveries`, 수정·삭제 금지 트리거, 복구 사유·경과 초수·요청 연계, 기존 `LocalStore`·한글 GUI 버튼 2개·테스트 연결.
+4. **31명 직원 지표 개선**: `ai_model_call_history`에서 실제 감사된 성공 호출을 직원별로 집계, 결과물 승인·업무 실행 성공과 별개의 필드/화면 수치로 제공. 31명 호출 감사=31명 실제 업무/협업 완료라고 표시하지 않음. 기존 SQLite 및 모델 런타임 보존.
+5. 위 두 기능/DB/GUI/통합 테스트를 `57c69b4267fe19e3cfb2562dd610cf0408f96b5c`로 기존 main 누적 반영. 실제 Tk 버튼 호출로 수동 복구 감사 증빙을 추가 검증하는 `scripts/company_approved_tool_gui_smoke.py`도 `635369972e1f253c0bb50b8acfdf619ca0e853a2`로 반영.
+
+### 검증 (진위/시점 구분)
+- 로컬 Python/SQLite **기존·신규 24개 모듈 통합 테스트 237 PASS/1 SKIP** (검증용 `validation/` 없이 받은 Windows 소스 ZIP 기준). 추가된 DB 복구 테스트, 회계와 분리한 직원 모델 호출 카운트 모두 포함. 로컬 최초 8모듈 회귀는 78 PASS/1 SKIP.
+- Linux Xvfb 실제 한글 Tk 버튼 클릭→SQLite 감사 저장: `TK_NATIVE_WINDOWS_STALE_RECOVERY_BUTTON_SQLITE_PASS`, `TK_NATIVE_WINDOWS_COMMAND_BUTTON_ACTUAL_SQLITE_PASS`, `TK_NATIVE_APPROVED_TOOL_GUI_ACTUAL_SQLITE_PASS`. Windows 실제 CMD, EXE, GGUF 성공의 대체 증거가 아님.
+- GitHub 57c69b42 CI `#39519316168` SUCCESS, 전체 네이티브 소스 ZIP `#39519316258` SUCCESS. 63536997의 CI·Windows 2022/2025 packaged EXE·실제 GGUF는 종료 시점 최신 결과 재조회 필요.
+- 로컬 통합에서 `tests/test_windows_real_parallel_validation.py`는 repo root `validation/` 미포함으로 수집 불가(앱 기능 FAIL로 둔갑하지 않음); 해당 전체 경로는 GitHub CI가 저장소 전체를 checkout하여 검사.
+- 2026-10-20/21 Windows E2E 실패와 각 SHA 결과/사용자 지시 모두 기존 기록에서 보존. 최신 SHA Windows 실물 E2E 4종이 모두 완료·성공하지 않았으면 **정상 작동/최종 인수 성공 주장 금지**.
+
+### 다음 회차 필수
+- 동일 누적 source의 최신 Windows 2022/2025 EXE·GUI 재로그인 및 진짜 GGUF Actions 결과를 추적, FAIL이면 증빙 스크린샷·SQLite·실제 모델 감사로 원인 찾아 기능 삭제 없이 묶음 수정·재검증.
+- 원본 15개 부서/31명 실제 공동 업무 전체, 24시간 자동 운영, 실제 도구·상품·고객·판매·결제/환불·정산/재무·평가·조직 변경·안전복구/T01~T20 전체 미완료 계속 구현·실증. 외부 계정·결제·계약·유료 서비스는 소유자 허가 없이 실행하지 않음.
