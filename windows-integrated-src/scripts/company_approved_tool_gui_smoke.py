@@ -1,6 +1,6 @@
 import tempfile, tkinter as tk
 from pathlib import Path
-from tkinter import messagebox
+from tkinter import messagebox, simpledialog
 from desktop.app import AIWACKWindow
 from desktop.storage import LocalStore
 
@@ -62,6 +62,33 @@ with tempfile.TemporaryDirectory() as td:
             assert len(st.approved_windows_version_tool_history())==1
         finally:
             native._run_windows_version=old
+        # 관리자 클릭으로 오래된 실행만 취소하고 재실행하지 않는 사용자 흐름.
+        recovery_request=st.request_ai_tool_use('gui_win_recovery_002',cmd,employee,'복구 시연')
+        st.decide_ai_tool_use(recovery_request,'approved','관리자 복구 확인 시험')
+        with st._connect() as con:
+            native.initialize(con)
+            con.execute("""INSERT INTO aiwack_native_tool_runs
+                (request_id,employee_id,tool_key,token,state,created_at)
+                VALUES(?,?,?,?, 'running',DATETIME('now','-240 seconds'))""",
+                (recovery_request,employee,native.TOOL_KEY,'e'*32))
+        ui._refresh_tool_use()
+        for item in ui.tool_use_tree.get_children():
+            if int(ui.tool_use_tree.item(item,'values')[0])==recovery_request:
+                ui.tool_use_tree.selection_set(item)
+                break
+        root.update()
+        assert ui.tool_windows_stale_button.winfo_viewable()
+        assert ui.tool_windows_stale_button.winfo_rooty()+ui.tool_windows_stale_button.winfo_height() <= root.winfo_rooty()+root.winfo_height()
+        old_prompt=simpledialog.askstring
+        try:
+            simpledialog.askstring=lambda *a,**k:'다른 창을 확인하고 중단 감사만 취소함'
+            ui.tool_windows_stale_button.invoke()
+        finally:
+            simpledialog.askstring=old_prompt
+        root.update()
+        assert len(st.approved_windows_tool_recovery_history())==1
+        assert '재실행 없음' in ui.tool_use_feedback.get()
+        print('TK_NATIVE_WINDOWS_STALE_RECOVERY_BUTTON_SQLITE_PASS')
         print('TK_NATIVE_WINDOWS_COMMAND_BUTTON_ACTUAL_SQLITE_PASS')
         print('TK_NATIVE_APPROVED_TOOL_GUI_ACTUAL_SQLITE_PASS')
     finally:
