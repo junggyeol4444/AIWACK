@@ -217,6 +217,56 @@ def verify(cli:Path,gguf:Path,evidence:Path,*,resume=False):
             'success':False,'steps':[]}
     def save():
         _save_checkpoint_atomic(checkpoint_file,report)
+
+    def checkpoint_audit():
+        """Persist genuine model provenance during planning, execution and failure.
+
+        Reads only from the disposable SQLite fixture; this method never creates
+        successful calls, reviews, model output, or owner approvals.
+        """
+        if not db.is_file():
+            return
+        uri='file:'+db.resolve().as_posix()+'?mode=ro'
+        with sqlite3.connect(uri,uri=True) as con:
+            con.execute('PRAGMA query_only=ON')
+            tables={name for name, in con.execute(
+                "SELECT name FROM sqlite_master WHERE type='table'")}
+            if 'ai_model_call_history' in tables:
+                calls=con.execute('''SELECT id,employee_id,status,output_chars,error_kind
+                    FROM ai_model_call_history ORDER BY id''').fetchall()
+                report['actual_model_calls_observed']=len(calls)
+                report['successful_model_calls_observed']=sum(
+                    x[2]=='success' and int(x[3] or 0)>0 for x in calls)
+                report['failed_model_calls_observed']=sum(
+                    x[2]!='success' for x in calls)
+                report['actual_model_call_ids_sha256']=hashlib.sha256(
+                    json.dumps([x[:4] for x in calls],separators=(',',':')).encode('utf-8')
+                ).hexdigest()
+            if 'aiwack_wide_chief_plan_attempts' in tables:
+                columns={row[1] for row in con.execute(
+                    'PRAGMA table_info(aiwack_wide_chief_plan_attempts)')}
+                if {'output_sha256','output_chars','completion_preview'}<=columns:
+                    rows=con.execute('''SELECT attempt_kind,parsed,error_kind,
+                        output_sha256,output_chars,completion_preview
+                        FROM aiwack_wide_chief_plan_attempts ORDER BY id''').fetchall()
+                    report['chief_plan_attempts']=[
+                        dict(kind=kind,parsed=bool(ok),error_kind=err,
+                             output_sha256=digest,output_chars=length,
+                             completion_preview=preview)
+                        for kind,ok,err,digest,length,preview in rows]
+                else:
+                    rows=con.execute('''SELECT attempt_kind,parsed,error_kind
+                        FROM aiwack_wide_chief_plan_attempts ORDER BY id''').fetchall()
+                    report['chief_plan_attempts']=[
+                        dict(kind=kind,parsed=bool(ok),error_kind=err)
+                        for kind,ok,err in rows]
+            if 'aiwack_wide_chief_group_staging' in tables:
+                rows=con.execute('''SELECT group_start,group_sha256
+                    FROM aiwack_wide_chief_group_staging ORDER BY group_start''').fetchall()
+                report['staged_chief_plan_groups']=[
+                    {'group_number':start//3+1,'plan_sha256':digest}
+                    for start,digest in rows]
+        save()
     if not resume:save()
     resume_validated=False
     try:
@@ -230,7 +280,9 @@ def verify(cli:Path,gguf:Path,evidence:Path,*,resume=False):
             report['campaign_id']=cid
             save()
             if cid is None:
-                plan=wide.approve(store,wide.propose(store,task)['id'])
+                proposed=wide.propose(store,task)
+                checkpoint_audit()
+                plan=wide.approve(store,proposed['id'])
                 cid=plan['id']
             else:
                 plan=wide.read(store,cid)
@@ -243,7 +295,9 @@ def verify(cli:Path,gguf:Path,evidence:Path,*,resume=False):
             for e in people:store.set_employee_model(e['id'],model)
             task=ops.create_task(store,'15부서 실제 GGUF 고객 지원 프로젝트',
                                  '고객지원 정책과 문서 작성 및 품질 점검')
-            plan=wide.approve(store,wide.propose(store,task)['id'])
+            proposed=wide.propose(store,task)
+            checkpoint_audit()
+            plan=wide.approve(store,proposed['id'])
             start=0
         if len(plan['steps'])!=30:raise AssertionError('Missing real chief-generated steps')
         cid=plan['id'];report['campaign_id']=cid;save()
@@ -286,7 +340,7 @@ def verify(cli:Path,gguf:Path,evidence:Path,*,resume=False):
                'test_owner_accepted':True,
                'worker_call_id':fresh[0][0],'chief_call_id':fresh[1][0],
                'artifact_sha256':artifact['sha256'],'chief_report_sha256':chief['sha256']})
-            save()
+            checkpoint_audit()
             if index==14:
                 store.logout();store=LocalStore(db);store.login(USER,PASSWORD)
                 if wide.verified_progress(store,cid)['verified_completed_tasks']!=15:
@@ -321,7 +375,7 @@ def verify(cli:Path,gguf:Path,evidence:Path,*,resume=False):
         report['final_chief_report_id']=final['id']
         report['test_fixture_final_report_accepted']=True
         report['human_owner_reviewed']=False
-        report['tested_roles']=31;report['success']=True;save();return report
+        report['tested_roles']=31;report['success']=True;checkpoint_audit();return report
     except BaseException as exc:
         report['failed_step']=report['completed_tasks']+1
         report['failure_kind']=type(exc).__name__
@@ -332,7 +386,11 @@ def verify(cli:Path,gguf:Path,evidence:Path,*,resume=False):
         if resume and not resume_validated:
             _record_rejected_resume(evidence,checkpoint_file,report)
         else:
-            save()
+            try:
+                checkpoint_audit()
+            except (sqlite3.Error,ValueError,FileNotFoundError) as audit_error:
+                report['checkpoint_audit_read_failure']=type(audit_error).__name__
+                save()
         raise
     finally:
         try:store.logout()
