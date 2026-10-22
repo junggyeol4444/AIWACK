@@ -287,9 +287,13 @@ def _verified_staged_group(con,source_task_id,start,fingerprint,roster_sha,
         audit=con.execute('''SELECT source_task_id,chief_employee_id,department_names,
                  attempt_kind,parsed FROM aiwack_wide_chief_plan_attempts WHERE model_call_id=?''',
                  (call_id,)).fetchone()
+        names=','.join(x[1] for x in part)
         if (audit is None or int(audit[0])!=source_task_id or int(audit[1])!=chief
-                or int(audit[4])!=1 or name not in audit[2].split(',')):
-            raise ValueError('총괄 실제 모델 호출 감사의 파싱 성공·원본 업무 불일치')
+                or int(audit[4])!=1
+                or audit[3] not in ('three_departments','single_department')
+                or (audit[3]=='three_departments' and audit[2]!=names)
+                or (audit[3]=='single_department' and audit[2]!=name)):
+            raise ValueError('해당 부서 실제 모델 호출의 단계별 부서 목록·원본 감사 불일치')
         parsed[name]=(title,instruction);calls[name]=call_id
     return parsed,calls
 
@@ -360,10 +364,27 @@ def _assert_campaign_plan_matches_genuine_staging(store,con,campaign_id:int)->No
                              ('부서장 분석·계획: '+instruction)[:500],cid),
                              (dept,staff,'staff',f'{name} 담당 실행: {title}',
                              ('부서장 승인된 선행 업무를 확인하고 실제 결과물을 작성: '+instruction)[:500],cid)))
-    for row,exp in zip(rows,expected):
+    for expected_ordinal,(row,exp) in enumerate(zip(rows,expected),1):
         ordinal,*fields=row
-        if tuple(fields[:-1])!=exp or fields[-1]!=_step_digest(campaign_id,ordinal,*exp):
-            raise ValueError('30업무 생성 원문·모델 호출과 총괄 원본 감사가 일치하지 않습니다.')
+        if (ordinal!=expected_ordinal or tuple(fields[:-1])!=exp
+                or not fields[-1]
+                or fields[-1]!=_step_digest(campaign_id,expected_ordinal,*exp)):
+            raise ValueError('실제 총괄 30업무 순서·원문·모델 호출 감사가 일치하지 않습니다.')
+    if plan[3]=='approved':
+        links=con.execute('''SELECT ordinal,task_id FROM aiwack_wide_campaign_steps
+            WHERE campaign_id=? ORDER BY ordinal''',(campaign_id,)).fetchall()
+        if len(links)!=30 or any(task is None for _,task in links):
+            raise ValueError('승인된 회사 전체 협업의 업무 연결이 누락됐습니다.')
+        for ordinal,task in links:
+            expected_step=con.execute('''SELECT s.employee_id,s.department_id,
+                 t.status,a.employee_id,a.reason
+                FROM aiwack_wide_campaign_steps s
+                JOIN company_tasks t ON t.id=s.task_id
+                JOIN company_task_assignments a ON a.task_id=t.id
+                WHERE s.campaign_id=? AND s.ordinal=? AND s.task_id=?''',
+                (campaign_id,ordinal,task)).fetchone()
+            if (expected_step is None or int(expected_step[0])!=int(expected_step[3])):
+                raise ValueError('승인 업무의 실제 직원 배정이 원본 30단계 계획과 다릅니다.')
 
 def _source(store, con, source_task_id):
     row=store._task_row(con,source_task_id)
