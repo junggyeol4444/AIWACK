@@ -5,6 +5,8 @@
 """
 from __future__ import annotations
 
+import hashlib
+
 
 def next_step(store, plan_id: int) -> dict:
     """실제 SQLite 기록으로 다음 실행 가능한 단계와 차단 원인을 확인한다."""
@@ -120,13 +122,18 @@ def report(store, plan_id: int) -> str:
 
 def verified_collaboration_result(con, plan_id: int, task_id: int,
                                   employee_id: int) -> bool:
-    """검수 우회 방지: 직원 모델 감사부터 총괄 지시·검수까지 하나의 연결 검증.
+    """Enforce the full worker/chief evidence at the SQLite shared boundary.
 
-    임의로 업무 상태만 done으로 변경하거나 다른 지시/직원의 승인 결과물을
-    붙여도 후속 부서가 열리지 않는다. 모델 기록은 SQLite 증거이며
-    실제 Windows GGUF 추론 성공을 단독으로 증명하지 않는다.
+    An accepted status and foreign keys alone do not protect the text against
+    later modification. Validate the original worker and chief digests and
+    require the SAME run, model, approved order and dispatch on every check.
     """
-    row = con.execute("""SELECT 1
+    row = con.execute("""SELECT a.body,a.sha256,c.body,c.sha256,
+            r.model_id,h.model_id,r.output_chars,h.output_chars,
+            r.task_id,a.task_id,o.task_id,r.employee_id,h.employee_id,
+            o.worker_employee_id,o.chief_employee_id,p.chief_employee_id,
+            c.chief_employee_id,d.run_id,r.id,c.artifact_id,a.id,
+            d.order_id,c.order_id,o.id
         FROM aiwack_department_plans p
         JOIN aiwack_department_plan_steps s ON s.plan_id=p.id
         JOIN company_task_runs r ON r.task_id=s.task_id
@@ -145,7 +152,20 @@ def verified_collaboration_result(con, plan_id: int, task_id: int,
         WHERE p.id=? AND p.state='approved' AND s.task_id=?
             AND s.worker_employee_id=? LIMIT 1""",
         (plan_id,task_id,employee_id)).fetchone()
-    return row is not None
+    if row is None:
+        return False
+    (worker_body,worker_hash,chief_body,chief_hash,run_model,call_model,
+     run_chars,call_chars,*links)=row
+    return bool(
+        hashlib.sha256(str(worker_body).encode('utf8')).hexdigest()==worker_hash
+        and hashlib.sha256(str(chief_body).encode('utf8')).hexdigest()==chief_hash
+        and int(run_model)==int(call_model)
+        and int(run_chars)>0 and int(call_chars)>0
+        and links[0]==links[1]==links[2]==task_id
+        and links[3]==links[4]==links[5]==employee_id
+        and links[6]==links[7]==links[8]
+        and links[9]==links[10] and links[11]==links[12]
+        and links[13]==links[14]==links[15])
 
 
 def assert_collaboration_completion(con, task_id: int) -> None:
@@ -207,24 +227,26 @@ def assert_collaboration_prerequisites(con, task_id: int) -> None:
 
 
 def verified_wide_result(con, campaign_id: int, task_id: int, employee_id: int) -> bool:
-    """A real worker inference and the same chief's accepted report are mandatory."""
-    found=con.execute('''SELECT 1 FROM aiwack_wide_campaigns p
-       JOIN aiwack_wide_campaign_steps s ON s.campaign_id=p.id
-       JOIN company_task_runs r ON r.task_id=s.task_id AND r.employee_id=s.employee_id
-          AND r.status='success'
-       JOIN ai_model_call_history h ON h.id=r.model_call_id
-          AND h.employee_id=r.employee_id AND h.status='success'
-       JOIN company_task_artifacts a ON a.run_id=r.id AND a.task_id=r.task_id
-          AND a.review_status='approved'
-       JOIN company_chief_task_dispatches d ON d.run_id=r.id
-       JOIN company_chief_task_orders o ON o.id=d.order_id AND o.task_id=r.task_id
-          AND o.worker_employee_id=r.employee_id AND o.chief_employee_id=p.chief_employee_id
-       JOIN company_chief_task_reports c ON c.artifact_id=a.id
-          AND c.order_id=o.id AND c.chief_employee_id=p.chief_employee_id
-          AND c.owner_decision='accepted'
-       WHERE p.id=? AND p.state='approved' AND s.task_id=? AND s.employee_id=? LIMIT 1''',
+    """Only an unaltered, owner-approved worker/chief result unlocks a step.
+
+    This is also the shared task-finalization and dependency boundary. A status
+    flag and matching foreign keys alone are insufficient after SQLite text
+    tampering. Reuse the stricter campaign evidence check, including both
+    content hashes, call-model identity, dispatch, owner review and run IDs.
+    """
+    from desktop.company_wide_campaign import _verified_step_evidence
+    row=con.execute("""SELECT s.ordinal,c.chief_employee_id,s.task_id,s.employee_id,t.status
+        FROM aiwack_wide_campaign_steps s
+        JOIN company_tasks t ON t.id=s.task_id
+        JOIN aiwack_wide_campaigns c ON c.id=s.campaign_id
+        WHERE s.campaign_id=? AND s.task_id=? AND s.employee_id=?
+          AND c.state='approved' """,
         (campaign_id,task_id,employee_id)).fetchone()
-    return found is not None
+    if row is None or row[4] not in ('done','in_progress'):
+        return False
+    evidence=_verified_step_evidence(con,campaign_id,int(row[0]),
+                                     expected_chief=int(row[1]),require_done=row[4]=='done')
+    return bool(evidence and evidence['previous_task_id']==int(row[2]))
 
 
 def assert_wide_prerequisites(con, task_id: int):

@@ -4734,6 +4734,60 @@ class LocalStore:
         from desktop.company_payment_reconciliation import summary
         return summary(self, business_id)
 
+    def reconcile_owner_bank_csv(self, file_path):
+        """대사만 실행; 외부 은행 API·실제 PG 결제 실행하지 않음."""
+        from desktop.company_bank_reconciliation import import_owner_csv
+        return import_owner_csv(self, file_path)
+
+    def read_bank_reconciliation(self, batch_id: int):
+        from desktop.company_bank_reconciliation import read
+        return read(self, batch_id)
+
+    def preview_business_financial_close(self, business_id: int):
+        from desktop.company_financial_close import preview
+        return preview(self, business_id)
+
+    def create_business_financial_close(self, business_id: int, note: str):
+        from desktop.company_financial_close import create
+        return create(self, business_id, note)
+
+    def read_business_financial_close(self, close_id: int):
+        from desktop.company_financial_close import read
+        return read(self, close_id)
+
+    def list_business_financial_closes(self, business_id: int):
+        """과거 결산 기간·중복 없는 누적 합계 확인(실제 송금 아님)."""
+        from desktop.company_financial_close import history
+        return history(self, business_id)
+
+    def export_campaign_call_evidence(self, campaign_id: int):
+        from desktop.company_campaign_evidence import export
+        return export(self, campaign_id)
+
+    def read_campaign_call_evidence(self, export_id: int):
+        from desktop.company_campaign_evidence import read
+        return read(self, export_id)
+
+    def inspect_campaign_step_evidence(self, campaign_id: int):
+        from desktop.company_campaign_evidence import inspect
+        return inspect(self, campaign_id)
+
+    def find_campaign_final_report(self, campaign_id: int):
+        from desktop.company_campaign_final_report import find_by_campaign
+        return find_by_campaign(self, campaign_id)
+
+    def propose_campaign_final_report(self, campaign_id: int, *, cancel=None):
+        from desktop.company_campaign_final_report import propose
+        return propose(self, campaign_id, cancel=cancel)
+
+    def read_campaign_final_report(self, report_id: int):
+        from desktop.company_campaign_final_report import read
+        return read(self, report_id)
+
+    def decide_campaign_final_report(self, report_id: int, decision: str, reason: str):
+        from desktop.company_campaign_final_report import decide
+        return decide(self, report_id, decision, reason)
+
     def list_signed_payment_events(self, limit: int = 30):
         from desktop.company_payment_reconciliation import pending_events
         return pending_events(self, limit)
@@ -4767,6 +4821,10 @@ class LocalStore:
         from desktop.company_wide_campaign import propose
         return propose(self,source_task_id,cancel=cancel)
 
+    def staged_full_company_progress(self, source_task_id: int) -> dict:
+        from desktop.company_wide_campaign import staged_plan_progress
+        return staged_plan_progress(self,source_task_id)
+
     def approve_full_company_campaign(self, campaign_id: int) -> dict:
         from desktop.company_wide_campaign import approve
         return approve(self,campaign_id)
@@ -4781,7 +4839,42 @@ class LocalStore:
 
     def run_full_company_next(self, campaign_id: int, *, cancel=None) -> dict:
         from desktop.company_wide_campaign import run_next
-        return run_next(self,campaign_id,cancel=cancel)
+        return run_next(self,campaign_id,cancel=cancel,
+                        require_genuine_provenance=True)
+
+    def export_approved_product_document(self, campaign_id: int, ordinal: int,
+                                          catalog_item_id: int) -> dict:
+        from desktop.company_product_documents import export
+        return export(self,campaign_id,ordinal,catalog_item_id)
+
+    def read_approved_product_document(self, document_id: int) -> dict:
+        from desktop.company_product_documents import read
+        return read(self,document_id)
+
+    def create_customer_case(self, case_ref: str, customer_alias: str,
+                             question: str, *, catalog_item_id: int | None = None) -> dict:
+        from desktop.company_customer_cases import create
+        return create(self,case_ref,customer_alias,question,catalog_item_id=catalog_item_id)
+
+    def approve_customer_reply(self, case_id: int, artifact_id: int) -> dict:
+        from desktop.company_customer_cases import attach_approved_reply
+        return attach_approved_reply(self,case_id,artifact_id)
+
+    def close_customer_case(self, case_id: int) -> dict:
+        from desktop.company_customer_cases import close
+        return close(self,case_id)
+
+    def read_customer_case(self, case_id: int) -> dict:
+        from desktop.company_customer_cases import read
+        return read(self,case_id)
+
+    def export_approved_customer_reply(self, case_id: int) -> dict:
+        from desktop.company_customer_cases import export_approved_reply
+        return export_approved_reply(self,case_id)
+
+    def read_exported_customer_reply(self, export_id: int) -> dict:
+        from desktop.company_customer_cases import read_export
+        return read_export(self,export_id)
 
     def record_hypothetical_finance(self,business_id,entry_key,kind,currency,amount_minor,note,order_id=None):
         self.require_permission('company:manage')
