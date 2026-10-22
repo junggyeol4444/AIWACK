@@ -224,7 +224,10 @@ def _visible_window(w):
             try:
                 if (candidate.title==name and candidate.width>300
                         and candidate.height>250):
-                    candidate_pid=_owner_pid(candidate._hWnd)
+                    candidate_pid=_native_window_pid(candidate._hWnd)
+                    if (globals().get('_TARGET_EXE_PID') is not None
+                            and candidate_pid != globals()['_TARGET_EXE_PID']):
+                        raise AssertionError('The candidate HWND does not belong to the verified AIWACK process')
                     if pid is None or candidate_pid==pid:
                         matched.append(candidate)
             except Exception:
