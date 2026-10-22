@@ -14,6 +14,35 @@ from desktop import company_wide_campaign as wide
 from desktop.model_runtime import ModelConfig
 from desktop.storage import LocalStore
 
+
+def read_failed_chief_plan_audit(db: Path) -> list[dict]:
+    """Read real-model rejection metadata without exporting prompt or output text.
+
+    A missing table means the run stopped before model inference, not success.
+    All results originate from the disposable test's read-only SQLite file.
+    """
+    if not db.is_file():
+        return []
+    uri='file:'+db.resolve().as_posix()+'?mode=ro'
+    with sqlite3.connect(uri, uri=True, timeout=3) as con:
+        found=con.execute("""SELECT 1 FROM sqlite_master
+            WHERE type='table' AND name='aiwack_wide_chief_rejected_attempts'""").fetchone()
+        if not found:
+            return []
+        rows=con.execute("""SELECT model_call_id,attempt_kind,requested_departments,
+                    output_sha256,output_chars,error_reason
+                    FROM aiwack_wide_chief_rejected_attempts ORDER BY id""").fetchall()
+    result=[]
+    for call_id,kind,departments,sha,chars,reason in rows:
+        if kind not in ('three_departments','single_department') or len(sha)!=64:
+            raise ValueError('실제 총괄 호출 실패 감사의 필수 형식이 손상됐습니다.')
+        result.append({'real_model_call_id':call_id,'kind':kind,
+                       'requested_departments':json.loads(departments),
+                       'output_sha256':sha,'output_chars':chars,
+                       'parser_failure_reason':reason})
+    return result
+
+
 USER='e2e_full30_fixture_owner'
 PASSWORD='full-30-only-temporary-owner-password-2026'
 
@@ -97,7 +126,12 @@ def verify(cli:Path,gguf:Path,evidence:Path):
         report['tested_roles']=31;report['success']=True;save();return report
     except BaseException as exc:
         report['failed_step']=report['completed_tasks']+1
-        report['failure_kind']=type(exc).__name__;save();raise
+        report['failure_kind']=type(exc).__name__
+        try:
+            report['chief_plan_rejections']=read_failed_chief_plan_audit(db)
+        except (sqlite3.Error,ValueError) as audit_error:
+            report['chief_plan_audit_read_error']=type(audit_error).__name__
+        save();raise
     finally:
         try:store.logout()
         except Exception:pass
