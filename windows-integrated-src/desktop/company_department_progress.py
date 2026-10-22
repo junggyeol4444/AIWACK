@@ -266,7 +266,7 @@ def assert_wide_prerequisites(con, task_id: int):
     for prior_task,prior_employee,state in previous:
         if prior_task is None or state!='done' or not verified_wide_result(
                 con,campaign_id,int(prior_task),int(prior_employee)):
-            raise ValueError('선행 부서 직원·총괄 실행 및 관리자 수락 증거가 필요합니다.')
+            raise ValueError('선행 부서 직원·총괄 실행 및 관리자 수락 증거의 무결성이 확인되지 않았습니다.')
 
 
 def assert_wide_completion(con, task_id: int):
