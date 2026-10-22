@@ -110,56 +110,125 @@ def wait_sql(sql, expected, params=(), timeout=70):
                          (expected, observed, sql))
 
 
+# The original pygetwindow object can become invalid after a Tk dialog changes.
+# Keep the verified HWND, title and process identity; never click a guessed
+# coordinate to restore foreground focus or use a stale HWND.
+_WINDOW_IDENTITY = {}
+
+
+def _win_pid(hwnd):
+    import ctypes
+    pid = ctypes.c_ulong()
+    ctypes.windll.user32.GetWindowThreadProcessId(int(hwnd), ctypes.byref(pid))
+    return int(pid.value)
+
+
+def _is_window(hwnd):
+    import ctypes
+    return bool(ctypes.windll.user32.IsWindow(int(hwnd)))
+
+
+def _live_window(w):
+    old_hwnd = int(w._hWnd)
+    if _is_window(old_hwnd):
+        name = w.title
+        pid = _win_pid(old_hwnd)
+        if not name or pid <= 0:
+            raise AssertionError("Windows EXE HWND lacks verified process identity")
+        known = _WINDOW_IDENTITY.get(old_hwnd)
+        if known and known != (name, pid):
+            raise AssertionError("Windows HWND reused by another process or title")
+        _WINDOW_IDENTITY[old_hwnd] = (name, pid)
+        return w
+    old_identity = _WINDOW_IDENTITY.get(old_hwnd)
+    if not old_identity:
+        raise AssertionError("Stale Windows EXE HWND has no previous verified identity")
+    name, pid = old_identity
+    candidates = []
+    for candidate in pygetwindow.getAllWindows():
+        try:
+            hwnd = int(candidate._hWnd)
+            if (_is_window(hwnd) and candidate.title == name and
+                    _win_pid(hwnd) == pid):
+                candidates.append(candidate)
+        except Exception:
+            continue
+    if len(candidates) != 1:
+        raise AssertionError("Stale HWND cannot safely rebind to one live same-process window")
+    recovered = candidates[0]
+    _WINDOW_IDENTITY[int(recovered._hWnd)] = (name, pid)
+    return recovered
+
+
+def _active_is(w):
+    try:
+        active = pygetwindow.getActiveWindow()
+        return active is not None and int(active._hWnd) == int(w._hWnd)
+    except Exception:
+        return False
+
+
+def _focus_verified(w):
+    w = _live_window(w)
+    for _ in range(3):
+        if _active_is(w):
+            return _live_window(w)
+        try:
+            if w.isMinimized:
+                w.restore()
+            w.activate()
+        except Exception:
+            w = _live_window(w)
+        time.sleep(.4)
+        w = _live_window(w)
+        if _active_is(w):
+            return w
+    raise AssertionError("Verified Windows GUI is not foreground: refused blind coordinate click")
+
+
 def find_dialog(fragment, timeout=65):
     deadline = time.monotonic() + timeout
     while time.monotonic() < deadline:
-        windows = [w for w in pygetwindow.getAllWindows()
-                   if fragment in w.title and w.width >= 300]
-        if windows:
-            w = windows[0]
-            if w.isMinimized:
-                w.restore()
+        found = []
+        for win in pygetwindow.getAllWindows():
             try:
-                w.activate()
+                if fragment in win.title and win.width >= 300 and _is_window(win._hWnd):
+                    found.append(_live_window(win))
             except Exception:
-                pass
-            return w
+                continue
+        if len(found) == 1:
+            return _focus_verified(found[0])
+        if len(found) > 1:
+            raise AssertionError("Ambiguous Windows dialogs: refuse unverified clicks")
         time.sleep(.3)
     evidence("dialog-not-found")
     raise AssertionError("Expected visible Windows GUI dialog not found: " + fragment)
 
 
 def click(w, x, y):
-    # Real Windows mouse input, never tkinter Button.invoke or direct callbacks.
-    assert w.width > 500 and w.height > 350, (w.title, w.width, w.height)
-    for _ in range(3):
-        foreground = pygetwindow.getActiveWindow()
-        if foreground is not None and foreground._hWnd == w._hWnd:
-            break
-        if w.isMinimized:
-            w.restore()
-        try:
-            w.activate()
-        except Exception:
-            pass
-        time.sleep(.4)
-        foreground = pygetwindow.getActiveWindow()
-        if foreground is not None and foreground._hWnd == w._hWnd:
-            break
-        pyautogui.click(w.left + 125, w.top + 18)
-        time.sleep(.6)
-    else:
-        evidence("gui-foreground-not-restored")
-        raise AssertionError("Packaged AIWACK.exe dialog is not foreground; refuse blind clicks")
-    pyautogui.click(w.left + x, w.top + y)
+    # Real Windows mouse only, guarded by valid HWND, process and foreground.
+    w = _focus_verified(w)
+    if w.width <= 500 or w.height <= 350:
+        raise AssertionError("Packaged Windows EXE window has invalid dimensions")
+    hwnd = int(w._hWnd)
+    px, py = int(w.left + x), int(w.top + y)
+    # Recheck immediately before interaction, not after a focus steal.
+    w = _live_window(w)
+    if int(w._hWnd) != hwnd or not _active_is(w):
+        raise AssertionError("Window identity changed before physical click")
+    pyautogui.click(px, py)
     time.sleep(.6)
 
 
 def write(w, x, y, value):
     click(w, x, y)
+    w = _focus_verified(w)
+    if not _active_is(w):
+        raise AssertionError("Window lost focus before keyboard input")
     pyautogui.hotkey("ctrl", "a")
+    if not _active_is(w):
+        raise AssertionError("Window lost focus during keyboard input")
     pyautogui.write(value, interval=.008)
-
 
 
 def write_task_title(w, title):
@@ -238,11 +307,14 @@ def bind_model(w, employee_index, model_cli, gguf):
     wait_sql("SELECT COUNT(*) FROM ai_employee_model_assignments WHERE employee_id=?",
              1, (employee_index + 1,), timeout=30)
     evidence("real-gguf-model-bound-%d" % (employee_index + 1))
+    # Never send Alt+F4 to an unknown foreground process after Tk auto-close.
     try:
-        dialog.activate()
-    except Exception:
-        pass
-    pyautogui.hotkey("alt", "f4")
+        dialog = _live_window(dialog)
+    except AssertionError:
+        dialog = None
+    if dialog is not None:
+        dialog = _focus_verified(dialog)
+        dialog.close()
     time.sleep(.7)
 
 
