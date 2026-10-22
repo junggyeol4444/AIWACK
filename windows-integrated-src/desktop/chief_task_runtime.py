@@ -8,6 +8,16 @@ from __future__ import annotations
 
 import threading
 
+_CHIEF_CALL_CONTEXT = threading.local()
+
+def reset_chief_call_provenance():
+    _CHIEF_CALL_CONTEXT.model_call_id = None
+
+def take_chief_call_provenance():
+    value = getattr(_CHIEF_CALL_CONTEXT, "model_call_id", None)
+    _CHIEF_CALL_CONTEXT.model_call_id = None
+    return value
+
 from desktop import chief_runtime
 from desktop.storage import LocalStore
 
@@ -69,4 +79,12 @@ def collect_chief_task_result(store: LocalStore, artifact_id: int, *, timeout: i
     )
     if len(prompt) > 3000:
         raise ValueError('검토 입력이 로컬 모델 입력 제한을 초과했습니다.')
-    return invoke_chief_model(store, prompt, timeout=timeout, cancel=cancel)
+    # Preserve the text-only public result while retaining the real call ID
+    # on the same thread. Synthetic string mocks cannot manufacture this audit.
+    answer=invoke_chief_model(store, prompt, timeout=timeout, cancel=cancel,
+                              include_call_id=True)
+    if (isinstance(answer, tuple) and len(answer)==2
+            and isinstance(answer[0], str) and type(answer[1]) is int):
+        _CHIEF_CALL_CONTEXT.model_call_id=answer[1]
+        return answer[0]
+    return answer
