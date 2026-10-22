@@ -214,6 +214,7 @@ def _audit_chief_plan(store,source_id,chief,call_id,names,kind,parsed,raw,error=
     """Record genuine parse results; failed responses also remain immutable."""
     completion=raw if isinstance(raw,str) else repr(raw)
     digest=hashlib.sha256(completion.encode('utf-8')).hexdigest()
+    excerpt=''.join(ch if ch.isprintable() or ch==chr(10) else ' ' for ch in completion[:240])
     with store._connect() as con:
         initialize(con)
         actual=con.execute('SELECT employee_id,status FROM ai_model_call_history WHERE id=?',
@@ -225,7 +226,7 @@ def _audit_chief_plan(store,source_id,chief,call_id,names,kind,parsed,raw,error=
              attempt_kind,parsed,error_kind,output_sha256,output_chars,completion_preview)
              VALUES(?,?,?,?,?,?,?,?,?,?)''',
             (source_id,chief,int(call_id),','.join(names),kind,int(parsed),str(error)[:100],
-             digest,len(completion),''))
+             digest,len(completion),excerpt))
         if not parsed:
             con.execute('''INSERT INTO aiwack_wide_chief_rejected_attempts
                (source_task_id,chief_employee_id,model_call_id,attempt_kind,
@@ -288,7 +289,7 @@ def _verified_staged_group(con,source_task_id,start,fingerprint,roster_sha,
                  (call_id,)).fetchone()
         if (audit is None or int(audit[0])!=source_task_id or int(audit[1])!=chief
                 or int(audit[4])!=1 or name not in audit[2].split(',')):
-            raise ValueError('총괄 계획의 파싱 성공·원본 업무별 호출 감사 불일치')
+            raise ValueError('총괄 실제 모델 호출 감사의 파싱 성공·원본 업무 불일치')
         parsed[name]=(title,instruction);calls[name]=call_id
     return parsed,calls
 
@@ -362,7 +363,7 @@ def _assert_campaign_plan_matches_genuine_staging(store,con,campaign_id:int)->No
     for row,exp in zip(rows,expected):
         ordinal,*fields=row
         if tuple(fields[:-1])!=exp or fields[-1]!=_step_digest(campaign_id,ordinal,*exp):
-            raise ValueError('30업무 본문·모델 호출과 총괄 원본 감사가 일치하지 않습니다.')
+            raise ValueError('30업무 생성 원문·모델 호출과 총괄 원본 감사가 일치하지 않습니다.')
 
 def _source(store, con, source_task_id):
     row=store._task_row(con,source_task_id)
@@ -400,7 +401,7 @@ def _staff_roster(con):
     return int(chief[0][0]),int(chief[0][1]),groups
 
 
-def _parse_group(raw, expected):
+def _parse_group(raw, expected, *, prompt=''):
     """Parse only model-generated complete department plans, without synthetic rows."""
     if not isinstance(raw, str) or not raw.strip() or len(raw) > 20000:
         raise ValueError('총괄 모델의 실제 작업 제안이 비어 있거나 너무 깁니다.')
@@ -423,7 +424,7 @@ def _parse_group(raw, expected):
             raise ValueError('총괄의 동일 부서 계획이 중복됐습니다.')
         plans[name] = (title, instruction)
 
-    raw = '\n'.join(_generated_chief_lines(raw))
+    raw = '\n'.join(_generated_chief_lines(raw,prompt))
     lines = []
     for line in raw.splitlines():
         line = line.strip().strip('\x00').strip()
@@ -610,7 +611,7 @@ def propose(store,source_task_id:int,*,cancel:threading.Event|None=None):
             if cancel is not None and cancel.is_set():
                 raise InterruptedError('총괄 모델 호출 후 취소된 초안은 저장하지 않습니다.')
             try:
-                parsed=_parse_group(raw,part)
+                parsed=_parse_group(raw,part,prompt=query)
                 _audit_chief_plan(store,source_task_id,chief,call_id,
                                   [x[1] for x in part],'three_departments',True,raw)
                 calls={name:int(call_id) for _,name,_,_ in part}
@@ -626,7 +627,8 @@ def propose(store,source_task_id:int,*,cancel:threading.Event|None=None):
             parsed={}
             calls={}
             for dept,name,manager,staff in part:
-                one_prompt=('당신은 기존 Windows 로컬 회사의 총괄 AI입니다. '
+                one_prompt=(f'Write one specific, practical task instruction for department {name}. '
+                            '당신은 기존 Windows 로컬 회사의 총괄 AI입니다. '
                             '반드시 해당 부서만 담당하는 실행 가능한 작업을 작성하세요. '
                             '결제·계약·게시·외부 전송은 금지합니다. '
                             '다른 부서 작업을 작성하지 마세요.\n'
@@ -653,7 +655,7 @@ def propose(store,source_task_id:int,*,cancel:threading.Event|None=None):
                                           [name],'single_department',False,answer,exc)
                         continue
                 else:
-                    raise ValueError('실제 총괄 모델의 3부서 계획이 세 번 연속 실패하고 단일 부서 재시도도 모두 실패했습니다.')
+                    raise ValueError('실제 총괄 모델의 3부서 계획이 세 번 연속 실패하고 단일 부서 재계획도 실패했습니다.')
         if recovered is None:
             _save_staged_group(store,source_task_id,start,fingerprint,roster_sha,
                                chief,chief_model,groups,part,parsed,calls)
@@ -908,7 +910,8 @@ def verified_progress(store, campaign_id: int) -> dict:
             raise ValueError('계획 기록을 찾을 수 없습니다.')
         current_fp,_=_source(store,con,saved[0])
         if saved[1]!=current_fp or saved[2]!=plan['chief_employee_id']:
-            raise ValueError('원본 업무·총괄 AI가 계획 승인 이후 변경됐습니다.')
+            raise ValueError('기준 업무의 원본 또는 총괄 AI가 변경됐습니다.')
+        _assert_campaign_plan_matches_genuine_staging(store,con,campaign_id)
         for row in plan['steps']:
             task=row['task_id']
             if not task:
@@ -959,12 +962,12 @@ def run_next(store,campaign_id:int,*,cancel:threading.Event|None=None,
         if not progress['all_30_tasks_evidence_verified']:
             raise ValueError('30개 업무의 실제 직원·총괄·관리자 승인 기록이 부족합니다.')
         if require_genuine_provenance and progress['verified_genuine_prefix_tasks']!=30:
-            raise ValueError('30개 업무의 총괄 실제 모델 호출 연결이 불완전합니다.')
+            raise ValueError('30개 총괄 실제 모델 호출 연결이 불완전합니다.')
         return {'completed':True,'remaining':0}
     step=pending[0]
     if (progress['verified_completed_tasks']!=step['ordinal']-1
             or progress['next_task_id']!=step['task_id']):
-        raise ValueError('직전 협업 단계의 실제 증빙·승인·순서가 일치하지 않습니다.')
+        raise ValueError('직전 부서 결과의 실제 증빙·승인·순서가 일치하지 않습니다.')
     if (require_genuine_provenance and
             progress['verified_genuine_prefix_tasks']!=step['ordinal']-1):
         raise ValueError('직전 총괄 실제 모델 호출 연결이 검증되지 않았습니다.')
