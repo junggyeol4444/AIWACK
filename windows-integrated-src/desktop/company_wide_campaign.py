@@ -58,6 +58,31 @@ def initialize(con):
             WHEN {"OLD.task_id IS NOT NULL" if action == 'UPDATE' else '1'}
             BEGIN SELECT RAISE(ABORT,'승인 후 회사 전체 협업 증빙을 수정·삭제할 수 없습니다'); END''')
 
+
+    # Additive record of every genuine model call used to parse a proposal.
+    con.execute('''CREATE TABLE IF NOT EXISTS aiwack_wide_chief_plan_attempts (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        source_task_id INTEGER NOT NULL REFERENCES company_tasks(id),
+        chief_employee_id INTEGER NOT NULL REFERENCES ai_employee_profiles(id),
+        model_call_id INTEGER NOT NULL UNIQUE REFERENCES ai_model_call_history(id),
+        department_names TEXT NOT NULL,
+        attempt_kind TEXT NOT NULL CHECK(attempt_kind IN ('three_departments','single_department')),
+        parsed INTEGER NOT NULL CHECK(parsed IN (0,1)),
+        error_kind TEXT NOT NULL DEFAULT '',
+        output_sha256 TEXT NOT NULL DEFAULT '',
+        output_chars INTEGER NOT NULL DEFAULT 0,
+        completion_preview TEXT NOT NULL DEFAULT '',
+        created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP)''')
+    existing={v[1] for v in con.execute('PRAGMA table_info(aiwack_wide_chief_plan_attempts)')}
+    for column,definition in (('output_sha256',"TEXT NOT NULL DEFAULT ''"),
+                              ('output_chars','INTEGER NOT NULL DEFAULT 0'),
+                              ('completion_preview',"TEXT NOT NULL DEFAULT ''")):
+        if column not in existing:
+            con.execute(f'ALTER TABLE aiwack_wide_chief_plan_attempts ADD COLUMN {column} {definition}')
+    for action in ('UPDATE','DELETE'):
+        con.execute(f'''CREATE TRIGGER IF NOT EXISTS aiwack_wide_chief_plan_attempt_no_{action.lower()}
+            BEFORE {action} ON aiwack_wide_chief_plan_attempts
+            BEGIN SELECT RAISE(ABORT,'총괄 실제 모델 계획 감사 수정·삭제 금지'); END''')
     # Genuine chief output for each three-department batch survives a crash.
     con.execute('''CREATE TABLE IF NOT EXISTS aiwack_wide_chief_group_staging (
         source_task_id INTEGER NOT NULL REFERENCES company_tasks(id),
@@ -112,6 +137,105 @@ def _record_genuine_chief_plan_rejection(store, source_task_id, chief, call_id,
 
 
 
+
+def _generated_chief_lines(raw,prompt=''):
+    """Return only actual llama.cpp completion, not an echoed input prompt."""
+    if not isinstance(raw,str) or not raw.strip() or len(raw)>20000:
+        raise ValueError('실제 총괄 모델 응답이 비어 있거나 길이를 초과했습니다.')
+    clean=re.sub(r'\\x1b\\[[0-9;]*m','',raw).replace('\\r','')
+    if prompt and prompt in clean:
+        clean=clean.rsplit(prompt,1)[-1]
+    if 'RESPONSE:' in clean:
+        clean=clean.rsplit('RESPONSE:',1)[-1]
+    lines=[]
+    for line in clean.splitlines():
+        line=line.strip().strip('\\x00').strip()
+        if not line or line.startswith(('~~~',chr(96)*3,'llama_','llama.','ggml_','main:',
+                                          'system_info:','sampling:','load_tensors:','print_info:',
+                                          '<|','[stats]','[end of text]','[endoftext]')):
+            continue
+        if (line in ('</s>','<s>','<|eot_id|>','<|im_end|>')
+                or line.startswith(('USER:','INSTRUCTION:'))
+                or re.match(r'^(?:total time|eval time|prompt eval time|generation time|sampling time|tokens per second)\\s*:',line,re.I)):
+            continue
+        if line.startswith('TASK:'):line=line[5:].strip()
+        if line:lines.append(line)
+    return lines
+
+
+def _parse_single_chief_completion(raw,prompt,name):
+    """Strict parse of a genuine single department call, including small GGUF text."""
+    lines=_generated_chief_lines(raw,prompt)
+    if not lines:raise ValueError('실제 총괄 단일 부서 지시가 부족합니다.')
+    normalized=[re.sub(r'^\\s*(?:[-*]\\s+|\\d+[.)]\\s+)', '',
+                       row.replace('｜','|').replace('¦','|')).strip() for row in lines]
+    json_start=next((i for i,v in enumerate(normalized) if v.startswith('{')),None)
+    if json_start is not None:
+        candidate='\\n'.join(normalized[json_start:]).strip()
+        try:obj,end=json.JSONDecoder().raw_decode(candidate)
+        except ValueError as error:raise ValueError('총괄 단일 부서 JSON 오류') from error
+        if candidate[end:].strip() or not isinstance(obj,dict):
+            raise ValueError('총괄 단일 부서 JSON 추가 텍스트 또는 타입 오류')
+        if obj.get('department',obj.get('부서명'))!=name:
+            raise ValueError('총괄 단일 부서 지시의 부서명이 다릅니다.')
+        title=obj.get('title',obj.get('업무 제목',obj.get('제목')))
+        instruction=obj.get('instruction',obj.get('작업 지시',obj.get('지시')))
+    else:
+        rows=[v.strip('|').strip() for v in normalized if '|' in v]
+        if len(rows)>1:raise ValueError('총괄 단일 부서 계획에 여러 줄이 섞였습니다.')
+        if rows:
+            parts=[x.strip() for x in rows[0].split('|')]
+            if len(parts)==3:
+                if parts[0]!=name:raise ValueError('요청하지 않은 다른 부서 계획입니다.')
+                title,instruction=parts[1:]
+            elif len(parts)==2:
+                if parts[0] in {department for department,_ in BLUEPRINT_DEPARTMENTS}:
+                    raise ValueError('다른 부서명을 제목으로 재사용할 수 없습니다.')
+                title,instruction=parts
+            else:raise ValueError('총괄 단일 부서 계획 필드 오류')
+        else:
+            combined=' '.join(normalized).strip()
+            if any(re.match('^'+re.escape(d)+r'\\s*[:：\\-]',combined)
+                   for d,_ in BLUEPRINT_DEPARTMENTS if d!=name):
+                raise ValueError('총괄 단일 부서 응답이 다른 부서에 속합니다.')
+            title,instruction=combined[:65],combined
+    if not isinstance(title,str) or not isinstance(instruction,str):
+        raise ValueError('총괄 단일 부서 출력 타입 오류')
+    title=title.strip();instruction=instruction.strip()
+    if (not 1<=len(title)<=65 or not 14<=len(instruction)<=330
+            or any(ord(ch)<32 for ch in title+instruction)
+            or instruction==prompt.strip()
+            or instruction.startswith('Write one concrete actionable task')):
+        raise ValueError('실제 총괄 단일 부서 응답이 비어 있거나 형식 오류')
+    return title,instruction
+
+
+def _audit_chief_plan(store,source_id,chief,call_id,names,kind,parsed,raw,error=''):
+    """Record genuine parse results; failed responses also remain immutable."""
+    completion=raw if isinstance(raw,str) else repr(raw)
+    digest=hashlib.sha256(completion.encode('utf-8')).hexdigest()
+    with store._connect() as con:
+        initialize(con)
+        actual=con.execute('SELECT employee_id,status FROM ai_model_call_history WHERE id=?',
+                           (int(call_id),)).fetchone()
+        if actual!=(chief,'success'):
+            raise ValueError('계획 감사의 실제 총괄 모델 호출 ID가 일치하지 않습니다.')
+        con.execute('''INSERT INTO aiwack_wide_chief_plan_attempts
+            (source_task_id,chief_employee_id,model_call_id,department_names,
+             attempt_kind,parsed,error_kind,output_sha256,output_chars,completion_preview)
+             VALUES(?,?,?,?,?,?,?,?,?,?)''',
+            (source_id,chief,int(call_id),','.join(names),kind,int(parsed),str(error)[:100],
+             digest,len(completion),''))
+        if not parsed:
+            con.execute('''INSERT INTO aiwack_wide_chief_rejected_attempts
+               (source_task_id,chief_employee_id,model_call_id,attempt_kind,
+                requested_departments,output_sha256,output_chars,error_reason)
+                VALUES(?,?,?,?,?,?,?,?)''',
+                (source_id,chief,int(call_id),kind,
+                 json.dumps(list(names),ensure_ascii=False,separators=(',',':')),
+                 digest,len(completion),str(error)[:250]))
+
+
 def _step_digest(campaign_id,ordinal,dept,employee,role,title,instruction,call_id):
     canonical=json.dumps([campaign_id,ordinal,dept,employee,role,title,instruction,call_id],
                          ensure_ascii=False,separators=(',',':'))
@@ -159,6 +283,12 @@ def _verified_staged_group(con,source_task_id,start,fingerprint,roster_sha,
         if con.execute('SELECT 1 FROM aiwack_wide_chief_rejected_attempts WHERE model_call_id=?',
                        (call_id,)).fetchone():
             raise ValueError('실패한 총괄 호출을 계획에 재사용할 수 없습니다.')
+        audit=con.execute('''SELECT source_task_id,chief_employee_id,department_names,
+                 attempt_kind,parsed FROM aiwack_wide_chief_plan_attempts WHERE model_call_id=?''',
+                 (call_id,)).fetchone()
+        if (audit is None or int(audit[0])!=source_task_id or int(audit[1])!=chief
+                or int(audit[4])!=1 or name not in audit[2].split(',')):
+            raise ValueError('총괄 계획의 파싱 성공·원본 업무별 호출 감사 불일치')
         parsed[name]=(title,instruction);calls[name]=call_id
     return parsed,calls
 
@@ -293,7 +423,7 @@ def _parse_group(raw, expected):
             raise ValueError('총괄의 동일 부서 계획이 중복됐습니다.')
         plans[name] = (title, instruction)
 
-    raw = re.sub(r'\x1b\[[0-9;]*m', '', raw).replace('\r', '')
+    raw = '\n'.join(_generated_chief_lines(raw))
     lines = []
     for line in raw.splitlines():
         line = line.strip().strip('\x00').strip()
@@ -481,12 +611,13 @@ def propose(store,source_task_id:int,*,cancel:threading.Event|None=None):
                 raise InterruptedError('총괄 모델 호출 후 취소된 초안은 저장하지 않습니다.')
             try:
                 parsed=_parse_group(raw,part)
+                _audit_chief_plan(store,source_task_id,chief,call_id,
+                                  [x[1] for x in part],'three_departments',True,raw)
                 calls={name:int(call_id) for _,name,_,_ in part}
                 break
             except ValueError as exc:
-                _record_genuine_chief_plan_rejection(
-                    store,source_task_id,chief,call_id,'three_departments',
-                    [name for _,name,_,_ in part],raw,exc)
+                _audit_chief_plan(store,source_task_id,chief,call_id,
+                                  [x[1] for x in part],'three_departments',False,raw,exc)
                 # These are REAL failed format attempts, not model-free fallback.
                 # A small GGUF that cannot emit three rows may emit one real
                 # department instruction per separate audited chief invocation.
@@ -512,13 +643,14 @@ def propose(store,source_task_id:int,*,cancel:threading.Event|None=None):
                     if cancel is not None and cancel.is_set():
                         raise InterruptedError('취소된 단일 부서 계획은 저장하지 않습니다.')
                     try:
-                        parsed[name]=_parse_single_real_chief(answer,name,one_prompt)
+                        parsed[name]=_parse_single_chief_completion(answer,one_prompt,name)
+                        _audit_chief_plan(store,source_task_id,chief,solo_call,
+                                          [name],'single_department',True,answer)
                         calls[name]=int(solo_call)
                         break
                     except ValueError as exc:
-                        _record_genuine_chief_plan_rejection(
-                            store,source_task_id,chief,solo_call,'single_department',
-                            [name],answer,exc)
+                        _audit_chief_plan(store,source_task_id,chief,solo_call,
+                                          [name],'single_department',False,answer,exc)
                         continue
                 else:
                     raise ValueError('실제 총괄 모델의 3부서 계획이 세 번 연속 실패하고 단일 부서 재시도도 모두 실패했습니다.')
