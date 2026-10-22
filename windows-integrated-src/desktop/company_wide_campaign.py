@@ -37,11 +37,51 @@ def initialize(con):
         task_id INTEGER UNIQUE REFERENCES company_tasks(id),
         PRIMARY KEY(campaign_id,ordinal),
         UNIQUE(campaign_id,employee_id))''')
+    con.execute('''CREATE TABLE IF NOT EXISTS aiwack_wide_chief_rejected_attempts (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        source_task_id INTEGER NOT NULL REFERENCES company_tasks(id),
+        chief_employee_id INTEGER NOT NULL REFERENCES ai_employee_profiles(id),
+        model_call_id INTEGER NOT NULL UNIQUE REFERENCES ai_model_call_history(id),
+        attempt_kind TEXT NOT NULL CHECK(attempt_kind IN ('three_departments','single_department')),
+        requested_departments TEXT NOT NULL,
+        output_sha256 TEXT NOT NULL CHECK(length(output_sha256)=64),
+        output_chars INTEGER NOT NULL CHECK(output_chars>=0),
+        error_reason TEXT NOT NULL,
+        created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP)''')
+    for action in ('UPDATE','DELETE'):
+        con.execute(f'''CREATE TRIGGER IF NOT EXISTS aiwack_wide_chief_rejected_no_{action.lower()}
+            BEFORE {action} ON aiwack_wide_chief_rejected_attempts
+            BEGIN SELECT RAISE(ABORT,'실제 총괄 모델 실패 감사 변경·삭제 금지'); END''')
     for action in ('UPDATE','DELETE'):
         con.execute(f'''CREATE TRIGGER IF NOT EXISTS aiwack_wide_campaign_step_no_{action.lower()}
             BEFORE {action} ON aiwack_wide_campaign_steps
             WHEN {"OLD.task_id IS NOT NULL" if action == 'UPDATE' else '1'}
             BEGIN SELECT RAISE(ABORT,'승인 후 회사 전체 협업 증빙을 수정·삭제할 수 없습니다'); END''')
+
+
+
+def _record_genuine_chief_plan_rejection(store, source_task_id, chief, call_id,
+                                         attempt_kind, requested, raw, error):
+    """Persist actual-model format failures locally; never turn them into tasks.
+
+    Audit metadata only, without exposing private raw prompts/completions in CI.
+    An invalid/missing model call cannot be registered as genuine provenance.
+    """
+    completion=raw if isinstance(raw,str) else repr(raw)
+    with store._connect() as con:
+        initialize(con)
+        call=con.execute('''SELECT employee_id,status FROM ai_model_call_history
+                            WHERE id=?''',(int(call_id),)).fetchone()
+        if call!=(chief,'success'):
+            raise ValueError('총괄 모델 실패 감사의 호출 출처가 불일치합니다.')
+        con.execute('''INSERT INTO aiwack_wide_chief_rejected_attempts
+            (source_task_id,chief_employee_id,model_call_id,attempt_kind,
+             requested_departments,output_sha256,output_chars,error_reason)
+             VALUES(?,?,?,?,?,?,?,?)''',(
+            source_task_id,chief,int(call_id),attempt_kind,
+            json.dumps(list(requested),ensure_ascii=False,separators=(',',':')),
+            hashlib.sha256(completion.encode('utf-8')).hexdigest(),
+            len(completion),str(error)[:250]))
 
 
 def _source(store, con, source_task_id):
@@ -285,7 +325,10 @@ def propose(store,source_task_id:int,*,cancel:threading.Event|None=None):
                 parsed=_parse_group(raw,part)
                 calls={name:int(call_id) for _,name,_,_ in part}
                 break
-            except ValueError:
+            except ValueError as exc:
+                _record_genuine_chief_plan_rejection(
+                    store,source_task_id,chief,call_id,'three_departments',
+                    [name for _,name,_,_ in part],raw,exc)
                 # These are REAL failed format attempts, not model-free fallback.
                 # A small GGUF that cannot emit three rows may emit one real
                 # department instruction per separate audited chief invocation.
@@ -314,7 +357,10 @@ def propose(store,source_task_id:int,*,cancel:threading.Event|None=None):
                         parsed[name]=_parse_single_real_chief(answer,name,one_prompt)
                         calls[name]=int(solo_call)
                         break
-                    except ValueError:
+                    except ValueError as exc:
+                        _record_genuine_chief_plan_rejection(
+                            store,source_task_id,chief,solo_call,'single_department',
+                            [name],answer,exc)
                         continue
                 else:
                     raise ValueError('실제 총괄 모델의 3부서 계획이 세 번 연속 실패하고 단일 부서 재시도도 모두 실패했습니다.')
