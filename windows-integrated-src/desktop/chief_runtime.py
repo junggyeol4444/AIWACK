@@ -13,8 +13,11 @@ from desktop.company_status import chief_query_with_status
 
 def invoke_chief_model(store: LocalStore, prompt: str, *, timeout: int = 60,
                        cancel: threading.Event | None = None,
-                       include_company_status: bool = False) -> str:
+                       include_company_status: bool = False,
+                       include_call_id: bool = False) -> str:
     """Require the active CEO reporting role and its assigned local model in SQL."""
+    if type(include_call_id) is not bool:
+        raise ValueError("총괄 모델 호출 감사 옵션 오류")
     if type(include_company_status) is not bool:
         raise ValueError("회사 현황 조회 옵션이 올바르지 않습니다.")
     chief = store.read_chief_profile()  # owner authentication is enforced here
@@ -25,4 +28,5 @@ def invoke_chief_model(store: LocalStore, prompt: str, *, timeout: int = 60,
     if include_company_status:
         prompt = chief_query_with_status(store, prompt)
     return invoke_employee_model(store, int(chief["employee_id"]), prompt,
-                                 timeout=timeout, cancel=cancel, required_tier="ceo")
+                                 timeout=timeout, cancel=cancel, required_tier="ceo",
+                                 include_call_id=include_call_id)
