@@ -318,6 +318,18 @@ def bind_model(w, employee_index, model_cli, gguf):
     time.sleep(.7)
 
 
+
+def _close_verified_dialog(w):
+    """Close only a still-live verified dialog; never broadcast Alt+F4."""
+    try:
+        w = _live_window(w)
+    except AssertionError:
+        return False  # A Tk dialog may have already closed itself.
+    w = _focus_verified(w)
+    w.close()
+    return True
+
+
 def wait_office_dashboard(window, timeout=80):
     """Observe the visible selected company-overview navigation button.
 
@@ -632,17 +644,9 @@ def perform(exe, model_cli, gguf):
             result_window = find_dialog(
                 "AIWACK | 로컬 AI 직원 모델 호출 진단", timeout=25)
             evidence("employee-%02d-real-gguf-model-probe-success" % employee_id)
-            try:
-                result_window.activate()
-            except Exception:
-                pass
-            pyautogui.hotkey("alt", "f4")
+            _close_verified_dialog(result_window)
             time.sleep(.4)
-            try:
-                dialog.activate()
-            except Exception:
-                pass
-            pyautogui.hotkey("alt", "f4")
+            _close_verified_dialog(dialog)
             time.sleep(.4)
         wait_sql("SELECT COUNT(DISTINCT employee_id) FROM ai_model_call_history "
                  "WHERE status='success'", 31, timeout=20)
@@ -674,11 +678,7 @@ def perform(exe, model_cli, gguf):
             evidence("emergency-stop-model-call-bypass")
             raise AssertionError("Emergency-stop did not prevent new local GGUF inference")
         evidence("owner-probe-blocked-no-new-model-call")
-        try:
-            stopped_dialog.activate()
-        except Exception:
-            pass
-        pyautogui.hotkey("alt", "f4")
+        _close_verified_dialog(stopped_dialog)
         time.sleep(.5)
 
         # T07 partial: data and the safety stop must persist through an
