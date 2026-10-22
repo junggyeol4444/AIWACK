@@ -173,6 +173,73 @@ def _parse_group(raw, expected):
     return plans
 
 
+
+def _parse_single_real_chief(raw, requested, prompt):
+    """Extract an actionable department instruction from a REAL chief response."""
+    if not isinstance(raw, str) or not raw.strip() or len(raw) > 12000:
+        raise ValueError('실제 총괄 단일 부서 출력이 비어 있거나 너무 깁니다.')
+    clean = re.sub(r'\x1b\[[0-9;]*m', '', raw).strip()
+    if prompt in clean:
+        clean = clean.rsplit(prompt, 1)[-1].strip()
+    lines = []
+    for line in clean.splitlines():
+        line = line.strip()
+        if not line or line.startswith(('~~~', chr(96)*3, '<|', 'llama_', 'ggml_')):
+            continue
+        if line.startswith(('main:', 'sampling:', 'system_info:', 'print_info:')):
+            continue
+        if line.startswith(('RESPONSE:', 'TASK:')):
+            line = line.split(':', 1)[1].strip()
+        if line:
+            lines.append(line)
+    if not lines:
+        raise ValueError('실제 총괄 단일 부서 출력에 내용이 없습니다.')
+    clean = '\n'.join(lines)
+    if clean.startswith('{'):
+        try:
+            item = json.loads(clean)
+        except ValueError as exc:
+            raise ValueError('실제 총괄 단일 부서 JSON 출력 손상') from exc
+        if not isinstance(item, dict) or item.get('department', item.get('부서명')) != requested:
+            raise ValueError('실제 총괄 단일 부서 JSON의 부서 불일치')
+        title = item.get('title', item.get('제목', item.get('업무 제목')))
+        instruction = item.get('instruction', item.get('지시', item.get('작업 지시')))
+    else:
+        normalized = [re.sub(r'^\s*(?:[-*]\s+|\d+[.)]\s+)', '',
+                      line.replace('｜', '|').replace('¦', '|')).strip()
+                      for line in lines]
+        rows = [line.strip('|').strip() for line in normalized if '|' in line]
+        if len(rows) > 1:
+            raise ValueError('총괄 단일 부서 계획에 다중 행이 섞였습니다.')
+        if rows:
+            parts = [x.strip() for x in rows[0].split('|')]
+            if len(parts) == 3:
+                if parts[0] != requested:
+                    raise ValueError('실제 총괄 단일 부서 출력의 부서 불일치')
+                title, instruction = parts[1:]
+            elif len(parts) == 2:
+                if parts[0] in {name for name, _ in BLUEPRINT_DEPARTMENTS}:
+                    raise ValueError('다른 부서를 요청한 단일 총괄 출력입니다.')
+                title, instruction = parts
+            else:
+                raise ValueError('실제 총괄 단일 부서의 구분자 형식 오류')
+        else:
+            instruction = ' '.join(normalized).strip()
+            other = [name for name, _ in BLUEPRINT_DEPARTMENTS if name != requested]
+            if any(re.match('^' + re.escape(name) + r'\s*[:：\-]', instruction)
+                   for name in other):
+                raise ValueError('실제 총괄이 다른 부서로 작업을 배정했습니다.')
+            title = instruction[:65]
+    if not isinstance(title, str) or not isinstance(instruction, str):
+        raise ValueError('실제 총괄 단일 부서의 제목과 지시는 문자열이어야 합니다.')
+    title, instruction = title.strip(), instruction.strip()
+    if (not 1 <= len(title) <= 65 or not 14 <= len(instruction) <= 330
+            or any(ord(c) < 32 for c in title + instruction)
+            or instruction == prompt or instruction.startswith('당신은 기존 Windows 로컬 회사')):
+        raise ValueError('실제 총괄 단일 부서 지시가 부족하거나 원본 프롬프트를 복사했습니다.')
+    return title, instruction
+
+
 def propose(store,source_task_id:int,*,cancel:threading.Event|None=None):
     """Five REAL chief calls; create 30 drafts only after all five succeed."""
     store.require_permission('company:manage');store.require_permission('agents:manage')
@@ -200,6 +267,8 @@ def propose(store,source_task_id:int,*,cancel:threading.Event|None=None):
                 '담당 부서: '+', '.join(name for _,name,_,_ in part))
         # Strictly bounded, auditable real-model retries for invalid output format.
         # Do not synthesize, guess or auto-approve a malformed department plan.
+        parsed=None
+        calls={}
         for attempt in range(3):
             if cancel is not None and cancel.is_set():
                 raise InterruptedError('취소된 총괄 재호출은 실행하지 않습니다.')
@@ -214,12 +283,44 @@ def propose(store,source_task_id:int,*,cancel:threading.Event|None=None):
                 raise InterruptedError('총괄 모델 호출 후 취소된 초안은 저장하지 않습니다.')
             try:
                 parsed=_parse_group(raw,part)
+                calls={name:int(call_id) for _,name,_,_ in part}
                 break
-            except ValueError as error:
-                if attempt==2:
-                    raise ValueError('실제 총괄 AI가 세 번 연속 필수 부서 형식을 충족하지 못해 초안을 중단합니다.') from error
+            except ValueError:
+                # These are REAL failed format attempts, not model-free fallback.
+                # A small GGUF that cannot emit three rows may emit one real
+                # department instruction per separate audited chief invocation.
+                continue
+        if parsed is None:
+            parsed={}
+            calls={}
+            for dept,name,manager,staff in part:
+                one_prompt=('당신은 기존 Windows 로컬 회사의 총괄 AI입니다. '
+                            '반드시 해당 부서만 담당하는 실행 가능한 작업을 작성하세요. '
+                            '결제·계약·게시·외부 전송은 금지합니다. '
+                            '다른 부서 작업을 작성하지 마세요.\n'
+                            f'부서: {name}\n원본 업무: {str(task[2])[:120]} / '
+                            f'{str(task[3])[:250]}\n'
+                            f'출력 형식: {name}|작업 제목|구체적인 실행 지시')
+                for solo_attempt in range(3):
+                    if cancel is not None and cancel.is_set():
+                        raise InterruptedError('단일 부서 총괄 계획 취소')
+                    assert_running_allowed(store)
+                    answer,solo_call=invoke_employee_model(
+                        store,chief,one_prompt,timeout=90,cancel=cancel,
+                        required_tier='ceo',include_call_id=True)
+                    if cancel is not None and cancel.is_set():
+                        raise InterruptedError('취소된 단일 부서 계획은 저장하지 않습니다.')
+                    try:
+                        parsed[name]=_parse_single_real_chief(answer,name,one_prompt)
+                        calls[name]=int(solo_call)
+                        break
+                    except ValueError:
+                        continue
+                else:
+                    raise ValueError('실제 총괄 모델의 3부서 및 단일 부서 재시도가 모두 실패했습니다.')
         for dept,name,manager,staff in part:
             title,instruction=parsed[name]
+            call_id=calls[name]
             steps.append((dept,manager,'department_head',f'{name} 부서장 검토: {title}',
                           ('부서장 분석·계획: '+instruction)[:500],int(call_id)))
             steps.append((dept,staff,'staff',f'{name} 담당 실행: {title}',
