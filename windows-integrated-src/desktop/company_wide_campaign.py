@@ -369,7 +369,7 @@ def _assert_campaign_plan_matches_genuine_staging(store,con,campaign_id:int)->No
         if (ordinal!=expected_ordinal or tuple(fields[:-1])!=exp
                 or not fields[-1]
                 or fields[-1]!=_step_digest(campaign_id,expected_ordinal,*exp)):
-            raise ValueError('실제 총괄 30업무 순서·원문·모델 호출 감사가 일치하지 않습니다.')
+            raise ValueError('실제 총괄 생성 원문과 30업무 순서·모델 호출 감사가 일치하지 않습니다.')
     if plan[3]=='approved':
         links=con.execute('''SELECT ordinal,task_id FROM aiwack_wide_campaign_steps
             WHERE campaign_id=? ORDER BY ordinal''',(campaign_id,)).fetchall()
