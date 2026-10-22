@@ -142,21 +142,21 @@ def _generated_chief_lines(raw,prompt=''):
     """Return only actual llama.cpp completion, not an echoed input prompt."""
     if not isinstance(raw,str) or not raw.strip() or len(raw)>20000:
         raise ValueError('실제 총괄 모델 응답이 비어 있거나 길이를 초과했습니다.')
-    clean=re.sub(r'\\x1b\\[[0-9;]*m','',raw).replace('\\r','')
+    clean=re.sub(r'\x1b\[[0-9;]*m','',raw).replace('\r','')
     if prompt and prompt in clean:
         clean=clean.rsplit(prompt,1)[-1]
     if 'RESPONSE:' in clean:
         clean=clean.rsplit('RESPONSE:',1)[-1]
     lines=[]
     for line in clean.splitlines():
-        line=line.strip().strip('\\x00').strip()
+        line=line.strip().strip('\x00').strip()
         if not line or line.startswith(('~~~',chr(96)*3,'llama_','llama.','ggml_','main:',
                                           'system_info:','sampling:','load_tensors:','print_info:',
                                           '<|','[stats]','[end of text]','[endoftext]')):
             continue
         if (line in ('</s>','<s>','<|eot_id|>','<|im_end|>')
                 or line.startswith(('USER:','INSTRUCTION:'))
-                or re.match(r'^(?:total time|eval time|prompt eval time|generation time|sampling time|tokens per second)\\s*:',line,re.I)):
+                or re.match(r'^(?:total time|eval time|prompt eval time|generation time|sampling time|tokens per second)\s*:',line,re.I)):
             continue
         if line.startswith('TASK:'):line=line[5:].strip()
         if line:lines.append(line)
@@ -167,11 +167,11 @@ def _parse_single_chief_completion(raw,prompt,name):
     """Strict parse of a genuine single department call, including small GGUF text."""
     lines=_generated_chief_lines(raw,prompt)
     if not lines:raise ValueError('실제 총괄 단일 부서 지시가 부족합니다.')
-    normalized=[re.sub(r'^\\s*(?:[-*]\\s+|\\d+[.)]\\s+)', '',
+    normalized=[re.sub(r'^\s*(?:[-*]\s+|\d+[.)]\s+)', '',
                        row.replace('｜','|').replace('¦','|')).strip() for row in lines]
     json_start=next((i for i,v in enumerate(normalized) if v.startswith('{')),None)
     if json_start is not None:
-        candidate='\\n'.join(normalized[json_start:]).strip()
+        candidate='\n'.join(normalized[json_start:]).strip()
         try:obj,end=json.JSONDecoder().raw_decode(candidate)
         except ValueError as error:raise ValueError('총괄 단일 부서 JSON 오류') from error
         if candidate[end:].strip() or not isinstance(obj,dict):
@@ -195,7 +195,7 @@ def _parse_single_chief_completion(raw,prompt,name):
             else:raise ValueError('총괄 단일 부서 계획 필드 오류')
         else:
             combined=' '.join(normalized).strip()
-            if any(re.match('^'+re.escape(d)+r'\\s*[:：\\-]',combined)
+            if any(re.match('^'+re.escape(d)+r'\s*[:：\-]',combined)
                    for d,_ in BLUEPRINT_DEPARTMENTS if d!=name):
                 raise ValueError('총괄 단일 부서 응답이 다른 부서에 속합니다.')
             title,instruction=combined[:65],combined
