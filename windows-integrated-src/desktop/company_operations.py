@@ -541,7 +541,8 @@ def collect_chief_review(store, artifact_id: int, *,
     is an auditable *pending* chief report. Never accept the report, approve the
     staff artifact, mark the task done, or perform external side effects.
     """
-    from desktop.chief_task_runtime import collect_chief_task_result
+    from desktop.chief_task_runtime import (collect_chief_task_result,
+        reset_chief_call_provenance, take_chief_call_provenance)
     assert_running_allowed(store)
     if type(artifact_id) is not int or artifact_id <= 0:
         raise ValueError('검토할 결과물 번호가 올바르지 않습니다.')
@@ -556,13 +557,16 @@ def collect_chief_review(store, artifact_id: int, *,
     try:
         # The core runtime verifies provenance, chief assignment, full text size
         # and owner permission BEFORE constructing the model prompt.
+        reset_chief_call_provenance()
         response = collect_chief_task_result(store, artifact_id, timeout=60, cancel=cancel)
+        chief_model_call_id = take_chief_call_provenance()
         if cancel is not None and cancel.is_set():
             raise InterruptedError('회수 검토 도중 취소되어 AI 응답을 저장하지 않았습니다.')
         assert_running_allowed(store)
         if type(response) is not str or not response.strip() or len(response) > 10000 or '\x00' in response:
             raise ValueError('총괄 AI 회수 의견이 비었거나 저장 제한을 초과했습니다.')
-        report_id = store.save_chief_task_report(artifact_id, response.strip(), lease_token=lease_token)
+        report_id = store.save_chief_task_report(artifact_id, response.strip(),
+                        lease_token=lease_token, model_call_id=chief_model_call_id)
         return {'artifact_id': artifact_id, 'report_id': report_id,
                 'status': 'awaiting_owner_review', 'chief_model_called': True,
                 'worker_result_auto_approved': False, 'task_completed': False}
