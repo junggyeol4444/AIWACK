@@ -4837,6 +4837,11 @@ class LocalStore:
         from desktop.company_wide_campaign import read
         return read(self,campaign_id)
 
+    def inspect_full_company_resume_gate(self, campaign_id: int) -> dict:
+        """실제 승인·모델 실행 원본의 다음 단계 사전 점검(읽기 전용)."""
+        from desktop.company_campaign_resume_gate import snapshot
+        return snapshot(self, campaign_id)
+
     def run_full_company_next(self, campaign_id: int, *, cancel=None) -> dict:
         from desktop.company_wide_campaign import run_next
         return run_next(self,campaign_id,cancel=cancel,
