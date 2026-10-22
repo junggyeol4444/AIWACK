@@ -988,10 +988,13 @@ def run_next(store,campaign_id:int,*,cancel:threading.Event|None=None,
     step=pending[0]
     if (progress['verified_completed_tasks']!=step['ordinal']-1
             or progress['next_task_id']!=step['task_id']):
-        raise ValueError('직전 부서 결과의 실제 증빙·승인·순서가 일치하지 않습니다.')
+        raise ValueError('직전 부서 결과의 실제 증빙 무결성·승인·순서가 일치하지 않습니다.')
     if (require_genuine_provenance and
             progress['verified_genuine_prefix_tasks']!=step['ordinal']-1):
         raise ValueError('직전 총괄 실제 모델 호출 연결이 검증되지 않았습니다.')
+    from desktop.company_campaign_resume_gate import require_next
+    require_next(store, campaign_id, int(step['task_id']),
+                 require_genuine_provenance=require_genuine_provenance)
     result=execute_approved_chief_cycle(store,step['task_id'],cancel=cancel)
     return {'step':step['ordinal'],'department':step['department'],
             'employee_id':step['employee_id'],'work':result,
