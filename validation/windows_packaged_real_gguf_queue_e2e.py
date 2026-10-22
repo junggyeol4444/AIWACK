@@ -114,6 +114,15 @@ def wait_sql(sql, expected, params=(), timeout=70):
 # Keep the verified HWND, title and process identity; never click a guessed
 # coordinate to restore foreground focus or use a stale HWND.
 _WINDOW_IDENTITY = {}
+_TARGET_EXE_PID = None
+
+
+def _owner_pid(hwnd):
+    actual = _native_window_pid(hwnd)
+    if _TARGET_EXE_PID is not None and actual != _TARGET_EXE_PID:
+        raise AssertionError("The visible GUI HWND does not belong to this AIWACK.exe process")
+    return actual
+
 
 
 def _win_pid(hwnd):
@@ -201,7 +210,10 @@ def _visible_window(w):
         except (AssertionError,OSError,ValueError):
             if os.name=='nt':
                 raise AssertionError('Unknown original PID; physical click prohibited')
-        if pid is not None:WINDOW_PIDS[name]=pid
+        if pid is not None:
+            if _TARGET_EXE_PID is not None and pid != _TARGET_EXE_PID:
+                raise AssertionError('Different Windows process owns the expected window')
+            WINDOW_PIDS[name]=pid
     if os.name=='nt' and pid is None:
         raise AssertionError('Original Win32 process cannot be verified')
     for _ in range(5):
@@ -212,7 +224,7 @@ def _visible_window(w):
             try:
                 if (candidate.title==name and candidate.width>300
                         and candidate.height>250):
-                    candidate_pid=_native_window_pid(candidate._hWnd)
+                    candidate_pid=_owner_pid(candidate._hWnd)
                     if pid is None or candidate_pid==pid:
                         matched.append(candidate)
             except Exception:
@@ -278,18 +290,18 @@ def _active_is(w):
 
 
 def _focus_verified(w):
-    w = _live_window(w)
+    w = _visible_window(_live_window(w))
     for _ in range(3):
         if _active_is(w):
-            return _live_window(w)
+            return _visible_window(_live_window(w))
         try:
             if w.isMinimized:
                 w.restore()
             w.activate()
         except Exception:
-            w = _live_window(w)
+            w = _visible_window(_live_window(w))
         time.sleep(.4)
-        w = _live_window(w)
+        w = _visible_window(_live_window(w))
         if _active_is(w):
             return w
     raise AssertionError("Verified Windows GUI is not foreground: refused blind coordinate click")
@@ -301,8 +313,11 @@ def find_dialog(fragment, timeout=65):
         found = []
         for win in pygetwindow.getAllWindows():
             try:
-                if fragment in win.title and win.width >= 300 and _is_window(win._hWnd):
-                    found.append(_live_window(win))
+                if (fragment in win.title and win.width >= 300
+                        and _is_window(win._hWnd) and _owner_pid(win._hWnd)>0):
+                    WINDOW_TITLES[int(win._hWnd)]=win.title
+                    WINDOW_PIDS[win.title]=_owner_pid(win._hWnd)
+                    found.append(_visible_window(_live_window(win)))
             except Exception:
                 continue
         if len(found) == 1:
@@ -317,12 +332,17 @@ def find_dialog(fragment, timeout=65):
 def click(w, x, y):
     # Real Windows mouse only, guarded by valid HWND, process and foreground.
     w = _focus_verified(w)
-    if w.width <= 500 or w.height <= 350:
+    w, rect = _stable_native_rect(w)
+    left, top, width, height = rect
+    if width <= 500 or height <= 350:
         raise AssertionError("Packaged Windows EXE window has invalid dimensions")
     hwnd = int(w._hWnd)
-    px, py = int(w.left + x), int(w.top + y)
-    # Recheck immediately before interaction, not after a focus steal.
-    w = _live_window(w)
+    _owner_pid(hwnd)
+    px, py = int(left + x), int(top + y)
+    if x < 0 or y < 0 or x >= width or y >= height:
+        raise AssertionError("Requested click is outside verified native window")
+    # Never click after Tk has destroyed/recreated the dialog or focus changed.
+    w = _visible_window(_live_window(w))
     if int(w._hWnd) != hwnd or not _active_is(w):
         raise AssertionError("Window identity changed before physical click")
     pyautogui.click(px, py)
@@ -417,13 +437,7 @@ def bind_model(w, employee_index, model_cli, gguf):
              1, (employee_index + 1,), timeout=30)
     evidence("real-gguf-model-bound-%d" % (employee_index + 1))
     # Never send Alt+F4 to an unknown foreground process after Tk auto-close.
-    try:
-        dialog = _live_window(dialog)
-    except AssertionError:
-        dialog = None
-    if dialog is not None:
-        dialog = _focus_verified(dialog)
-        dialog.close()
+    _close_verified_dialog(dialog)
     time.sleep(.7)
 
 
@@ -460,7 +474,7 @@ def wait_office_dashboard(window, timeout=80):
 
 
 def perform(exe, model_cli, gguf):
-    global DATA, DB
+    global DATA, DB, _TARGET_EXE_PID
     assert os.name == "nt", "Actual Windows executable and desktop required"
     assert exe.is_file() and exe.name.lower() == "aiwack.exe"
     assert model_cli.is_file() and model_cli.name.lower() in {"llama-completion.exe", "llama-cli.exe"}
@@ -473,6 +487,7 @@ def perform(exe, model_cli, gguf):
     p = None
     try:
         p = gui.start(exe, DATA)
+        _TARGET_EXE_PID = p.pid
         w = gui.find_window()
         evidence("actual-aiwack-exe-launched")
         write(w, 175, 320, OWNER)
