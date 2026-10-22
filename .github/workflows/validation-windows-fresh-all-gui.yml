@@ -50,7 +50,7 @@ jobs:
         shell: pwsh
         run: |
           Set-Location (Join-Path $env:RUNNER_TEMP 'aiwack-real-gguf-source/AIWACK-Stage54')
-          python -m PyInstaller --noconfirm --clean --onefile --windowed --name AIWACK --paths . --hidden-import desktop.company_operations --hidden-import desktop.company_office_gui --add-data 'docs/roadmap_100.csv;docs' desktop/entry.py
+          python -m PyInstaller --noconfirm --clean --onefile --windowed --name AIWACK --paths . --hidden-import desktop.company_operations --hidden-import desktop.company_office_gui --hidden-import desktop.company_bank_reconciliation --hidden-import desktop.company_campaign_evidence --hidden-import desktop.company_campaign_final_report --hidden-import desktop.company_financial_close --add-data 'docs/roadmap_100.csv;docs' desktop/entry.py
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           if (-not (Test-Path 'dist/AIWACK.exe')) { throw 'Actual packaged EXE missing' }
       - name: Build test-only Windows synthetic runner for real GUI test (not distributed)
