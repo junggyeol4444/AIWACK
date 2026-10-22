@@ -5,7 +5,7 @@ owner is a DISPOSABLE fixture, not a real user's GUI review or consent.
 No external payments, web businesses or production owner accounts.
 """
 from __future__ import annotations
-import hashlib,json,os,sqlite3,sys,tempfile
+import hashlib,json,os,sqlite3,sys,tempfile,shutil
 from pathlib import Path
 from uuid import uuid4
 ROOT=Path(__file__).resolve().parent.parent
@@ -183,47 +183,89 @@ def _resume_fixture(store,cli,gguf,checkpoint,*,expected_binary_hashes=None):
     return tasks[0]['id'],existing,count
 
 
-def verify(cli:Path,gguf:Path,evidence:Path):
+def verify(cli:Path,gguf:Path,evidence:Path,*,resume=False):
     if os.name!='nt':raise OSError('Real Windows GGUF backend only')
     cli=cli.resolve(strict=True);gguf=gguf.resolve(strict=True)
     if cli.name.lower() not in ('llama-cli.exe','llama-completion.exe'):
         raise ValueError('Official preflight-verified llama.cpp binary required')
     with gguf.open('rb') as stream:
         if stream.read(4)!=b'GGUF':raise ValueError('Not a genuine GGUF file')
+    binary_hashes={'cli':_binary_sha256(cli),'gguf':_binary_sha256(gguf)}
     evidence.mkdir(parents=True,exist_ok=True)
     db=evidence/'ephemeral_31_agent_campaign.sqlite3'
-    if db.exists():raise FileExistsError('Do not overwrite a previous real model audit')
-    store=LocalStore(db);store.setup_owner(USER,PASSWORD)
-    report={'model_backend':'real GGUF Windows','actual_model_calls':0,
+    checkpoint_file=evidence/'full_30_genuine_gguf_checkpoint.json'
+    if db.exists() and not resume:
+        raise FileExistsError('기존 진짜 GGUF 감사 DB가 존재합니다. --resume을 명시해야 합니다.')
+    if resume and not db.is_file():
+        raise FileNotFoundError('복구할 GGUF SQLite 원본이 없습니다.')
+    previous={}
+    if resume:
+        if not checkpoint_file.is_file():
+            raise FileNotFoundError('복구할 원본 GGUF 체크포인트가 없습니다.')
+        previous=json.loads(checkpoint_file.read_text(encoding='utf-8'))
+        if not isinstance(previous,dict) or previous.get('model_backend')!='real GGUF Windows':
+            raise ValueError('원본 GGUF 체크포인트 형식 손상')
+        shutil.copy2(checkpoint_file,evidence/('checkpoint_before_resume_'+uuid4().hex+'.json'))
+    store=LocalStore(db)
+    if not resume:store.setup_owner(USER,PASSWORD)
+    report={'binary_sha256':binary_hashes,'resumed':bool(resume),
+            'model_backend':'real GGUF Windows','actual_model_calls':0,
             'completed_tasks':0,'tested_roles':0,'tested_departments':0,
             'physical_exe_gui_tested':False,'human_owner_reviewed':False,
             'owner_action':'automated_disposable_test_owner_only',
             'external_payment_or_revenue_tested':False,
             'success':False,'steps':[]}
     def save():
-        (evidence/'full_30_genuine_gguf_checkpoint.json').write_text(
-            json.dumps(report,ensure_ascii=False,indent=2),encoding='utf-8')
-    save()
+        _save_checkpoint_atomic(checkpoint_file,report)
+    if not resume:save()
+    resume_validated=False
     try:
-        ops.initialize_company_blueprint(store)
-        people=store.list_employee_records()
-        if len(people)!=31:raise AssertionError('Need real 31 agent profiles')
-        model=store.add_local_model(ModelConfig('Official local GGUF', 'llama_cpp',
-                                               str(cli),str(gguf),256))
-        for e in people:store.set_employee_model(e['id'],model)
-        task=ops.create_task(store,'15부서 실제 GGUF 고객 지원 프로젝트',
-                             '고객지원 정책과 문서 작성 및 품질 점검')
-        # Five real chief model plans; invalid rows are rejected, not mocked.
-        plan=wide.approve(store,wide.propose(store,task)['id'])
+        if resume:
+            task,cid,start=_resume_fixture(store,cli,gguf,previous,
+                  expected_binary_hashes=binary_hashes)
+            resume_validated=True
+            report['completed_tasks']=start
+            report['steps']=list(previous['steps'])
+            report['tested_departments']=len({step['department'] for step in report['steps']})
+            report['campaign_id']=cid
+            save()
+            if cid is None:
+                plan=wide.approve(store,wide.propose(store,task)['id'])
+                cid=plan['id']
+            else:
+                plan=wide.read(store,cid)
+        else:
+            ops.initialize_company_blueprint(store)
+            people=store.list_employee_records()
+            if len(people)!=31:raise AssertionError('Need real 31 agent profiles')
+            model=store.add_local_model(ModelConfig('Official local GGUF', 'llama_cpp',
+                                                   str(cli),str(gguf),256))
+            for e in people:store.set_employee_model(e['id'],model)
+            task=ops.create_task(store,'15부서 실제 GGUF 고객 지원 프로젝트',
+                                 '고객지원 정책과 문서 작성 및 품질 점검')
+            plan=wide.approve(store,wide.propose(store,task)['id'])
+            start=0
         if len(plan['steps'])!=30:raise AssertionError('Missing real chief-generated steps')
         cid=plan['id'];report['campaign_id']=cid;save()
-        ids=set()
-        for index in range(30):
+        ids={entry['employee_id'] for entry in report['steps']}
+        for index in range(start,30):
+            with sqlite3.connect(db) as con:
+                previous_call=con.execute('SELECT COALESCE(MAX(id),0) FROM ai_model_call_history').fetchone()[0]
             result=wide.run_next(store,cid,require_genuine_provenance=True)
             if result.get('step')!=index+1:raise AssertionError('Wrong 30-step order')
             aid=result['work']['artifact_id'];rid=result['work']['report_id']
             artifact=store.read_task_artifact(aid)
             chief=store.find_chief_task_report(aid)
+            with sqlite3.connect(db) as con:
+                fresh=con.execute('''SELECT id,employee_id,status,output_chars
+                    FROM ai_model_call_history WHERE id>? ORDER BY id''',
+                    (previous_call,)).fetchall()
+            if (len(fresh)!=2
+                  or [v[1] for v in fresh]!=[result['employee_id'],plan['chief_employee_id']]
+                  or any(v[2]!='success' or v[3]<=0 for v in fresh)):
+                raise AssertionError('해당 단계가 직원·총괄 실제 GGUF 2회 호출을 수행하지 않았습니다.')
+            if chief is None or chief.get('chief_model_call_id')!=fresh[1][0]:
+                raise AssertionError('총괄 검토 보고의 실제 GGUF 호출 ID 불일치')
             if (artifact['review_status']!='pending' or not str(artifact['body']).strip()
                 or chief is None or chief['id']!=rid or chief['owner_decision']!='pending'):
                 raise AssertionError('Real worker/chief model output not pending and nonempty')
@@ -241,25 +283,44 @@ def verify(cli:Path,gguf:Path,evidence:Path):
             report['tested_departments']=evidence_now['verified_distinct_departments']
             report['steps'].append({'ordinal':index+1,'employee_id':result['employee_id'],
                'artifact_id':aid,'department':result['department'],
-               'test_owner_accepted':True})
+               'test_owner_accepted':True,
+               'worker_call_id':fresh[0][0],'chief_call_id':fresh[1][0],
+               'artifact_sha256':artifact['sha256'],'chief_report_sha256':chief['sha256']})
             save()
             if index==14:
                 store.logout();store=LocalStore(db);store.login(USER,PASSWORD)
                 if wide.verified_progress(store,cid)['verified_completed_tasks']!=15:
                     raise AssertionError('Actual 15-step SQLite restart continuity lost')
         summary=wide.verified_progress(store,cid)
-        if not summary['all_30_tasks_evidence_verified'] or len(ids)!=30 or summary['verified_distinct_departments']!=15:
+        if (not summary['all_30_tasks_evidence_verified']
+                or not summary['all_30_chief_model_call_links_verified']
+                or len(ids)!=30 or summary['verified_distinct_departments']!=15):
             raise AssertionError('30 actual GGUF staff/15 department acceptance incomplete')
         chief=wide.read(store,cid)['chief_employee_id']
         for employee in ids | {chief}:
             calls=store.list_employee_model_calls(employee)
-            if not calls or any(x['status']!='success' or x['output_chars']<=0 for x in calls):
+            successful=[call for call in calls if call['status']=='success' and call['output_chars']>0]
+            if not successful:
                 raise AssertionError(f'Actual model audit missing for employee {employee}')
-            report['actual_model_calls']+=len(calls)
+            report['actual_model_calls']+=len(successful)
+            report['failed_model_calls']=report.get('failed_model_calls',0)+len(calls)-len(successful)
         if report['actual_model_calls']<65:raise AssertionError('Fewer than 5 chief+60 real model calls')
         with sqlite3.connect(db) as con:
             assert con.execute('PRAGMA integrity_check').fetchone()[0]=='ok'
             assert not con.execute('PRAGMA foreign_key_check').fetchall()
+        final=store.find_campaign_final_report(cid)
+        if final is None:
+            final=store.propose_campaign_final_report(cid)
+        elif not resume:
+            raise AssertionError('이전 총괄 최종 보고서가 예고 없이 존재합니다.')
+        if final['decision']=='pending':
+            final=store.decide_campaign_final_report(
+                final['id'],'accepted','폐기 가능 CI 소유자의 승인 경로 시험이며 인간 관리자 승인이 아님')
+        if final['decision']!='accepted':
+            raise AssertionError('실제 총괄 최종보고 관리자의 승인 감사 실패')
+        report['final_chief_report_id']=final['id']
+        report['test_fixture_final_report_accepted']=True
+        report['human_owner_reviewed']=False
         report['tested_roles']=31;report['success']=True;save();return report
     except BaseException as exc:
         report['failed_step']=report['completed_tasks']+1
@@ -268,13 +329,20 @@ def verify(cli:Path,gguf:Path,evidence:Path):
             report['chief_plan_rejections']=read_failed_chief_plan_audit(db)
         except (sqlite3.Error,ValueError) as audit_error:
             report['chief_plan_audit_read_error']=type(audit_error).__name__
-        save();raise
+        if resume and not resume_validated:
+            _record_rejected_resume(evidence,checkpoint_file,report)
+        else:
+            save()
+        raise
     finally:
         try:store.logout()
         except Exception:pass
 
 if __name__=='__main__':
-    if len(sys.argv)!=4:
-        raise SystemExit('Usage: windows_real_30_step_campaign_e2e.py CLI GGUF EVIDENCE')
-    verify(*(Path(p) for p in sys.argv[1:]))
+    args=sys.argv[1:]
+    resume='--resume' in args
+    args=[a for a in args if a!='--resume']
+    if len(args)!=3:
+        raise SystemExit('Usage: windows_real_30_step_campaign_e2e.py CLI GGUF EVIDENCE [--resume]')
+    verify(*(Path(p) for p in args),resume=resume)
     print('ACTUAL_WINDOWS_GGUF_31_MODELS_15_DEPARTMENTS_30_STEPS_BACKEND_PASS',flush=True)
