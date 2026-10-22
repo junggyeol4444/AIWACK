@@ -595,6 +595,14 @@ def verified_progress(store, campaign_id: int) -> dict:
     plan=read(store,campaign_id)
     verified=[];waiting=[];next_task=None;genuine_chief_links=0;genuine_prefix=0
     with store._connect() as con:
+        initialize(con)
+        saved=con.execute('''SELECT source_task_id,source_fingerprint,chief_employee_id
+            FROM aiwack_wide_campaigns WHERE id=?''',(campaign_id,)).fetchone()
+        if saved is None:
+            raise ValueError('계획 기록을 찾을 수 없습니다.')
+        current_fp,_=_source(store,con,saved[0])
+        if saved[1]!=current_fp or saved[2]!=plan['chief_employee_id']:
+            raise ValueError('원본 업무·총괄 AI가 계획 승인 이후 변경됐습니다.')
         for row in plan['steps']:
             task=row['task_id']
             if not task:
@@ -628,14 +636,32 @@ def verified_progress(store, campaign_id: int) -> dict:
             'owner_approval_was_required':True,'automatic_approval':False}
 
 
-def run_next(store,campaign_id:int,*,cancel:threading.Event|None=None):
-    """One approved employee model and chief review; owner must review both separately."""
+def run_next(store,campaign_id:int,*,cancel:threading.Event|None=None,
+             require_genuine_provenance:bool=False):
+    """Execute next genuine GGUF step only after the previous owner-reviewed step.
+
+    The Windows real-model and owner UI route must require genuine chief
+    provenance.  Never mark all 30 complete on status flags alone.
+    """
     from desktop.company_operations import execute_approved_chief_cycle
     plan=read(store,campaign_id)
-    if plan['state']!='approved':raise ValueError('승인된 계획만 실행할 수 있습니다.')
-    pending=[s for s in plan['steps'] if s['task_status']!='done']
-    if not pending:return {'completed':True,'remaining':0}
+    if plan['state']!='approved':
+        raise ValueError('승인된 계획만 실행할 수 있습니다.')
+    progress=verified_progress(store,campaign_id)
+    pending=[row for row in plan['steps'] if row['task_status']!='done']
+    if not pending:
+        if not progress['all_30_tasks_evidence_verified']:
+            raise ValueError('30개 업무의 실제 직원·총괄·관리자 승인 기록이 부족합니다.')
+        if require_genuine_provenance and progress['verified_genuine_prefix_tasks']!=30:
+            raise ValueError('30개 업무의 총괄 실제 모델 호출 연결이 불완전합니다.')
+        return {'completed':True,'remaining':0}
     step=pending[0]
+    if (progress['verified_completed_tasks']!=step['ordinal']-1
+            or progress['next_task_id']!=step['task_id']):
+        raise ValueError('직전 협업 단계의 실제 증빙·승인·순서가 일치하지 않습니다.')
+    if (require_genuine_provenance and
+            progress['verified_genuine_prefix_tasks']!=step['ordinal']-1):
+        raise ValueError('직전 총괄 실제 모델 호출 연결이 검증되지 않았습니다.')
     result=execute_approved_chief_cycle(store,step['task_id'],cancel=cancel)
     return {'step':step['ordinal'],'department':step['department'],
             'employee_id':step['employee_id'],'work':result,
