@@ -278,7 +278,23 @@ def close_dialog_safely(w,expected_title):
     if len(candidates)!=1 or int(candidates[0]._hWnd)!=int(live._hWnd):
         raise AssertionError('Refusing close: different Windows window or ambiguous modal')
     live.close()
-    return True
+    deadline=time.monotonic()+4
+    original_hwnd=int(live._hWnd)
+    while time.monotonic()<deadline:
+        still_open=False
+        for candidate in pygetwindow.getAllWindows():
+            try:
+                if (int(candidate._hWnd)==original_hwnd
+                        and candidate.title==expected_title and _is_window(original_hwnd)):
+                    still_open=True
+                    break
+            except Exception:
+                continue
+        if not still_open:
+            return True
+        time.sleep(.15)
+    evidence('targeted-modal-close-timeout')
+    raise AssertionError('Targeted Tk dialog did not close; no other window was touched')
 
 
 def _active_is(w):
@@ -349,14 +365,34 @@ def click(w, x, y):
     time.sleep(.6)
 
 
+
+def _verify_native_keyboard_focus(w):
+    """Require the exact live AIWACK.exe HWND before and after key commands."""
+    current,_=_stable_native_rect(w)
+    hwnd=int(current._hWnd)
+    if _TARGET_EXE_PID is not None and _owner_pid(hwnd)!=_TARGET_EXE_PID:
+        raise AssertionError('The selected Tk input is owned by another process')
+    try:
+        active=pygetwindow.getActiveWindow()
+        if active is None or int(active._hWnd)!=hwnd:
+            raise AssertionError('Windows foreground switched before keyboard input')
+        if os.name=='nt':
+            import ctypes
+            win=ctypes.windll.user32
+            win.GetForegroundWindow.restype=ctypes.c_void_p
+            if not _is_window(hwnd) or int(win.GetForegroundWindow() or 0)!=hwnd:
+                raise AssertionError('The intended native window disappeared before keyboard input')
+    except AssertionError:
+        raise
+    except Exception as error:
+        raise AssertionError('The native keyboard target cannot be verified') from error
+
+
 def write(w, x, y, value):
     click(w, x, y)
-    w = _focus_verified(w)
-    if not _active_is(w):
-        raise AssertionError("Window lost focus before keyboard input")
+    _verify_native_keyboard_focus(w)
     pyautogui.hotkey("ctrl", "a")
-    if not _active_is(w):
-        raise AssertionError("Window lost focus during keyboard input")
+    _verify_native_keyboard_focus(w)
     pyautogui.write(value, interval=.008)
 
 
