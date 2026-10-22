@@ -317,7 +317,7 @@ def propose(store,source_task_id:int,*,cancel:threading.Event|None=None):
                     except ValueError:
                         continue
                 else:
-                    raise ValueError('실제 총괄 모델의 3부서 및 단일 부서 재시도가 모두 실패했습니다.')
+                    raise ValueError('실제 총괄 모델의 3부서 계획이 세 번 연속 실패하고 단일 부서 재시도도 모두 실패했습니다.')
         for dept,name,manager,staff in part:
             title,instruction=parsed[name]
             call_id=calls[name]
