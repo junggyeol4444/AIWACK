@@ -58,6 +58,33 @@ def initialize(con):
             WHEN {"OLD.task_id IS NOT NULL" if action == 'UPDATE' else '1'}
             BEGIN SELECT RAISE(ABORT,'승인 후 회사 전체 협업 증빙을 수정·삭제할 수 없습니다'); END''')
 
+    # Genuine chief output for each three-department batch survives a crash.
+    con.execute('''CREATE TABLE IF NOT EXISTS aiwack_wide_chief_group_staging (
+        source_task_id INTEGER NOT NULL REFERENCES company_tasks(id),
+        group_start INTEGER NOT NULL CHECK(group_start IN (0,3,6,9,12)),
+        source_fingerprint TEXT NOT NULL,
+        roster_sha256 TEXT NOT NULL,
+        chief_employee_id INTEGER NOT NULL REFERENCES ai_employee_profiles(id),
+        chief_model_id INTEGER NOT NULL,
+        group_json TEXT NOT NULL,
+        group_sha256 TEXT NOT NULL,
+        created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        PRIMARY KEY(source_task_id,group_start))''')
+    for action in ('UPDATE','DELETE'):
+        con.execute(f'''CREATE TRIGGER IF NOT EXISTS aiwack_wide_staging_no_{action.lower()}
+            BEFORE {action} ON aiwack_wide_chief_group_staging
+            BEGIN SELECT RAISE(ABORT,'실제 모델 계획 단계별 감사 변경·삭제 금지'); END''')
+    cols={row[1] for row in con.execute('PRAGMA table_info(aiwack_wide_campaign_steps)')}
+    if 'plan_sha256' not in cols:
+        con.execute("ALTER TABLE aiwack_wide_campaign_steps ADD COLUMN plan_sha256 TEXT NOT NULL DEFAULT ''")
+    con.execute('''CREATE TRIGGER IF NOT EXISTS aiwack_wide_draft_step_no_edit
+        BEFORE UPDATE ON aiwack_wide_campaign_steps WHEN OLD.task_id IS NULL AND (
+         NEW.campaign_id!=OLD.campaign_id OR NEW.ordinal!=OLD.ordinal OR
+         NEW.department_id!=OLD.department_id OR NEW.employee_id!=OLD.employee_id OR
+         NEW.role!=OLD.role OR NEW.title!=OLD.title OR
+         NEW.instruction!=OLD.instruction OR NEW.chief_model_call_id!=OLD.chief_model_call_id OR
+         NEW.plan_sha256!=OLD.plan_sha256)
+        BEGIN SELECT RAISE(ABORT,'승인 전 실제 총괄 계획 수정 금지'); END''')
 
 
 def _record_genuine_chief_plan_rejection(store, source_task_id, chief, call_id,
@@ -83,6 +110,129 @@ def _record_genuine_chief_plan_rejection(store, source_task_id, chief, call_id,
             hashlib.sha256(completion.encode('utf-8')).hexdigest(),
             len(completion),str(error)[:250]))
 
+
+
+def _step_digest(campaign_id,ordinal,dept,employee,role,title,instruction,call_id):
+    canonical=json.dumps([campaign_id,ordinal,dept,employee,role,title,instruction,call_id],
+                         ensure_ascii=False,separators=(',',':'))
+    return hashlib.sha256(canonical.encode('utf-8')).hexdigest()
+
+
+def _roster_sha256(chief,model,groups):
+    canonical=json.dumps([chief,model,groups],ensure_ascii=False,separators=(',',':'))
+    return hashlib.sha256(canonical.encode('utf-8')).hexdigest()
+
+
+def _verified_staged_group(con,source_task_id,start,fingerprint,roster_sha,
+                           chief,model,part):
+    row=con.execute('''SELECT source_fingerprint,roster_sha256,chief_employee_id,
+        chief_model_id,group_json,group_sha256 FROM aiwack_wide_chief_group_staging
+        WHERE source_task_id=? AND group_start=?''',(source_task_id,start)).fetchone()
+    if row is None:return None
+    if tuple(row[:4])!=(fingerprint,roster_sha,chief,model):
+        raise ValueError('기존 단계별 총괄 계획의 업무·조직·모델 변경')
+    if hashlib.sha256(row[4].encode('utf-8')).hexdigest()!=row[5]:
+        raise ValueError('기존 단계별 총괄 계획 SHA256 손상')
+    try:
+        entries=json.loads(row[4])
+    except (TypeError,ValueError) as error:
+        raise ValueError('기존 단계별 총괄 계획 JSON 손상') from error
+    if not isinstance(entries,list) or len(entries)!=len(part):
+        raise ValueError('기존 단계별 총괄 계획 부서 수 손상')
+    parsed={};calls={}
+    for item,(dept,name,manager,staff) in zip(entries,part):
+        if (not isinstance(item,dict) or item.get('department_id')!=dept
+              or item.get('department')!=name or item.get('manager')!=manager
+              or item.get('staff')!=staff):
+            raise ValueError('기존 단계별 총괄 계획 구성원 불일치')
+        title=item.get('title');instruction=item.get('instruction');call_id=item.get('chief_call_id')
+        if (not isinstance(title,str) or not isinstance(instruction,str)
+              or type(call_id) is not int or call_id<=0
+              or not 1<=len(title.strip())<=65 or not 1<=len(instruction.strip())<=330
+              or title!=title.strip() or instruction!=instruction.strip()):
+            raise ValueError('기존 단계별 실제 총괄 생성 텍스트 손상')
+        audited=con.execute('''SELECT employee_id,model_id,status,output_chars
+            FROM ai_model_call_history WHERE id=?''',(call_id,)).fetchone()
+        if (audited is None or int(audited[0])!=chief or int(audited[1])!=model
+              or audited[2]!='success' or int(audited[3])<=0):
+            raise ValueError('총괄 GGUF 실제 호출 기록이 단계별 감사와 불일치')
+        if con.execute('SELECT 1 FROM aiwack_wide_chief_rejected_attempts WHERE model_call_id=?',
+                       (call_id,)).fetchone():
+            raise ValueError('실패한 총괄 호출을 계획에 재사용할 수 없습니다.')
+        parsed[name]=(title,instruction);calls[name]=call_id
+    return parsed,calls
+
+
+def _save_staged_group(store,source_id,start,fingerprint,roster_sha,chief,
+                       model,groups,part,parsed,calls):
+    entries=[dict(department_id=dept,department=name,manager=manager,staff=staff,
+                  title=parsed[name][0],instruction=parsed[name][1],chief_call_id=calls[name])
+             for dept,name,manager,staff in part]
+    serialized=json.dumps(entries,ensure_ascii=False,separators=(',',':'))
+    digest=hashlib.sha256(serialized.encode('utf-8')).hexdigest()
+    with store._connect() as con:
+        con.execute('BEGIN IMMEDIATE');initialize(con)
+        if stopped(con):raise PermissionError('비상 정지 상태에서는 계획 저장 금지')
+        fp,_=_source(store,con,source_id)
+        current,model_id,members=_staff_roster(con)
+        if (fp!=fingerprint or current!=chief or model_id!=model
+              or members!=groups or _roster_sha256(current,model_id,members)!=roster_sha):
+            raise ValueError('총괄 계획 실행 중 원본 업무 또는 모델·조직 변경')
+        if con.execute('''SELECT 1 FROM aiwack_wide_campaigns WHERE source_task_id=?
+            AND state IN ('draft','approved')''',(source_id,)).fetchone():
+            raise ValueError('다른 창에 이미 승인 대기 또는 승인된 계획 존재')
+        if _verified_staged_group(con,source_id,start,fingerprint,roster_sha,
+                                   chief,model,part) is not None:
+            raise ValueError('동시 실행이 이미 해당 부서 계획을 저장했습니다.')
+        con.execute('''INSERT INTO aiwack_wide_chief_group_staging
+            (source_task_id,group_start,source_fingerprint,roster_sha256,
+             chief_employee_id,chief_model_id,group_json,group_sha256)
+            VALUES(?,?,?,?,?,?,?,?)''',
+            (source_id,start,fingerprint,roster_sha,chief,model,serialized,digest))
+        _verified_staged_group(con,source_id,start,fingerprint,roster_sha,chief,model,part)
+
+
+def staged_plan_progress(store,source_task_id:int)->dict:
+    store.require_permission('company:manage')
+    with store._connect() as con:
+        initialize(con);fingerprint,_=_source(store,con,source_task_id)
+        chief,model,groups=_staff_roster(con)
+        roster_sha=_roster_sha256(chief,model,groups)
+        complete=[start//3+1 for start in range(0,15,3)
+            if _verified_staged_group(con,source_task_id,start,fingerprint,roster_sha,
+                                      chief,model,groups[start:start+3]) is not None]
+    return {'completed_groups':len(complete),'total_groups':5,
+            'completed_group_numbers':complete,'requires_owner_approval':True}
+
+
+def _assert_campaign_plan_matches_genuine_staging(store,con,campaign_id:int)->None:
+    plan=con.execute('''SELECT source_task_id,source_fingerprint,chief_employee_id,state
+        FROM aiwack_wide_campaigns WHERE id=?''',(campaign_id,)).fetchone()
+    if plan is None:raise ValueError('캠페인 원본이 없습니다.')
+    fp,_=_source(store,con,plan[0]);chief,model,groups=_staff_roster(con)
+    if fp!=plan[1] or chief!=plan[2]:
+        raise ValueError('총괄 모델 계획의 기준 업무 또는 총괄 변경')
+    roster_sha=_roster_sha256(chief,model,groups)
+    rows=con.execute('''SELECT ordinal,department_id,employee_id,role,title,instruction,
+        chief_model_call_id,plan_sha256 FROM aiwack_wide_campaign_steps
+        WHERE campaign_id=? ORDER BY ordinal''',(campaign_id,)).fetchall()
+    if len(rows)!=30:raise ValueError('30단계 계획 원본이 부족합니다.')
+    expected=[]
+    for start in range(0,15,3):
+        part=groups[start:start+3]
+        staged=_verified_staged_group(con,plan[0],start,fp,roster_sha,chief,model,part)
+        if staged is None:raise ValueError('원본 단계별 총괄 모델 감사 누락')
+        parsed,calls=staged
+        for dept,name,manager,staff in part:
+            title,instruction=parsed[name];cid=calls[name]
+            expected.extend(((dept,manager,'department_head',f'{name} 부서장 검토: {title}',
+                             ('부서장 분석·계획: '+instruction)[:500],cid),
+                             (dept,staff,'staff',f'{name} 담당 실행: {title}',
+                             ('부서장 승인된 선행 업무를 확인하고 실제 결과물을 작성: '+instruction)[:500],cid)))
+    for row,exp in zip(rows,expected):
+        ordinal,*fields=row
+        if tuple(fields[:-1])!=exp or fields[-1]!=_step_digest(campaign_id,ordinal,*exp):
+            raise ValueError('30업무 본문·모델 호출과 총괄 원본 감사가 일치하지 않습니다.')
 
 def _source(store, con, source_task_id):
     row=store._task_row(con,source_task_id)
@@ -294,11 +444,21 @@ def propose(store,source_task_id:int,*,cancel:threading.Event|None=None):
             WHERE source_task_id=? AND state IN ('draft','approved')''',(source_task_id,)).fetchone():
             raise ValueError('이미 진행 중인 회사 전체 협업이 있습니다.')
     steps=[]
+    roster_sha=_roster_sha256(chief,chief_model,groups)
     for start in range(0,15,3):
         if cancel is not None and cancel.is_set():
             raise InterruptedError('총괄 일괄 협업 초안 취소')
         assert_running_allowed(store)
         part=groups[start:start+3]
+        with store._connect() as con:
+            initialize(con)
+            recovered=_verified_staged_group(con,source_task_id,start,fingerprint,
+                                               roster_sha,chief,chief_model,part)
+        if recovered is None:
+            parsed=None
+            calls={}
+        else:
+            parsed,calls=recovered
         prompt=('당신은 기존 Windows 로컬 회사의 총괄 AI입니다. 실제 작업을 수행할 3개 부서를 위한 '
                 '명확한 텍스트 작업 지시를 각 부서별로 한 줄 작성하세요. 입력된 부서 이름을 그대로 사용하고 '
                 '부서명|작업 제목|작업 지시 형태의 3줄만 출력하세요. 다른 부서/외부 결제/계약/게시 지시 금지. '
@@ -307,9 +467,7 @@ def propose(store,source_task_id:int,*,cancel:threading.Event|None=None):
                 '담당 부서: '+', '.join(name for _,name,_,_ in part))
         # Strictly bounded, auditable real-model retries for invalid output format.
         # Do not synthesize, guess or auto-approve a malformed department plan.
-        parsed=None
-        calls={}
-        for attempt in range(3):
+        for attempt in range(3 if recovered is None else 0):
             if cancel is not None and cancel.is_set():
                 raise InterruptedError('취소된 총괄 재호출은 실행하지 않습니다.')
             assert_running_allowed(store)
@@ -364,6 +522,9 @@ def propose(store,source_task_id:int,*,cancel:threading.Event|None=None):
                         continue
                 else:
                     raise ValueError('실제 총괄 모델의 3부서 계획이 세 번 연속 실패하고 단일 부서 재시도도 모두 실패했습니다.')
+        if recovered is None:
+            _save_staged_group(store,source_task_id,start,fingerprint,roster_sha,
+                               chief,chief_model,groups,part,parsed,calls)
         for dept,name,manager,staff in part:
             title,instruction=parsed[name]
             call_id=calls[name]
@@ -383,6 +544,10 @@ def propose(store,source_task_id:int,*,cancel:threading.Event|None=None):
         if con.execute('''SELECT 1 FROM aiwack_wide_campaigns WHERE source_task_id=?
              AND state IN ('draft','approved')''',(source_task_id,)).fetchone():
             raise ValueError('다른 Windows 창에 이미 승인 대기 계획이 있습니다.')
+        for start in range(0,15,3):
+            if _verified_staged_group(con,source_task_id,start,fingerprint,roster_sha,
+                                      chief,chief_model,groups[start:start+3]) is None:
+                raise ValueError('완성 전 단계별 실제 총괄 모델 감사가 누락됐습니다.')
         ids={int(x[0]) for x in con.execute('''SELECT id FROM ai_model_call_history
             WHERE employee_id=? AND model_id=? AND status='success' AND output_chars>0''',
             (chief,chief_model))}
@@ -392,9 +557,12 @@ def propose(store,source_task_id:int,*,cancel:threading.Event|None=None):
             (source_task_id,source_fingerprint,chief_employee_id) VALUES(?,?,?)''',
             (source_task_id,fingerprint,chief)).lastrowid)
         for ordinal,(dept,employee,role,title,instruction,call) in enumerate(steps,1):
+            seal=_step_digest(cid,ordinal,dept,employee,role,title,instruction,call)
             con.execute('''INSERT INTO aiwack_wide_campaign_steps
-                (campaign_id,ordinal,department_id,employee_id,role,title,instruction,chief_model_call_id)
-                VALUES(?,?,?,?,?,?,?,?)''',(cid,ordinal,dept,employee,role,title,instruction,call))
+                (campaign_id,ordinal,department_id,employee_id,role,title,instruction,
+                 chief_model_call_id,plan_sha256)
+                VALUES(?,?,?,?,?,?,?,?,?)''',
+                (cid,ordinal,dept,employee,role,title,instruction,call,seal))
     return read(store,cid)
 
 
@@ -430,15 +598,21 @@ def approve(store,campaign_id:int):
         if not plan or plan[3]!='draft':raise ValueError('승인할 수 있는 초안이 없습니다.')
         fingerprint,_=_source(store,con,plan[0]);chief,_,groups=_staff_roster(con)
         if fingerprint!=plan[1] or chief!=plan[2]:raise ValueError('총괄/업무가 변경됐습니다.')
-        steps=con.execute('''SELECT ordinal,department_id,employee_id,role,title,instruction
+        steps=con.execute('''SELECT ordinal,department_id,employee_id,role,title,instruction,
+                   chief_model_call_id,task_id,plan_sha256
             FROM aiwack_wide_campaign_steps WHERE campaign_id=? ORDER BY ordinal''',
             (campaign_id,)).fetchall()
         expected=[(dept,e,role) for dept,name,manager,staff in groups
                   for e,role in ((manager,'department_head'),(staff,'staff'))]
         if len(steps)!=30 or [(s[1],s[2],s[3]) for s in steps]!=expected:
             raise ValueError('15부서 30역할의 실제 계획이 일치하지 않습니다.')
+        for ordinal,dept,employee,role,title,instruction,call_id,task_id,seal in steps:
+            if (task_id is not None or not seal or seal!=_step_digest(
+                    campaign_id,ordinal,dept,employee,role,title,instruction,call_id)):
+                raise ValueError('총괄 원본 생성 계획이 변경됐거나 이미 업무가 연결됨')
+        _assert_campaign_plan_matches_genuine_staging(store,con,campaign_id)
         prev=None
-        for ordinal,dept,employee,role,title,instruction in steps:
+        for ordinal,dept,employee,role,title,instruction,call_id,task_id,seal in steps:
             description=f'관리자 승인 회사 전체 협업 #{campaign_id} / {ordinal}/30단계\n{instruction}'
             tid=int(con.execute('INSERT INTO company_tasks(title,description) VALUES(?,?)',
                                 (title[:120],description[:1500])).lastrowid)
