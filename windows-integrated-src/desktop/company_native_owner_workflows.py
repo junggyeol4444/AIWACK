@@ -28,9 +28,12 @@ class CompanyOwnerWorkflows:
         bank = ttk.Frame(tabs)
         customer = ttk.Frame(tabs)
         product = ttk.Frame(tabs)
+        payment = ttk.Frame(tabs)
+        tabs.add(payment, text='결제·취소·환불 서명 증빙')
         tabs.add(bank, text='은행 CSV · 사업 결산')
         tabs.add(customer, text='고객 문의 · 승인 답변')
         tabs.add(product, text='30업무 · 상품 결과물')
+        self._payment(payment)
         self._bank(bank)
         self._customer(customer)
         self._product(product)
@@ -86,6 +89,64 @@ class CompanyOwnerWorkflows:
             filetypes=[('CSV', '*.csv'), ('전체 파일', '*.*')])
         if path:
             self.values['csv'].set(path)
+
+    def _payment(self, panel):
+        """Only ingest pre-existing signed evidence; never initiate a payment."""
+        line=self._field(panel,'pg_file','기존 PG 서명 JSON 파일')
+        ttk.Button(line,text='JSON 원본 선택',command=self._choose_pg).pack(side='left',padx=4)
+        self._field(panel,'pg_signature','제공자 HMAC-SHA256 서명')
+        secret_line=ttk.Frame(panel)
+        secret_line.pack(fill='x',padx=12,pady=5)
+        ttk.Label(secret_line,text='제공자가 발급한 서명 검증키',width=22).pack(side='left')
+        self.values['pg_secret']=tk.StringVar()
+        ttk.Entry(secret_line,textvariable=self.values['pg_secret'],show='*',
+                  width=64).pack(side='left',fill='x',expand=True)
+        self._buttons(panel,[
+            ('공급자 서명 JSON 로컬 감사 등록',self._ingest_pg),
+            ('서명 이벤트 현황 30건',lambda:self._perform('기존 거래 감사 기록',
+                 lambda:self.store.list_signed_payment_events(30)))])
+        self._field(panel,'pg_event','검수할 기존 이벤트 ID')
+        self._field(panel,'pg_note','관리자 검수 사유 (5~200자)')
+        self._buttons(panel,[
+            ('기존 거래 증빙 승인',lambda:self._review_pg('accepted')),
+            ('기존 거래 증빙 반려',lambda:self._review_pg('rejected')),
+            ('서명 이벤트 원화 요약',lambda:self._perform('공급자 서명 거래 요약',
+                 lambda:self.store.signed_payment_reconciliation_summary(
+                    self._id('business') if self._get('business') else None)))])
+        ttk.Label(panel,text=('거래 유형: settlement, refund, expense. 원본 HMAC과 관리자 검토 결과를 '
+               '보존할 뿐 외부 PG API 접속·결제 취소·환불 승인 요청·송금은 실행하지 않습니다.'),
+                  wraplength=850).pack(padx=12,pady=12)
+
+    def _choose_pg(self):
+        path=filedialog.askopenfilename(parent=self.window,title='기존 서명 거래 JSON 원본',
+             filetypes=[('JSON 거래 이벤트','*.json'),('전체 파일','*.*')])
+        if path:self.values['pg_file'].set(path)
+
+    def _ingest_pg(self):
+        def work():
+            path=Path(self._get('pg_file'))
+            if not path.is_file() or path.suffix.lower()!='.json':
+                raise ValueError('관리자가 선택한 기존 JSON 파일이 없습니다.')
+            if path.stat().st_size>8192:
+                raise ValueError('기존 거래 증빙 파일 크기 제한 초과')
+            try:
+                result=self.store.ingest_signed_payment_evidence(
+                    path.read_bytes(),self._get('pg_signature'),self._get('pg_secret'))
+                self.values['pg_event'].set(str(result['id']))
+                return result
+            finally:
+                # Verification secret is used only for this owner click; never
+                # written to SQLite, exported or left in the Tk input widget.
+                self.values['pg_secret'].set('')
+        self._perform('공급자 서명 거래의 로컬 원본 감사',work,
+             '실제 결제·취소·환불을 실행하지 않고 기존 HMAC 서명 JSON만 로컬에 등록합니까?')
+
+    def _review_pg(self,decision):
+        label='승인' if decision=='accepted' else '반려'
+        self._perform('기존 거래 증빙 관리자 '+label,
+            lambda:self.store.review_signed_payment_evidence(
+                self._id('pg_event'),decision,self._get('pg_note')),
+            '서명 이벤트의 관리자 '+label+' 감사만 남깁니다. 외부 PG·은행 실거래를 실행하지 않습니다. 계속합니까?')
 
     def _bank(self, panel):
         line = self._field(panel,'csv','관리자 선택 은행 CSV')
