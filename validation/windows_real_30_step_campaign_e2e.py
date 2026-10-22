@@ -87,7 +87,7 @@ def _resume_fixture(store,cli,gguf,checkpoint,*,expected_binary_hashes=None):
     if expected_binary_hashes is not None and (
             not isinstance(expected_binary_hashes,dict)
             or checkpoint.get('binary_sha256')!=expected_binary_hashes):
-        raise ValueError('실제 GGUF/CLI 바이너리 변경으로 재개 거부')
+        raise ValueError('실제 GGUF/CLI 바이너리 무결성 변경으로 재개 거부')
     count=checkpoint.get('completed_tasks')
     steps=checkpoint.get('steps')
     if (type(count) is not int or not 0<=count<=30
@@ -96,7 +96,7 @@ def _resume_fixture(store,cli,gguf,checkpoint,*,expected_binary_hashes=None):
         raise ValueError('재개 체크포인트의 단계 수·성공 상태·목록 형식 오류')
     cid=checkpoint.get('campaign_id')
     if cid is not None and (type(cid) is not int or cid<=0):
-        raise ValueError('협업 식별자 손상')
+        raise ValueError('재개 체크포인트 협업 식별자 손상')
     if checkpoint.get('success') is True and count!=30:
         raise ValueError('성공 체크포인트와 실제 업무 수 불일치')
     store.login(USER,PASSWORD)
@@ -140,7 +140,7 @@ def _resume_fixture(store,cli,gguf,checkpoint,*,expected_binary_hashes=None):
     if (progress['verified_completed_tasks']!=count
             or progress['verified_genuine_prefix_tasks']!=count
             or progress['verified_chief_model_call_links']!=count):
-        raise ValueError('기존 단계 실제 직원·총괄·관리자 승인 연결 불일치')
+        raise ValueError('기존 단계 실제 직원·총괄 실제 모델 호출·관리자 승인 연결 불일치')
     with store._connect() as con:
         for index,entry in enumerate(steps):
             verified=progress['verified_evidence'][index]
@@ -179,7 +179,7 @@ def _resume_fixture(store,cli,gguf,checkpoint,*,expected_binary_hashes=None):
                 raise ValueError('과거 결과물·총괄 보고·관리자 승인의 무결성 오류')
         if count<30 and con.execute('SELECT 1 FROM company_task_runs WHERE task_id=?',
                          (plan['steps'][count]['task_id'],)).fetchone():
-            raise ValueError('미완료 실행 기록이 있어 GGUF 재호출 차단')
+            raise ValueError('미완료 모델 실행 기록이 있어 GGUF 재호출 차단')
     return tasks[0]['id'],existing,count
 
 
