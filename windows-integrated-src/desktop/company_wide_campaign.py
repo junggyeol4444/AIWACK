@@ -109,7 +109,7 @@ def initialize(con):
          NEW.role!=OLD.role OR NEW.title!=OLD.title OR
          NEW.instruction!=OLD.instruction OR NEW.chief_model_call_id!=OLD.chief_model_call_id OR
          NEW.plan_sha256!=OLD.plan_sha256)
-        BEGIN SELECT RAISE(ABORT,'승인 전 실제 총괄 계획 수정 금지'); END''')
+        BEGIN SELECT RAISE(ABORT,'실제 총괄 계획 초안은 수정할 수 없습니다'); END''')
 
 
 def _record_genuine_chief_plan_rejection(store, source_task_id, chief, call_id,
@@ -173,31 +173,31 @@ def _parse_single_chief_completion(raw,prompt,name):
     if json_start is not None:
         candidate='\n'.join(normalized[json_start:]).strip()
         try:obj,end=json.JSONDecoder().raw_decode(candidate)
-        except ValueError as error:raise ValueError('총괄 단일 부서 JSON 오류') from error
+        except ValueError as error:raise ValueError('총괄 단일 부서 JSON 생성 결과 오류') from error
         if candidate[end:].strip() or not isinstance(obj,dict):
-            raise ValueError('총괄 단일 부서 JSON 추가 텍스트 또는 타입 오류')
+            raise ValueError('총괄 단일 부서 JSON 생성 결과 오류')
         if obj.get('department',obj.get('부서명'))!=name:
-            raise ValueError('총괄 단일 부서 지시의 부서명이 다릅니다.')
+            raise ValueError('총괄 단일 부서 지시가 요청한 부서와 다릅니다.')
         title=obj.get('title',obj.get('업무 제목',obj.get('제목')))
         instruction=obj.get('instruction',obj.get('작업 지시',obj.get('지시')))
     else:
         rows=[v.strip('|').strip() for v in normalized if '|' in v]
-        if len(rows)>1:raise ValueError('총괄 단일 부서 계획에 여러 줄이 섞였습니다.')
+        if len(rows)>1:raise ValueError('총괄 단일 부서 계획에 여러 부서 지시가 섞였습니다.')
         if rows:
             parts=[x.strip() for x in rows[0].split('|')]
             if len(parts)==3:
-                if parts[0]!=name:raise ValueError('요청하지 않은 다른 부서 계획입니다.')
+                if parts[0]!=name:raise ValueError('총괄 단일 부서 지시가 요청한 부서와 다릅니다.')
                 title,instruction=parts[1:]
             elif len(parts)==2:
                 if parts[0] in {department for department,_ in BLUEPRINT_DEPARTMENTS}:
-                    raise ValueError('다른 부서명을 제목으로 재사용할 수 없습니다.')
+                    raise ValueError('총괄 단일 부서 지시가 요청한 부서와 다릅니다.')
                 title,instruction=parts
             else:raise ValueError('총괄 단일 부서 계획 필드 오류')
         else:
             combined=' '.join(normalized).strip()
             if any(re.match('^'+re.escape(d)+r'\s*[:：\-]',combined)
                    for d,_ in BLUEPRINT_DEPARTMENTS if d!=name):
-                raise ValueError('총괄 단일 부서 응답이 다른 부서에 속합니다.')
+                raise ValueError('총괄 단일 부서 지시가 요청한 부서와 다릅니다.')
             title,instruction=combined[:65],combined
     if not isinstance(title,str) or not isinstance(instruction,str):
         raise ValueError('총괄 단일 부서 출력 타입 오류')
@@ -255,7 +255,7 @@ def _verified_staged_group(con,source_task_id,start,fingerprint,roster_sha,
         WHERE source_task_id=? AND group_start=?''',(source_task_id,start)).fetchone()
     if row is None:return None
     if tuple(row[:4])!=(fingerprint,roster_sha,chief,model):
-        raise ValueError('기존 단계별 총괄 계획의 업무·조직·모델 변경')
+        raise ValueError('기존 단계별 총괄 계획의 원본 업무·조직·모델이 변경됐습니다.')
     if hashlib.sha256(row[4].encode('utf-8')).hexdigest()!=row[5]:
         raise ValueError('기존 단계별 총괄 계획 SHA256 손상')
     try:
@@ -280,7 +280,7 @@ def _verified_staged_group(con,source_task_id,start,fingerprint,roster_sha,
             FROM ai_model_call_history WHERE id=?''',(call_id,)).fetchone()
         if (audited is None or int(audited[0])!=chief or int(audited[1])!=model
               or audited[2]!='success' or int(audited[3])<=0):
-            raise ValueError('총괄 GGUF 실제 호출 기록이 단계별 감사와 불일치')
+            raise ValueError('총괄 실제 모델 호출 감사가 단계별 저장과 불일치합니다.')
         if con.execute('SELECT 1 FROM aiwack_wide_chief_rejected_attempts WHERE model_call_id=?',
                        (call_id,)).fetchone():
             raise ValueError('실패한 총괄 호출을 계획에 재사용할 수 없습니다.')
@@ -416,12 +416,12 @@ def _parse_group(raw, expected, *, prompt=''):
         title = title.strip()
         instruction = instruction.strip()
         if name not in mapping:
-            raise ValueError('총괄 계획에 요청하지 않은 부서가 포함됐습니다.')
+            raise ValueError('총괄 계획에 없는 부서 또는 요청하지 않은 부서가 포함됐습니다.')
         if (not 1 <= len(title) <= 65 or not 1 <= len(instruction) <= 330
                 or any(ord(c) < 32 for c in title + instruction)):
             raise ValueError('총괄의 부서 지시 길이·내용 오류')
         if name in plans:
-            raise ValueError('총괄의 동일 부서 계획이 중복됐습니다.')
+            raise ValueError('같은 부서의 상충하는 총괄 계획입니다.')
         plans[name] = (title, instruction)
 
     raw = '\n'.join(_generated_chief_lines(raw,prompt))
@@ -743,7 +743,7 @@ def approve(store,campaign_id:int):
         for ordinal,dept,employee,role,title,instruction,call_id,task_id,seal in steps:
             if (task_id is not None or not seal or seal!=_step_digest(
                     campaign_id,ordinal,dept,employee,role,title,instruction,call_id)):
-                raise ValueError('총괄 원본 생성 계획이 변경됐거나 이미 업무가 연결됨')
+                raise ValueError('총괄 원본 생성 계획이 변경됐거나 이미 업무에 연결됐습니다.')
         _assert_campaign_plan_matches_genuine_staging(store,con,campaign_id)
         prev=None
         for ordinal,dept,employee,role,title,instruction,call_id,task_id,seal in steps:
