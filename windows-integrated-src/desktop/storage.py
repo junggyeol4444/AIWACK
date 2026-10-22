@@ -408,6 +408,17 @@ class LocalStore:
                 )
             """)
 
+            # Additive migration: preserve existing owner-entered reports.
+            # NULL means a legacy/manual report, not verified GGUF inference.
+            if 'chief_model_call_id' not in {
+                row[1] for row in con.execute('PRAGMA table_info(company_chief_task_reports)')
+            }:
+                con.execute('ALTER TABLE company_chief_task_reports '
+                            'ADD COLUMN chief_model_call_id INTEGER REFERENCES ai_model_call_history(id)')
+            con.execute('CREATE UNIQUE INDEX IF NOT EXISTS chief_report_model_call_unique '
+                        'ON company_chief_task_reports(chief_model_call_id) '
+                        'WHERE chief_model_call_id IS NOT NULL')
+
             # Stage 31: bounded-content, append-only aggregate health snapshots.
             # Monitoring never changes tasks, runs, reports, or employee data.
             con.execute("""
@@ -1390,7 +1401,8 @@ class LocalStore:
             return dict(row)
 
     def save_chief_task_report(self, artifact_id: int, body: str, *,
-                               lease_token: str | None = None) -> int:
+                               lease_token: str | None = None,
+                               model_call_id: int | None = None) -> int:
         """Save owner-visible review, fencing stale automatic model invocations.
 
         A manual owner save may omit a token; an in-flight model must supply
@@ -1429,10 +1441,22 @@ class LocalStore:
             if con.execute('SELECT 1 FROM company_chief_task_reports WHERE order_id=? OR artifact_id=?',
                            (row[0],artifact_id)).fetchone():
                 raise ValueError('이미 저장된 총괄 AI 회수 보고서는 변경할 수 없습니다.')
+            if model_call_id is not None:
+                if type(model_call_id) is not int or model_call_id <= 0:
+                    raise ValueError('총괄 실제 모델 호출 번호가 올바르지 않습니다.')
+                call=con.execute("""SELECT h.employee_id,h.model_id,h.status,h.output_chars,
+                       m.model_id FROM ai_model_call_history h
+                       LEFT JOIN ai_employee_model_assignments m ON m.employee_id=h.employee_id
+                       WHERE h.id=?""",(model_call_id,)).fetchone()
+                if (not call or int(call[0])!=int(row[1]) or
+                        call[1] is None or call[1]!=call[4] or
+                        call[2]!='success' or int(call[3])<=0):
+                    raise ValueError('총괄 실제 모델 호출 감사가 승인 지시와 일치하지 않습니다.')
             digest=hashlib.sha256(body.encode('utf-8')).hexdigest()
             return int(con.execute("""INSERT INTO company_chief_task_reports
-                (order_id,artifact_id,chief_employee_id,body,sha256) VALUES(?,?,?,?,?)""",
-                (row[0],artifact_id,row[1],body,digest)).lastrowid)
+                (order_id,artifact_id,chief_employee_id,body,sha256,chief_model_call_id)
+                VALUES(?,?,?,?,?,?)""",
+                (row[0],artifact_id,row[1],body,digest,model_call_id)).lastrowid)
 
     def read_chief_task_report(self, report_id: int) -> dict[str, object]:
         self.require_permission('company:manage')
