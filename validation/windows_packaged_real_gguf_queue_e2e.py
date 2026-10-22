@@ -160,6 +160,115 @@ def _live_window(w):
     return recovered
 
 
+
+# Preserve the identity of a destroyed Tk dialog across handle recreation.
+WINDOW_TITLES={}
+WINDOW_PIDS={}
+
+
+def _native_window_pid(hwnd):
+    if os.name!='nt':
+        return None
+    import ctypes
+    api=ctypes.windll.user32
+    api.IsWindow.argtypes=(ctypes.c_void_p,)
+    api.IsWindow.restype=ctypes.c_bool
+    api.GetWindowThreadProcessId.argtypes=(ctypes.c_void_p,ctypes.POINTER(ctypes.c_ulong))
+    api.GetWindowThreadProcessId.restype=ctypes.c_ulong
+    handle=ctypes.c_void_p(int(hwnd))
+    if not api.IsWindow(handle):
+        raise AssertionError('기존 창 HWND가 소멸했습니다.')
+    pid=ctypes.c_ulong(0)
+    if not api.GetWindowThreadProcessId(handle,ctypes.byref(pid)) or not pid.value:
+        raise AssertionError('Tk 창의 실제 Windows PID를 확인할 수 없습니다.')
+    return int(pid.value)
+
+
+def _visible_window(w):
+    """Reacquire a GUI window by exact title + original process, not guessed HWND."""
+    hwnd=getattr(w,'_hWnd',None)
+    try:
+        title=w.title
+        if title:WINDOW_TITLES[hwnd]=title
+    except Exception:
+        title=''
+    name=WINDOW_TITLES.get(hwnd) or title
+    if not name:raise AssertionError('Unknown native window; no physical click')
+    pid=WINDOW_PIDS.get(name)
+    if pid is None and hwnd is not None:
+        try:
+            pid=_native_window_pid(hwnd)
+        except (AssertionError,OSError,ValueError):
+            if os.name=='nt':
+                raise AssertionError('Unknown original PID; physical click prohibited')
+        if pid is not None:WINDOW_PIDS[name]=pid
+    if os.name=='nt' and pid is None:
+        raise AssertionError('Original Win32 process cannot be verified')
+    for _ in range(5):
+        try:windows=pygetwindow.getAllWindows()
+        except Exception:windows=[]
+        matched=[]
+        for candidate in windows:
+            try:
+                if (candidate.title==name and candidate.width>300
+                        and candidate.height>250):
+                    candidate_pid=_native_window_pid(candidate._hWnd)
+                    if pid is None or candidate_pid==pid:
+                        matched.append(candidate)
+            except Exception:
+                continue
+        if len(matched)==1:
+            candidate=matched[0]
+            try:
+                candidate.left;candidate.top;candidate.width;candidate.height
+                WINDOW_TITLES[candidate._hWnd]=name
+                if pid is not None:WINDOW_PIDS[name]=pid
+                return candidate
+            except Exception:
+                pass
+        if len(matched)>1:
+            evidence('native-window-missing-or-ambiguous')
+            raise AssertionError('Expected one live native window %r, got %d'%(name,len(matched)))
+        time.sleep(.12)
+    evidence('native-window-missing-or-ambiguous')
+    raise AssertionError('Expected one live native window %r, got 0'%(name,))
+
+
+def _stable_native_rect(w):
+    """Win32 1400 can invalidate a Tk property halfway through reading geometry."""
+    for _ in range(4):
+        try:
+            live=_visible_window(w)
+            rect=(live.left,live.top,live.width,live.height)
+            if rect[2]>300 and rect[3]>250:
+                return live,rect
+        except (OSError,AssertionError,ValueError):
+            pass
+        time.sleep(.10)
+    evidence('native-window-geometry-unstable')
+    raise AssertionError('Native GUI geometry changed during verification')
+
+
+def close_dialog_safely(w,expected_title):
+    """Close only an exact Tk modal, never the main company owner dashboard."""
+    if not isinstance(expected_title,str) or not expected_title.startswith('AIWACK |'):
+        raise AssertionError('Expected a separate Windows window dialog')
+    live=_visible_window(w)
+    if live.title!=expected_title:
+        raise AssertionError('Refusing close: different Windows window')
+    candidates=[]
+    for window in pygetwindow.getAllWindows():
+        try:
+            if window.title==expected_title:
+                candidates.append(window)
+        except Exception:
+            pass
+    if len(candidates)!=1 or int(candidates[0]._hWnd)!=int(live._hWnd):
+        raise AssertionError('Refusing close: different Windows window or ambiguous modal')
+    live.close()
+    return True
+
+
 def _active_is(w):
     try:
         active = pygetwindow.getActiveWindow()
@@ -320,14 +429,13 @@ def bind_model(w, employee_index, model_cli, gguf):
 
 
 def _close_verified_dialog(w):
-    """Close only a still-live verified dialog; never broadcast Alt+F4."""
+    """Close the exact PID-verified Tk modal without ending the main EXE."""
     try:
-        w = _live_window(w)
+        expected=WINDOW_TITLES.get(getattr(w,'_hWnd',None)) or w.title
+        w=_focus_verified(_visible_window(w))
+        return close_dialog_safely(w,expected)
     except AssertionError:
-        return False  # A Tk dialog may have already closed itself.
-    w = _focus_verified(w)
-    w.close()
-    return True
+        return False
 
 
 def wait_office_dashboard(window, timeout=80):
