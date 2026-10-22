@@ -8,6 +8,7 @@ import csv
 import sqlite3
 import threading
 import queue
+from uuid import uuid4
 from pathlib import Path
 import sys
 import tkinter as tk
@@ -57,6 +58,8 @@ class AIWACKWindow:
         self.auth_feedback = tk.StringVar(value="")
         self._session_generation = 0
         self._health_timer_id = None
+        self._continuity_timer_id = None
+        self._continuity_session = None
         self._model_cancel: threading.Event | None = None
         self._model_thread: threading.Thread | None = None
         self._auto_proposal_ai_enabled = False  # explicit opt-in, session only
@@ -122,8 +125,14 @@ class AIWACKWindow:
         self._layout()
         self.refresh()
         self._health_timer_tick(self._session_generation)
+        self._continuity_session = uuid4().hex
+        self._continuity_tick(self._session_generation)
 
     def sign_out(self) -> None:
+        if self._continuity_timer_id is not None:
+            self.root.after_cancel(self._continuity_timer_id)
+            self._continuity_timer_id = None
+        self._continuity_session = None
         if self._health_timer_id is not None:
             self.root.after_cancel(self._health_timer_id)
             self._health_timer_id = None
@@ -3201,6 +3210,24 @@ class AIWACKWindow:
             self.refresh_recurring_schedules()
         except (ValueError, PermissionError) as exc:
             self.recurring_feedback.set(str(exc))
+
+    def _continuity_tick(self, generation: int) -> None:
+        """Record actual logged-in native Tk GUI presence, not fake 24h uptime."""
+        self._continuity_timer_id = None
+        if (generation != self._session_generation or
+                not self.store.is_authenticated or self._continuity_session is None):
+            return
+        try:
+            from desktop.company_continuity import record_gui_heartbeat
+            record_gui_heartbeat(self.store,self._continuity_session)
+        except (ValueError,PermissionError,OSError):
+            # Heartbeat failure must not trigger AI actions, payments or
+            # silently turn an interrupted run into a successful one.
+            pass
+        if (generation == self._session_generation and self.store.is_authenticated
+                and self._continuity_session is not None and self.root.winfo_exists()):
+            self._continuity_timer_id = self.root.after(
+                60_000,lambda:self._continuity_tick(generation))
 
     def _health_timer_tick(self, generation: int) -> None:
         self._health_timer_id = None
