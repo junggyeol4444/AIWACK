@@ -5703,12 +5703,23 @@ class AIWACKWindow:
             self._wide_final_decision('accepted')).pack(side='left',padx=3)
         tk.Button(reports,text='최종보고 관리자 반려',command=lambda:
             self._wide_final_decision('rejected')).pack(side='left',padx=3)
+        tk.Button(reports,text='고객·상품·은행대사·기간결산 관리',
+            command=self._wide_open_native_workflows).pack(side='left',padx=3)
         self._label(card,'',textvariable=self.wide_status,fg='#8ee4b7',wraplength=900).pack(anchor='w',pady=6)
         self.wide_results=tk.Text(card,height=15,width=112,wrap='word')
         self.wide_results.pack(fill='both',expand=True,pady=6)
         self.wide_results.insert('end','각 단계의 직원 모델 호출·총괄 결과 검토 후 결과물과 보고서를 '
             '기존 AI 회사 운영센터에서 관리자가 별도 승인해야 다음 단계로 진행할 수 있습니다.\n')
         self.wide_results.configure(state='disabled')
+
+    def _wide_open_native_workflows(self):
+        """Open existing SQLite-backed company workflows in native Korean Tk."""
+        try:
+            from desktop.company_native_owner_workflows import open_native_company_workflows
+            self.store.require_permission('company:manage')
+            open_native_company_workflows(self.root,self.store)
+        except (PermissionError,ValueError,RuntimeError) as exc:
+            self.wide_status.set('관리자 회사 업무 창 열기 실패: '+str(exc))
 
     def _wide_write(self,text):
         self.wide_results.configure(state='normal')
