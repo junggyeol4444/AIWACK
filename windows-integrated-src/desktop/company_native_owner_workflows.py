@@ -33,10 +33,13 @@ class CompanyOwnerWorkflows:
         tabs.add(bank, text='은행 CSV · 사업 결산')
         tabs.add(customer, text='고객 문의 · 승인 답변')
         tabs.add(product, text='30업무 · 상품 결과물')
+        continuity = ttk.Frame(tabs)
+        tabs.add(continuity, text='운영 기록 · 중단 복구')
         self._payment(payment)
         self._bank(bank)
         self._customer(customer)
         self._product(product)
+        self._continuity(continuity)
         self.output = tk.Text(self.window, height=12, wrap='word')
         self.output.pack(fill='both', expand=True, padx=12, pady=10)
         self.output.insert('end','기존 SQLite 원본 결과와 관리자 승인 기록만 조회·연결합니다.')
@@ -89,6 +92,56 @@ class CompanyOwnerWorkflows:
             filetypes=[('CSV', '*.csv'), ('전체 파일', '*.*')])
         if path:
             self.values['csv'].set(path)
+
+    def _continuity(self,panel):
+        """Native read-only uptime evidence plus deliberately reviewed recovery."""
+        self._field(panel,'stale_kind','중단된 실행 종류 (tick/model)')
+        self._field(panel,'stale_id','중단된 실행 번호')
+        self._field(panel,'stale_note','관리자 복구 판단 사유 (5~200자)')
+        self.values['process_checked']=tk.BooleanVar(value=False)
+        ttk.Checkbutton(panel,text='다른 Windows 창과 실행 중인 실제 모델 프로세스를 직접 확인했습니다.',
+                        variable=self.values['process_checked']).pack(anchor='w',padx=14,pady=10)
+        self._buttons(panel,[
+            ('실제 로그인 GUI 지속 기록',lambda:self._perform('관측된 GUI 세션 기록',
+                 self._observed_continuity)),
+            ('180초 이상 중단된 업무 목록',lambda:self._perform('수동 검토가 필요한 실행',
+                 self._stale_claims))])
+        self._buttons(panel,[
+            ('관리자 직접 중단 판정',self._owner_mark_stale),
+            ('과거 복구 감사 조회',lambda:self._perform('변경 불가능한 로컬 복구 감사',
+                 self._recovery_audit))])
+        ttk.Label(panel,text=('이 기록은 GUI 실행·로그인 중 실제 관측한 SQLite 기록입니다. '
+            'Windows 10/11에서 24시간 실제 검증을 수행했다는 인증이 아닙니다. '
+            '실행 중인 외부 프로세스를 종료하거나 AI를 자동 재호출하지 않습니다.'),
+            wraplength=860).pack(anchor='w',padx=12,pady=12)
+
+    def _observed_continuity(self):
+        from desktop.company_continuity import observed_gui_continuity
+        return observed_gui_continuity(self.store)
+
+    def _stale_claims(self):
+        from desktop.company_continuity import recent_stale_claims
+        return recent_stale_claims(self.store,min_age_seconds=180)
+
+    def _recovery_audit(self):
+        from desktop.company_continuity import read_recovery_audit
+        return read_recovery_audit(self.store,limit=30)
+
+    def _owner_mark_stale(self):
+        from desktop.company_continuity import inspect_and_close_stale
+        def action():
+            if not self.values['process_checked'].get():
+                raise PermissionError('다른 프로세스를 직접 확인한 관리자의 체크가 필요합니다.')
+            kind=self._get('stale_kind')
+            if kind not in ('tick','model'):
+                raise ValueError('실행 종류는 tick 또는 model이어야 합니다.')
+            result=inspect_and_close_stale(self.store,kind,self._id('stale_id'),
+                  self._get('stale_note'),owner_confirmed=True)
+            self.values['process_checked'].set(False)
+            return result
+        self._perform('관리자 확인 후 중단된 실행 감사 처리',action,
+            ('실제 다른 Windows 창과 모델 프로세스가 실행 중이지 않은지 직접 확인한 경우에만 '
+             '기존 running 기록을 failed로 표시합니다. 실제 프로세스 종료·모델 재호출은 하지 않습니다. 계속합니까?'))
 
     def _payment(self, panel):
         """Only ingest pre-existing signed evidence; never initiate a payment."""
