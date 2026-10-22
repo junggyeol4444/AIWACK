@@ -105,6 +105,14 @@ def review(store,event_id:int,decision:str,note:str):
         if row is None:raise ValueError('없는 거래 이벤트')
         provider,tx,business,kind,related,amount,state=row
         if state!='pending':raise ValueError('이미 검수한 거래의 재승인 금지')
+        if decision=='accepted' and kind in ('refund','expense'):
+            # Providers can retry delivery under a new event_id. One provider
+            # transaction must not be booked twice, even with a valid signature.
+            if con.execute('''SELECT 1 FROM aiwack_provider_payment_events
+                WHERE provider=? AND transaction_id=? AND event_type=?
+                AND owner_decision='accepted' LIMIT 1''',
+                (provider,tx,kind)).fetchone():
+                raise ValueError('동일 공급자 거래의 환불·비용 중복 승인 금지')
         if decision=='accepted' and kind=='refund':
             original=con.execute('''SELECT SUM(amount_minor) FROM aiwack_provider_payment_events
                 WHERE provider=? AND transaction_id=? AND business_id=? AND event_type='settlement'
@@ -116,8 +124,8 @@ def review(store,event_id:int,decision:str,note:str):
                 raise ValueError('검수된 원거래 금액을 초과하는 환불 금지')
         if decision=='accepted' and kind=='settlement':
             if con.execute('''SELECT 1 FROM aiwack_provider_payment_events
-                WHERE provider=? AND transaction_id=? AND business_id=? AND event_type='settlement'
-                 AND owner_decision='accepted' ''',(provider,tx,business)).fetchone():
+                WHERE provider=? AND transaction_id=? AND event_type='settlement'
+                 AND owner_decision='accepted' ''',(provider,tx)).fetchone():
                 raise ValueError('같은 정산 거래를 두 번 승인할 수 없습니다.')
         con.execute('''UPDATE aiwack_provider_payment_events SET owner_decision=?,decision_note=?,
             decided_at=CURRENT_TIMESTAMP WHERE id=? AND owner_decision='pending' ''',

@@ -5680,6 +5680,9 @@ class AIWACKWindow:
         self.wide_propose_button=tk.Button(row,text='총괄 AI 15부서 실제 계획 생성',
             command=self._wide_propose)
         self.wide_propose_button.pack(side='left',padx=3)
+        self.wide_staged_button=tk.Button(row,text='총괄 계획 중단·재개 상태',
+            command=self._wide_staged_progress)
+        self.wide_staged_button.pack(side='left',padx=3)
         self._label(row,'협업 계획 ID').pack(side='left',padx=5)
         tk.Entry(row,textvariable=self.wide_plan,width=9).pack(side='left',padx=3)
         row=tk.Frame(card,bg='#1c2a40');row.pack(fill='x',pady=5)
@@ -5743,6 +5746,17 @@ class AIWACKWindow:
                 self.wide_status.set('한 단계 실제 직원·총괄 실행. 결과물·보고서를 별도로 검수하세요.')
                 self._wide_write(str(result))
         self.root.after(120,poll)
+
+    def _wide_staged_progress(self):
+        try:
+            source=int(self.wide_source.get())
+            result=self.store.staged_full_company_progress(source)
+            self.wide_status.set('실제 총괄 모델 단계별 계획 저장: '
+                +str(result['completed_groups'])+'/5개 묶음. '
+                '같은 기준 업무로 계획 생성을 다시 누르면 남은 묶음부터 재개합니다. '
+                '30업무 실행에는 별도 관리자 승인이 필요합니다.')
+        except (ValueError,PermissionError,RuntimeError) as exc:
+            self.wide_status.set('총괄 계획 재개 상태 확인 실패: '+str(exc))
 
     def _wide_propose(self):
         try:

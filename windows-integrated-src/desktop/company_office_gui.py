@@ -326,7 +326,10 @@ class CompanyOffice:
         self._action(recoverybar, '미완료 직원 실행 확인 ↗',
                      lambda: self._goto_native('AI 업무 실행'), compact=True)
         self._action(recoverybar, '결과물 품질 검사', self.quality_check_result, compact=True)
+        self._action(recoverybar, '실제 고객지원 업무', self.customer_case_menu, compact=True)
         self._action(recoverybar, '승인 결과 파일 저장', self.export_result, compact=True)
+        self._action(recoverybar, '승인 결과를 상품 문서로 연결',
+                     self.export_catalog_document, compact=True)
         knowledgebar=tk.Frame(card,bg=CARD)
         knowledgebar.pack(fill='x',pady=(2,0))
         self._action(knowledgebar, '승인 결과 회사 지식 등록',
@@ -335,6 +338,7 @@ class CompanyOffice:
                      self.show_knowledge_links, compact=True)
         self._action(knowledgebar, '총괄 검토 잠금 확인·복구',
                      self.inspect_chief_review_lease, compact=True)
+        self._action(knowledgebar, '증빙 관리', self.manage_evidence, compact=True)
         self._label(card, '', size=9, color=AMBER, textvariable=self.review_summary).pack(anchor='w', pady=(5, 0))
         self._label(card, '실제 생성 결과가 없으면 표시하지 않습니다. 승인해도 업무가 자동 완료되지 않습니다.',
                     size=8, color=MUTED).pack(anchor='w', pady=(3, 0))
@@ -1408,6 +1412,165 @@ class CompanyOffice:
             self._say(f"승인 결과 #{aid} 저장 완료: {report['path']}")
         except (ValueError,PermissionError,FileExistsError,OSError,RuntimeError) as exc:
             self._say('파일 내보내기 오류: '+str(exc))
+
+    def manage_evidence(self):
+        """기존 네이티브 Tk 관리자가 실행하는 로컬 감사 도구."""
+        from tkinter import filedialog
+        try:
+            action = simpledialog.askstring('회사 감사 증빙 관리',
+                '은행CSV / 30업무감사 / 은행조회 / 감사조회 / 단계점검 / 결산점검 / 결산확정 / 결산조회 / 결산내역 / 최종보고 / 보고조회 / 보고승인 / 보고반려 중 입력하세요.\n'
+                '은행 CSV도 독립적인 실제 입금 인증으로 간주하지 않습니다.',
+                parent=self.root)
+            if action is None:return
+            if action=='은행CSV':
+                selected=filedialog.askopenfilename(parent=self.root,
+                    title='소유자 은행 거래 원본 CSV 선택',
+                    filetypes=[('CSV 파일','*.csv')])
+                if not selected:return
+                if not messagebox.askyesno('은행 거래 CSV 로컬 대사',
+                    '승인된 HMAC 거래 증빙과 선택 CSV를 정확히 비교해 SQLite에 불변 저장합니다.\n'
+                    '실제 은행 API 확인이나 결제·환불 실행은 하지 않습니다. 진행할까요?',
+                    parent=self.root):return
+                report=self.store.reconcile_owner_bank_csv(selected)
+                self._say(f"은행 CSV 대사 #{report['batch_id']}: {report['matched_signed_events']}건 일치 (외부 은행 미확인)")
+            elif action in ('30업무감사','은행조회','감사조회','단계점검','결산점검','결산확정','결산조회','결산내역','최종보고','보고조회','보고승인','보고반려'):
+                ident=simpledialog.askinteger('감사 원본 번호',
+                    '30업무 협업/사업/결산/감사 번호:',parent=self.root,minvalue=1)
+                if ident is None:return
+                if action=='30업무감사':
+                    if not messagebox.askyesno('30업무 모델 감사 저장',
+                        '기존 직원·총괄 모델 호출, 관리자 승인된 SQLite 증빙만 저장합니다.\n'
+                        'Windows 실제 GGUF/EXE 물리 실행 증거로 대신하지 않습니다. 진행할까요?',
+                        parent=self.root):return
+                    report=self.store.export_campaign_call_evidence(ident)
+                elif action=='단계점검':
+                    report=self.store.inspect_campaign_step_evidence(ident)
+                elif action=='결산점검':
+                    report=self.store.preview_business_financial_close(ident)
+                elif action=='결산확정':
+                    preview=self.store.preview_business_financial_close(ident)
+                    if not preview['eligible_for_local_close']:
+                        raise ValueError('검수 대기 또는 은행 CSV 미대사 거래가 있어 결산 불가')
+                    if not messagebox.askyesno('사업 결산 원본 확정',
+                          '관리자 검수+로컬 CSV 대사만 확인된 결산을 불변 저장합니다.\n'
+                          '실제 은행·PG 독립 확인이나 송금이 아닙니다. 확정할까요?',
+                          parent=self.root):return
+                    note=simpledialog.askstring('결산 확정 사유',
+                         '이 결산을 확정하는 사유(5~200자):',parent=self.root)
+                    if note is None:return
+                    report=self.store.create_business_financial_close(ident,note)
+                elif action=='최종보고':
+                    if not messagebox.askyesno('30업무 총괄 AI 최종 보고',
+                         '실제 총괄 AI 로컬 모델을 호출해 승인된 30개 결과물을 정리합니다.\n'
+                         '관리자 최종 승인은 별도로 필요하며 실제 거래·게시를 하지 않습니다. 진행할까요?',
+                         parent=self.root):return
+                    report=self.store.propose_campaign_final_report(ident)
+                elif action in ('보고조회','보고승인','보고반려'):
+                    if action=='보고조회':
+                        report=self.store.read_campaign_final_report(ident)
+                    else:
+                        decision='accepted' if action=='보고승인' else 'rejected'
+                        current=self.store.read_campaign_final_report(ident)
+                        self._text_dialog('총괄 AI 최종 보고 원문 검수',current['report'])
+                        if not messagebox.askyesno('관리자 최종 결과 승인 결정',
+                             f'총괄 최종 보고 #{ident}를 {"승인" if decision=="accepted" else "반려"}하시겠습니까?\n'
+                             '외부 계약·결제·게시를 실행하지 않습니다.',parent=self.root):return
+                        reason=simpledialog.askstring('관리자 검토 사유','5~200자 검토 사유:',parent=self.root)
+                        if reason is None:return
+                        report=self.store.decide_campaign_final_report(ident,decision,reason)
+                elif action=='결산조회':
+                    report=self.store.read_business_financial_close(ident)
+                elif action=='결산내역':
+                    report=self.store.list_business_financial_closes(ident)
+                elif action=='은행조회':
+                    report=self.store.read_bank_reconciliation(ident)
+                else:
+                    report=self.store.read_campaign_call_evidence(ident)
+                self._text_dialog('로컬 감사 결과 (독립 기관 미검증)',str(report))
+            else:
+                raise ValueError('은행CSV·30업무감사·은행조회·감사조회·단계점검·결산점검·결산확정·결산조회·결산내역 중 입력하세요.')
+        except (ValueError,PermissionError,OSError,RuntimeError) as exc:
+            self._say('감사 자료 검증 오류: '+str(exc))
+
+    def customer_case_menu(self):
+        """Native Tk owner controls: receipt, inspect, reviewed reply, close."""
+        try:
+            action=simpledialog.askstring('고객지원 업무',
+                '등록 / 조회 / 답변승인 / 답변파일 / 종료 중 하나를 입력하세요.\n'
+                '외부 메시지·결제·발송을 하지 않습니다.',parent=self.root)
+            if action is None:return
+            if action=='등록':
+                ref=simpledialog.askstring('고객 문의 접수','외부 문의 고유 번호:',parent=self.root)
+                if ref is None:return
+                alias=simpledialog.askstring('고객 문의 접수','고객 식별명 (개인정보는 최소화):',parent=self.root)
+                if alias is None:return
+                question=simpledialog.askstring('고객 문의 접수','고객 문의 원문:',parent=self.root)
+                if question is None:return
+                if not messagebox.askyesno('실제 고객 문의 업무 등록',
+                    '관리자가 입력한 고객 문의를 실제 회사 업무와 연결합니다.\n'
+                    '외부 고객에게 답변하거나 결제하지 않습니다. 등록할까요?',parent=self.root):return
+                result=self.store.create_customer_case(ref,alias,question)
+                self.refresh()
+                self._say(f"고객 문의 #{result['id']} / 업무 #{result['task_id']} 접수됨")
+                return
+            if action not in ('조회','답변승인','답변파일','종료'):
+                raise ValueError('등록·조회·답변승인·답변파일·종료 중 선택해야 합니다.')
+            cid=simpledialog.askinteger('고객 문의 번호','이미 접수된 고객 문의 ID:',parent=self.root,minvalue=1)
+            if cid is None:return
+            if action=='조회':
+                case=self.store.read_customer_case(cid)
+                self._text_dialog('고객지원 원본 상태',str(case))
+                return
+            if action=='답변파일':
+                if not messagebox.askyesno('고객 답변 로컬 파일 생성',
+                    '관리자가 승인한 고객지원 답변을 실제 로컬 Markdown 파일로 보존합니다.\n'
+                    '외부 고객에게 발송하거나 결제하지 않습니다. 진행합니까?',parent=self.root):return
+                result=self.store.export_approved_customer_reply(cid)
+                self._say('고객 답변 승인 파일 생성: '+result['path'])
+                return
+            if action=='답변승인':
+                aid=self._selected_artifact()
+                if not messagebox.askyesno('고객 답변 내부 승인',
+                    f'고객 문의 #{cid}과 실제 승인 결과물 #{aid}를 연결할까요?\n'
+                    '외부 발송과 고객 수신 확인은 하지 않습니다.',parent=self.root):return
+                result=self.store.approve_customer_reply(cid,aid)
+            else:
+                if not messagebox.askyesno('고객 문의 내부 종료',
+                    f'문의 #{cid}을 내부적으로 완료 처리할까요?\n'
+                    '외부 고객에게 응답을 발송한 것으로 기록하지 않습니다.',parent=self.root):return
+                result=self.store.close_customer_case(cid)
+            self._say(f"고객지원 #{cid} 상태: {result['state']}")
+        except (ValueError,PermissionError,RuntimeError) as exc:
+            self._say('고객지원 업무 오류: '+str(exc))
+
+    def export_catalog_document(self):
+        """Owner-selected existing campaign step and catalog, no automatic sale."""
+        try:
+            artifact_id = self._selected_artifact()
+            artifact = self.store.read_task_artifact(artifact_id)
+            with self.store._connect() as con:
+                step = con.execute("""SELECT campaign_id,ordinal FROM aiwack_wide_campaign_steps
+                    WHERE task_id=?""", (artifact['task_id'],)).fetchone()
+            if not step:
+                raise ValueError('30업무 회사 전체 협업의 승인 결과물만 연결할 수 있습니다.')
+            catalog_id = simpledialog.askinteger('상품·서비스 카탈로그',
+                    '기존 상품·서비스 카탈로그 ID를 입력하세요.\n'
+                    '승인된 직원 결과물을 실제 Markdown 파일로만 보존합니다.',
+                    parent=self.root, minvalue=1)
+            if catalog_id is None:
+                return
+            if not messagebox.askyesno('상품 문서 생성 확인',
+                    f'결과물 #{artifact_id} / 캠페인 #{step[0]} · 단계 {step[1]} / 상품 #{catalog_id}\n'
+                    '관리자 승인·총괄 보고를 검사한 뒤 파일을 생성합니다.\n'
+                    '외부 게시·판매·실거래 또는 상품 출시 승인은 수행하지 않습니다. 진행합니까?',
+                    parent=self.root):
+                return
+            result = self.store.export_approved_product_document(int(step[0]),int(step[1]),catalog_id)
+            if result['artifact_id'] != artifact_id:
+                raise ValueError('화면에서 선택된 결과물이 현재 승인 증빙과 일치하지 않습니다.')
+            self._say('승인된 상품 문서 파일 생성: '+result['path'])
+        except (ValueError,PermissionError,FileExistsError,OSError,RuntimeError) as exc:
+            self._say('상품 문서 생성 거부: '+str(exc))
 
     def _review(self, decision):
         try:
