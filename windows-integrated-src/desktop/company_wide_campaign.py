@@ -504,12 +504,96 @@ def assert_handoff_ready(con, task_id: int) -> dict | None:
             'artifact_sha256':str(proof[2]),'chief_report_sha256':str(proof[10])}
 
 
+
+def _verified_step_evidence(con, campaign_id: int, ordinal: int, *,
+                            expected_chief: int, require_done: bool = True) -> dict | None:
+    """Validate exact campaign task, owner review, call and report joins."""
+    row=con.execute("""SELECT s.task_id,s.employee_id,t.status,a.id,a.body,a.sha256,
+            a.review_status,r.status,h.status,rep.owner_decision,rep.body,rep.sha256,
+            r.employee_id,h.employee_id,ord.worker_employee_id,
+            ord.chief_employee_id,rep.chief_employee_id,
+            disp.order_id,rep.order_id,ord.task_id,r.task_id,a.task_id,
+            r.model_id,h.model_id,rep.artifact_id,disp.run_id,r.id,r.output_chars,h.output_chars
+        FROM aiwack_wide_campaign_steps s
+        JOIN aiwack_wide_campaigns c ON c.id=s.campaign_id AND c.state='approved'
+        JOIN company_tasks t ON t.id=s.task_id
+        JOIN company_task_artifacts a ON a.task_id=s.task_id
+        JOIN company_task_runs r ON r.id=a.run_id AND r.task_id=s.task_id
+        JOIN ai_model_call_history h ON h.id=r.model_call_id
+        JOIN company_chief_task_dispatches disp ON disp.run_id=r.id
+        JOIN company_chief_task_orders ord ON ord.id=disp.order_id
+        JOIN company_chief_task_reports rep ON rep.artifact_id=a.id
+        WHERE s.campaign_id=? AND s.ordinal=?
+        ORDER BY a.id DESC LIMIT 1""",(campaign_id,ordinal)).fetchone()
+    if not row:
+        return None
+    (task,employee,status,aid,body,sha,review,run_status,call_status,decision,
+     report_body,report_sha,run_employee,call_employee,order_worker,
+     order_chief,report_chief,dispatch_order,report_order,order_task,
+     run_task,artifact_task,run_model,call_model,report_artifact,
+     dispatch_run,run_id,run_output_chars,call_output_chars)=row
+    if not (status==('done' if require_done else 'in_progress')
+            and review=='approved' and run_status=='success'
+            and call_status=='success' and decision=='accepted'
+            and int(employee)==int(run_employee)==int(call_employee)==int(order_worker)
+            and int(expected_chief)==int(order_chief)==int(report_chief)
+            and int(dispatch_order)==int(report_order)
+            and int(task)==int(order_task)==int(run_task)==int(artifact_task)
+            and int(run_model)==int(call_model)
+            and int(aid)==int(report_artifact)
+            and int(dispatch_run)==int(run_id)
+            and int(run_output_chars)>0 and int(call_output_chars)>0):
+        return None
+    if (hashlib.sha256(str(body).encode('utf8')).hexdigest()!=sha
+            or hashlib.sha256(str(report_body).encode('utf8')).hexdigest()!=report_sha):
+        return None
+    return {'previous_task_id':int(task),'artifact_id':int(aid),
+            'artifact_sha256':str(sha),'chief_report_sha256':str(report_sha)}
+
+
+def _verified_chief_model_call_link(con, campaign_id: int, ordinal: int,
+                                    *, expected_chief: int) -> bool:
+    """Require the report's own real chief model call after worker inference."""
+    row=con.execute("""SELECT rep.chief_model_call_id, h.id, h.employee_id,
+          h.status,h.output_chars,rep.chief_employee_id,
+          r.model_call_id,r.employee_id,r.status,a.review_status,rep.owner_decision,
+          t.status,ord.chief_employee_id,rep.order_id,ord.id,
+          a.task_id,r.task_id,ord.task_id
+       FROM aiwack_wide_campaign_steps s
+       JOIN company_tasks t ON t.id=s.task_id
+       JOIN company_task_artifacts a ON a.task_id=t.id
+       JOIN company_task_runs r ON r.id=a.run_id
+       JOIN company_chief_task_reports rep ON rep.artifact_id=a.id
+       JOIN company_chief_task_orders ord ON ord.id=rep.order_id
+       LEFT JOIN ai_model_call_history h ON h.id=rep.chief_model_call_id
+       WHERE s.campaign_id=? AND s.ordinal=?
+       ORDER BY a.id DESC LIMIT 1""",(campaign_id,ordinal)).fetchone()
+    if row is None:
+        return False
+    (report_call,call_id,call_employee,call_state,chars,report_chief,
+     worker_call,worker_employee,worker_state,review,decision,task_state,
+     order_chief,report_order,order_id,artifact_task,run_task,order_task)=row
+    if report_call is None or con.execute(
+            'SELECT COUNT(*) FROM company_chief_task_reports WHERE chief_model_call_id=?',
+            (report_call,)).fetchone()[0]!=1:
+        return False
+    if any(type(value) is not int or value<=0 for value in
+           (report_call,call_id,call_employee,report_chief,order_chief,
+            expected_chief,worker_call)):
+        return False
+    return bool(call_id==report_call
+        and call_employee==report_chief==order_chief==expected_chief
+        and call_state=='success' and type(chars) is int and chars>0
+        and call_id>worker_call
+        and worker_state=='success' and review=='approved' and decision=='accepted'
+        and task_state=='done' and report_order==order_id
+        and artifact_task==run_task==order_task)
+
+
 def verified_progress(store, campaign_id: int) -> dict:
-    """Read-only evidence dashboard; simulated calls are not attested genuine GGUF."""
+    """Read-only sequential owner/employee/chief evidence, not binary GGUF proof."""
     plan=read(store,campaign_id)
-    verified=[]
-    waiting=[]
-    next_task=None
+    verified=[];waiting=[];next_task=None;genuine_chief_links=0;genuine_prefix=0
     with store._connect() as con:
         for row in plan['steps']:
             task=row['task_id']
@@ -518,35 +602,30 @@ def verified_progress(store, campaign_id: int) -> dict:
                 continue
             if row['task_status']!='done' and next_task is None:
                 next_task=int(task)
-            a=con.execute("""SELECT a.id,a.sha256,a.body,a.review_status,
-                r.status,h.status,h.employee_id,rep.owner_decision,rep.sha256,rep.body
-                FROM company_task_artifacts a
-                JOIN company_task_runs r ON r.id=a.run_id AND r.task_id=a.task_id
-                JOIN ai_model_call_history h ON h.id=r.model_call_id
-                  AND h.employee_id=r.employee_id AND h.model_id=r.model_id
-                JOIN company_chief_task_reports rep ON rep.artifact_id=a.id
-                WHERE a.task_id=? ORDER BY a.id DESC LIMIT 1""",(task,)).fetchone()
-            good=bool(a and row['task_status']=='done' and a[3]=='approved'
-                    and a[4]=='success' and a[5]=='success'
-                    and int(a[6])==int(row['employee_id']) and a[7]=='accepted'
-                    and hashlib.sha256(str(a[2]).encode('utf8')).hexdigest()==a[1]
-                    and hashlib.sha256(str(a[9]).encode('utf8')).hexdigest()==a[8])
-            if good:
+            proof=_verified_step_evidence(con,plan['id'],row['ordinal'],
+                                          expected_chief=plan['chief_employee_id'])
+            if proof is not None and len(verified)==row['ordinal']-1:
                 verified.append({'ordinal':row['ordinal'],'employee_id':row['employee_id'],
-                                 'department':row['department'],'artifact_id':int(a[0])})
+                                 'department':row['department'],'artifact_id':proof['artifact_id']})
+                if _verified_chief_model_call_link(con,plan['id'],row['ordinal'],
+                                                   expected_chief=plan['chief_employee_id']):
+                    genuine_chief_links+=1
+                    if genuine_prefix==row['ordinal']-1:
+                        genuine_prefix+=1
             else:
                 waiting.append({'ordinal':row['ordinal'],'state':row['task_status'],
-                                'owner_artifact_and_chief_review_required':row['task_status']=='in_progress'})
-    departments={v['department'] for v in verified}
+                                'owner_artifact_and_chief_review_required':True})
     return {'campaign_id':campaign_id,'state':plan['state'],
             'verified_completed_tasks':len(verified),'total_tasks':30,
             'verified_distinct_workers':len({v['employee_id'] for v in verified}),
-            'verified_distinct_departments':len(departments),
-            'next_task_id':next_task,'verified_evidence':verified,
-            'pending':waiting,'all_30_tasks_evidence_verified':len(verified)==30,
+            'verified_distinct_departments':len({v['department'] for v in verified}),
+            'next_task_id':next_task,'verified_evidence':verified,'pending':waiting,
+            'all_30_tasks_evidence_verified':len(verified)==30,
+            'verified_chief_model_call_links':genuine_chief_links,
+            'verified_genuine_prefix_tasks':genuine_prefix,
+            'all_30_chief_model_call_links_verified':genuine_prefix==30,
             'actual_gguf_binary_verified':False,
             'owner_approval_was_required':True,'automatic_approval':False}
-
 
 
 def run_next(store,campaign_id:int,*,cancel:threading.Event|None=None):
