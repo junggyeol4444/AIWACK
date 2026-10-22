@@ -4,6 +4,7 @@ Local inference responses in this test are synthetic, not a real GGUF acceptance
 """
 import sys
 import threading
+import sqlite3
 import pytest
 from desktop.storage import LocalStore
 from desktop.model_runtime import ModelConfig
@@ -213,3 +214,12 @@ def test_real_chief_group_and_single_invalid_answers_fail_closed_without_campaig
     with db._connect() as con:
         wide.initialize(con)
         assert con.execute('SELECT COUNT(*) FROM aiwack_wide_campaigns').fetchone()[0]==0
+        records=con.execute("""SELECT attempt_kind,requested_departments,output_sha256,
+                                output_chars,error_reason FROM aiwack_wide_chief_rejected_attempts
+                                ORDER BY id""").fetchall()
+        assert len(records)==6
+        assert [row[0] for row in records]==['three_departments']*3+['single_department']*3
+        assert all(len(row[2])==64 and row[3]==len('invalid') and row[4] for row in records)
+        with pytest.raises(sqlite3.DatabaseError):
+            con.execute("DELETE FROM aiwack_wide_chief_rejected_attempts")
+
