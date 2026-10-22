@@ -5668,6 +5668,7 @@ class AIWACKWindow:
         """Original company 1 chief + 15 department heads + 15 staff, real work path."""
         self.wide_source=tk.StringVar()
         self.wide_plan=tk.StringVar()
+        self.wide_final_report=tk.StringVar()
         self.wide_status=tk.StringVar(value='실제 15부서 총괄 AI 5회 계획 생성 → 관리자 승인 → 직원 30개 순차 업무.')
         card=self._panel(parent);card.pack(fill='both',expand=True)
         self._label(card,'15개 부서 · 31명 AI 실제 회사 협업',size=17,weight='bold').pack(anchor='w')
@@ -5691,6 +5692,17 @@ class AIWACKWindow:
             command=self._wide_execute)
         self.wide_execute_button.pack(side='left',padx=3)
         tk.Button(row,text='실제 30단계 감사·진행 상태',command=self._wide_show).pack(side='left',padx=3)
+        reports=tk.Frame(card,bg='#1c2a40');reports.pack(fill='x',pady=5)
+        tk.Button(reports,text='30업무 완료 후 총괄 AI 실제 최종보고',
+            command=self._wide_final_propose).pack(side='left',padx=3)
+        self._label(reports,'최종보고 ID').pack(side='left',padx=5)
+        tk.Entry(reports,textvariable=self.wide_final_report,width=9).pack(side='left',padx=3)
+        tk.Button(reports,text='최종보고 원문 조회',command=self._wide_final_preview
+            ).pack(side='left',padx=3)
+        tk.Button(reports,text='최종보고 관리자 승인',command=lambda:
+            self._wide_final_decision('accepted')).pack(side='left',padx=3)
+        tk.Button(reports,text='최종보고 관리자 반려',command=lambda:
+            self._wide_final_decision('rejected')).pack(side='left',padx=3)
         self._label(card,'',textvariable=self.wide_status,fg='#8ee4b7',wraplength=900).pack(anchor='w',pady=6)
         self.wide_results=tk.Text(card,height=15,width=112,wrap='word')
         self.wide_results.pack(fill='both',expand=True,pady=6)
@@ -5742,6 +5754,10 @@ class AIWACKWindow:
                 self.wide_status.set('15부서 30역할 실제 총괄 모델 초안 저장. 관리자 승인 전 실행 없음.')
                 self._wide_write('\n'.join(f"#{s['ordinal']} {s['department']} {s['role']} "
                     f"직원 {s['employee_id']} / {s['title']}" for s in result['steps']))
+            elif action=='총괄 최종보고':
+                self.wide_final_report.set(str(result['id']))
+                self.wide_status.set('총괄 실제 모델 최종 보고서 저장. 관리자 별도 승인 대기 중.')
+                self._wide_write(result['report'])
             else:
                 self.wide_status.set('한 단계 실제 직원·총괄 실행. 결과물·보고서를 별도로 검수하세요.')
                 self._wide_write(str(result))
@@ -5803,6 +5819,68 @@ class AIWACKWindow:
                 f"{s['role']} 직원 {s['employee_id']} 업무 {s['task_id']} "
                 f"상태 {s['task_status']}" for s in result['steps']))
         except (ValueError,PermissionError) as exc:self.wide_status.set(str(exc))
+
+    def _wide_final_propose(self):
+        """Generate a real model final report only after all 30 owner approvals."""
+        try:
+            plan=int(self.wide_plan.get())
+            progress=self.store.verified_full_company_progress(plan)
+            if (not progress['all_30_tasks_evidence_verified']
+                    or not progress['all_30_chief_model_call_links_verified']):
+                raise ValueError('직원·총괄 실제 호출과 관리자 검수 30개가 완료되지 않았습니다.')
+            existing=self.store.find_campaign_final_report(plan)
+            if existing is not None:
+                self.wide_final_report.set(str(existing['id']))
+                self.wide_status.set('기존 최종 보고가 있습니다. 모델 중복 호출 없이 원문을 검수하세요.')
+                self._wide_write(existing['report'])
+                return
+            if not messagebox.askyesno('15부서 30업무 총괄 최종 보고',
+                    '승인된 30개 실제 결과물을 총괄 AI에 전달하여 새 로컬 GGUF 보고서를 생성합니다. '
+                    '최종보고 생성과 관리자 결과 승인 및 외부 실행은 별개입니다. 실행할까요?'):
+                return
+            self._wide_background('총괄 최종보고',lambda cancel:
+                self.store.propose_campaign_final_report(plan,cancel=cancel))
+        except (ValueError,PermissionError,RuntimeError) as exc:
+            self.wide_status.set('최종 보고 생성 준비 실패: '+str(exc))
+
+    def _wide_final_preview(self):
+        try:
+            report=self.store.read_campaign_final_report(int(self.wide_final_report.get()))
+            if report['campaign_id']!=int(self.wide_plan.get()):
+                raise ValueError('보고서가 현재 30업무 계획에 속하지 않습니다.')
+            self.wide_status.set('총괄 실제 모델 보고 '+str(report['id'])+
+                ' / 관리자 결정 '+str(report['decision'])+
+                ' / 별도 결과물 최종 승인 필요')
+            self._wide_write(report['report'])
+        except (ValueError,PermissionError,RuntimeError) as exc:
+            self.wide_status.set('총괄 최종 보고 조회 실패: '+str(exc))
+
+    def _wide_final_decision(self,decision: str):
+        """Only explicit owner click and written reason may decide the final report."""
+        try:
+            if decision not in ('accepted','rejected'):
+                raise ValueError('관리자 결정 값 오류')
+            report=self.store.read_campaign_final_report(int(self.wide_final_report.get()))
+            if report['campaign_id']!=int(self.wide_plan.get()):
+                raise ValueError('다른 회사 전체 협업의 총괄 보고를 결정할 수 없습니다.')
+            if report['decision']!='pending':
+                raise ValueError('이미 최종 검토 결정을 기록한 보고서입니다.')
+            self._wide_write(report['report'])
+            label='승인' if decision=='accepted' else '반려'
+            if not messagebox.askyesno('총괄 실제 보고 관리자 최종 검토',
+                    f'위 총괄 실제 모델 보고서 #{report["id"]} 원문을 검토했습니까? '
+                    f'관리자 {label} 결정을 불변 감사 기록으로 남깁니다. '
+                    '실제 결제·계약·게시를 실행하지 않습니다. 계속할까요?'):
+                return
+            reason=simpledialog.askstring('최종 보고 관리자 검토 사유',
+                '결정 사유를 5~200자로 입력하세요:',parent=self.root)
+            if reason is None:return
+            result=self.store.decide_campaign_final_report(report['id'],decision,reason)
+            self.wide_status.set('최종보고 #'+str(result['id'])+
+                ' 관리자 '+label+' 결정 저장. 외부 거래 실행 없음.')
+            self._wide_write(result['report'])
+        except (ValueError,PermissionError,RuntimeError) as exc:
+            self.wide_status.set('최종 보고 관리자 결정 실패: '+str(exc))
 
     def _business_portfolio_panel(self, parent: tk.Frame) -> None:
         """Stage61 owner-only local business portfolio; no business execution."""
