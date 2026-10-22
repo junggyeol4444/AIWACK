@@ -200,13 +200,15 @@ def test_real_chief_plan_bad_format_retry_is_audited_and_does_not_auto_approve(o
     assert len(db.list_employee_model_calls(chief))==6
     assert len(db.list_tasks())==1
 
-def test_real_chief_three_invalid_answers_fail_closed_without_campaign(office,monkeypatch):
+def test_real_chief_group_and_single_invalid_answers_fail_closed_without_campaign(office,monkeypatch):
     db,task,_=office
     monkeypatch.setattr('desktop.employee_model_runtime.run_local_model',lambda *a,**kw:'invalid')
     with pytest.raises(ValueError,match='세 번 연속'):
         wide.propose(db,task)
     chief=db.read_chief_profile()['employee_id']
-    assert len(db.list_employee_model_calls(chief))==3
+    # Three genuine three-department attempts plus three genuine single-
+    # department attempts. Neither can silently fabricate a task plan.
+    assert len(db.list_employee_model_calls(chief))==6
     assert len(db.list_tasks())==1
     with db._connect() as con:
         wide.initialize(con)
