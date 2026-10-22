@@ -6,6 +6,8 @@
 from __future__ import annotations
 
 import hashlib
+import json
+import re
 import sqlite3
 import threading
 from desktop.company_operations import BLUEPRINT_DEPARTMENTS, assert_running_allowed
@@ -78,23 +80,95 @@ def _staff_roster(con):
     return int(chief[0][0]),int(chief[0][1]),groups
 
 
-def _parse_group(raw,expected):
-    if type(raw) is not str or not 10<=len(raw)<=3500:
-        raise ValueError('총괄 모델의 3개 부서 작업 제안이 누락됐습니다.')
-    mapping={name:(dept,manager,worker) for dept,name,manager,worker in expected}
-    plans={}
-    for line in raw.strip().splitlines():
-        line=line.strip().strip('|').strip()
-        if not line or line.startswith('```'):
-            continue
-        parts=[x.strip() for x in line.split('|')]
-        if len(parts)!=3 or parts[0] not in mapping or parts[0] in plans:
-            raise ValueError('총괄은 지정한 부서마다 부서명|업무 제목|지시 정확히 한 줄씩 작성해야 합니다.')
-        _,title,instruction=parts
-        if not 1<=len(title)<=65 or not 1<=len(instruction)<=330 or '\x00' in line:
+def _parse_group(raw, expected):
+    """Parse only model-generated complete department plans, without synthetic rows."""
+    if not isinstance(raw, str) or not raw.strip() or len(raw) > 20000:
+        raise ValueError('총괄 모델의 실제 작업 제안이 비어 있거나 너무 깁니다.')
+    mapping = {name: (dept, manager, worker)
+               for dept, name, manager, worker in expected}
+    plans = {}
+
+    def add(name, title, instruction):
+        if not all(isinstance(x, str) for x in (name, title, instruction)):
+            raise ValueError('총괄 계획의 부서·제목·지시는 문자열이어야 합니다.')
+        name = name.strip()
+        title = title.strip()
+        instruction = instruction.strip()
+        if name not in mapping:
+            raise ValueError('총괄 계획에 요청하지 않은 부서가 포함됐습니다.')
+        if (not 1 <= len(title) <= 65 or not 1 <= len(instruction) <= 330
+                or any(ord(c) < 32 for c in title + instruction)):
             raise ValueError('총괄의 부서 지시 길이·내용 오류')
-        plans[parts[0]]=(title,instruction)
-    if set(plans)!=set(mapping):
+        if name in plans:
+            raise ValueError('총괄의 동일 부서 계획이 중복됐습니다.')
+        plans[name] = (title, instruction)
+
+    raw = re.sub(r'\x1b\[[0-9;]*m', '', raw).replace('\r', '')
+    lines = []
+    for line in raw.splitlines():
+        line = line.strip().strip('\x00').strip()
+        if not line or line.startswith(('~~~', chr(96) * 3, '<|', 'llama_', 'ggml_', '[stats]')):
+            continue
+        if line.startswith(('main:', 'sampling:', 'system_info:', 'print_info:')):
+            continue
+        if re.match(r'^(?:total time|eval time|prompt eval time)\s*:', line, re.I):
+            continue
+        if line.startswith(('TASK:', 'RESPONSE:')):
+            line = line.split(':', 1)[1].strip()
+        if line:
+            lines.append(line)
+    json_indices = [i for i, line in enumerate(lines)
+                    if line.lstrip().startswith(('{', '['))]
+    if json_indices:
+        data = None
+        for start in json_indices[:2]:
+            portion = '\n'.join(lines[start:]).strip()
+            try:
+                parsed, end = json.JSONDecoder().raw_decode(portion)
+            except ValueError:
+                continue
+            if portion[end:].strip():
+                continue
+            data = parsed
+            break
+        if data is None:
+            raise ValueError('총괄 JSON 계획이 손상되거나 다른 출력과 섞였습니다.')
+        if isinstance(data, dict):
+            data = data.get('departments', data.get('부서별계획',
+                   data.get('plans', data.get('tasks', data))))
+            if isinstance(data, dict):
+                rows = []
+                for name, fields in data.items():
+                    if not isinstance(fields, dict):
+                        raise ValueError('총괄 JSON 부서별 구조 오류')
+                    if 'department' in fields and fields['department'] != name:
+                        raise ValueError('총괄 JSON 부서명 불일치')
+                    rows.append({**fields, 'department': name})
+                data = rows
+        if not isinstance(data, list):
+            raise ValueError('총괄 JSON 계획의 목록 구조 오류')
+        for row in data:
+            if not isinstance(row, dict):
+                raise ValueError('총괄 JSON 계획의 항목 구조 오류')
+            add(row.get('department', row.get('부서명')),
+                row.get('title', row.get('업무 제목', row.get('제목'))),
+                row.get('instruction', row.get('작업 지시', row.get('지시'))))
+    else:
+        for line in lines:
+            line = re.sub(r'^\s*(?:[-*]\s+|\d+[.)]\s+)', '', line)
+            parts = [x.strip() for x in
+                     line.strip().strip('|').replace('｜', '|').replace('¦', '|').split('|')]
+            if len(parts) != 3:
+                continue
+            if (parts[0].lower() in ('department', '부서', '부서명')
+                    and parts[1].lower() in ('title', '제목', '업무 제목', '작업 제목')):
+                continue
+            if all(re.fullmatch(r':?-{3,}:?', part) for part in parts):
+                continue
+            if not all(parts):
+                raise ValueError('총괄의 부서별 계획에 빈 필드가 있습니다.')
+            add(*parts)
+    if set(plans) != set(mapping):
         raise ValueError('총괄이 필수 3개 부서 중 일부를 누락했습니다.')
     return plans
 
