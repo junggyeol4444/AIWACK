@@ -96,6 +96,28 @@ def reconcile(archive_path: Path, repository_root: Path, *, restore_missing: boo
                     raise ValueError(f'링크 경로를 통한 원본 복원 금지: {entry.filename}')
             if not candidate.resolve(strict=False).is_relative_to(root):
                 raise ValueError(f'저장소 바깥 경로 복원 금지: {entry.filename}')
+        # Check Windows-equivalent names before writes; Linux aliases may be hidden.
+        existing_aliases = {}
+        for existing in root.rglob('*'):
+            rel = existing.relative_to(root).as_posix()
+            if rel == '.git' or rel.startswith('.git/'):
+                continue
+            folded = collision_key(rel)
+            previous = existing_aliases.setdefault(folded, rel)
+            if previous != rel:
+                raise ValueError('기존 저장소 Windows 경로 충돌: ' + previous + ' / ' + rel)
+        for entry in members:
+            parts = PurePosixPath(entry.filename).parts
+            for index in range(1, len(parts) + 1):
+                prefix = '/'.join(parts[:index])
+                existing = existing_aliases.get(collision_key(prefix))
+                if existing is not None and existing != prefix:
+                    raise ValueError('원본 복원 Windows 경로 충돌: ' + existing + ' / ' + prefix)
+        if restore_missing:
+            for entry in members:
+                target = root.joinpath(*PurePosixPath(entry.filename).parts)
+                if target.exists() and not target.is_file():
+                    raise ValueError('기존 원본과 충돌하여 복원을 중단했습니다: ' + entry.filename)
         for entry in members:
             path = root.joinpath(*PurePosixPath(entry.filename).parts)
             for ancestor in (path, *path.parents):
