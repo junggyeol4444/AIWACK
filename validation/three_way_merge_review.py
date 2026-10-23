@@ -13,9 +13,9 @@ from pathlib import Path
 import stat
 
 try:
-    from validation.windows_path_policy import collision_key
+    from validation.windows_path_policy import collision_key, unsafe_part
 except ImportError:
-    from windows_path_policy import collision_key
+    from windows_path_policy import collision_key, unsafe_part
 
 
 def _snapshot(root: Path) -> tuple[dict[str, str], list[dict]]:
@@ -29,6 +29,11 @@ def _snapshot(root: Path) -> tuple[dict[str, str], list[dict]]:
         rel = item.relative_to(root).as_posix()
         if rel == '.git' or rel.startswith('.git/'):
             continue
+        for component in rel.split('/'):
+            reason = unsafe_part(component)
+            if reason:
+                unsafe.append({'path': rel, 'reason': reason})
+                break
         key = collision_key(rel)
         previous = aliases.setdefault(key, rel)
         if previous != rel:
