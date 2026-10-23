@@ -1,0 +1,83 @@
+{
+  "project": "AIWACK existing Windows native EXE cumulative development",
+  "round": 16,
+  "local_datetime": "2026-10-22 07:43:17 KST",
+  "base": "15회차 누적 ZIP 1079 파일; 원본 파일 삭제 없이 이어서 수정",
+  "main_observed": "47c67a8dcd644988ad770371d6212de60b8c29b5 (문서 변경만, 4~15회차 누적 코드 미병합)",
+  "windows_failed_run": 39552378512,
+  "windows_failure_2022": "실제 총괄 GGUF 3부서 계획 3회 형식 실패로 30업무 중단",
+  "windows_failure_2025": "실제 패키지 Tk 모델 연결 중 Win32 1400 무효 HWND",
+  "changed_files": [
+    ".github/workflows/ci.yml",
+    "windows-integrated-src/desktop/company_wide_campaign.py",
+    "windows-integrated-src/desktop/storage.py",
+    "validation/windows_real_30_step_campaign_e2e.py",
+    "validation/windows_packaged_real_gguf_queue_e2e.py",
+    "validation/test_windows_native_window_handles.py"
+  ],
+  "new_files": [
+    "windows-integrated-src/tests/test_round16_real_campaign_provenance_and_native_pid.py"
+  ],
+  "development": [
+    "실제 GGUF 30업무 경로에서 이전 단계의 총괄 모델 호출/관리자 승인 링크가 끊기면 다음 단계 진입 차단",
+    "Windows 네이티브 소유자 GUI의 30업무 다음 실행도 strict genuine provenance 검사 강제",
+    "30업무 완료 판정에 실제 총괄 호출 30개 순차 검증 추가; 기존 구조적 모의 테스트 결과와 분리",
+    "누락/손상된 모델 호출 ID로 진행도 조회 시 TypeError 대신 실패 감사로 처리",
+    "Windows Tk HWND 재탐색에서 원래 프로세스 PID가 다른 동일 제목 창 클릭 차단",
+    "명시적인 EXE 강제 종료/정상 종료 후 재시작에만 HWND/PID 기록 초기화",
+    "기존 Windows 1400 AST 테스트의 가짜 PID 실행 환경을 수정하고 새 PID 회귀 2개 연결",
+    "GitHub CI 신규 회귀 테스트 연결"
+  ],
+  "verification": {
+    "root": "138 passed",
+    "company_wide_campaign": "33 passed (32+1 separate)",
+    "round8_round9": "7 passed",
+    "round10_round11_round13": "21 passed",
+    "round12_round14_round15_round16": "24 passed (12/14/15 17 + 16 7; previous 22 included 16 5)",
+    "department_payment_autopilot_continuity_gui": "28 passed",
+    "native_hwnd_keyboard_structural": "8 passed",
+    "python_compileall": "PASS",
+    "workflow_yaml_parse": "PASS",
+    "windows_2022_2025_real_gguf_30_steps": "NOT RUN this round",
+    "windows_10_11_physical_exe_click_restart": "NOT RUN this round",
+    "real_payment_or_external_accounts": "NOT RUN (no owner authorization)",
+    "full_native_2400_plus": "NOT COMPLETED"
+  },
+  "failures_fixed": [
+    "처음 통합 테스트에서 잘못된 테스트 파일명을 지정한 명령 오류를 바로잡음",
+    "루트/네이티브 동시 PYTHONPATH로 서로 다른 desktop 패키지가 충돌하는 검사 환경을 분리함",
+    "기존 AST Win32 테스트 5개가 새 PID 의존성 미주입으로 실패하여 가짜 PID 환경을 추가하고 8개 전체 재통과"
+  ],
+  "github_code_main_committed": false,
+  "next_actions": [
+    "15회차 ZIP 누적 소스 전체와 main 최신 소스 충돌 없이 병합해 최종 main 반영",
+    "Windows 2022/2025 실제 GGUF 30단계 및 물리 EXE 클릭 CI 재실행·로그 분석·수정",
+    "Windows 10/11 실사용 24시간 연속 운영, 종료/재로그인/SQLite 복구 검증",
+    "T01~T20 원본 전체 기능(상품·도구·고객·PG·정산·조직 개편 포함) 계속 개발·최종 인수",
+    "원본 인수인계 문서에 새 결과 원문 뒤로 계속 누적"
+  ],
+  "user_constraints": "원본 15장·T01~T20 범위 보존; Windows 네이티브 EXE/Tk 한글/SQLite/실제 GGUF; main 최종, 테스트 브랜치 실험; 원본/인수인계 삭제·덮어쓰기 금지; 무단 결제/계정/외부 행동 금지; HTML/WebUI/대체 프로그램/드라이브 요구/다른 프로젝트·예약 변경 금지; Windows 실검증 허위 성공 금지; 모델 선택 미확인 시 주장 금지.",
+  "baseline_files": 1079,
+  "current_files": 1082,
+  "modified_files": [
+    ".github/workflows/ci.yml",
+    "docs/AIWACK_20261020_1730_KST_전체개발_최종인수인계.md",
+    "docs/automation_full_handoff.md",
+    "validation/test_windows_native_window_handles.py",
+    "validation/windows_packaged_real_gguf_queue_e2e.py",
+    "validation/windows_real_30_step_campaign_e2e.py",
+    "windows-integrated-src/desktop/company_wide_campaign.py",
+    "windows-integrated-src/desktop/storage.py"
+  ],
+  "added_files": [
+    "docs/AIWACK_20261022_16회차_검증결과.json",
+    "docs/AIWACK_20261022_16회차_전체누적_통합인수인계.md",
+    "windows-integrated-src/tests/test_round16_real_campaign_provenance_and_native_pid.py"
+  ],
+  "deleted_files": [],
+  "patch_reapplication": "PASS",
+  "unchanged_file_sha256": "PASS",
+  "zip_integrity": "PASS",
+  "github_create_file_attempt": "blocked by platform safety checks; no remote source change",
+  "github_main_code_committed": false
+}
