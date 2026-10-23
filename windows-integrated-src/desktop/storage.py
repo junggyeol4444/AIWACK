@@ -4847,6 +4847,51 @@ class LocalStore:
         return run_next(self,campaign_id,cancel=cancel,
                         require_genuine_provenance=True)
 
+    def export_owner_approved_final_dossier(self, report_id: int) -> dict:
+        """명시적 관리자 승인에 한한 로컬 인계, 외부 게시/전송 없음."""
+        from desktop.company_campaign_owner_dossier import export
+        return export(self, report_id)
+
+    def read_owner_approved_final_dossier(self, dossier_id: int) -> dict:
+        from desktop.company_campaign_owner_dossier import read
+        return read(self, dossier_id)
+
+    def list_owner_approved_final_dossiers(self, limit: int = 30) -> list[dict]:
+        from desktop.company_campaign_owner_dossier import list_exports
+        return list_exports(self, limit)
+
+    def inspect_owner_final_dossier_history(self, limit: int = 30) -> list[dict]:
+        from desktop.company_campaign_owner_dossier import inspect_export_history
+        return inspect_export_history(self, limit)
+
+    def inspect_owner_dossier_disk_consistency(self, limit: int = 100) -> dict:
+        from desktop.company_campaign_owner_dossier import inspect_disk_consistency
+        return inspect_disk_consistency(self, limit)
+
+    def verified_campaign_owner_chain(self, campaign_id: int) -> dict:
+        from desktop.company_campaign_chain_integrity import snapshot
+        return snapshot(self, campaign_id)
+
+    def find_owner_approved_final_dossier_by_campaign(self, campaign_id: int) -> dict | None:
+        from desktop.company_campaign_owner_dossier import find_by_campaign
+        return find_by_campaign(self, campaign_id)
+
+    def inspect_company_owner_operations(self, campaign_id: int, business_id: int | None = None) -> dict:
+        from desktop.company_owner_operational_summary import snapshot
+        return snapshot(self, campaign_id, business_id)
+
+    def list_approved_product_documents(self, limit: int = 100) -> list[dict]:
+        from desktop.company_product_documents import list_documents
+        return list_documents(self, limit)
+
+    def list_customer_cases(self, limit: int = 100) -> list[dict]:
+        from desktop.company_customer_cases import list_cases
+        return list_cases(self, limit)
+
+    def list_bank_reconciliation_batches(self, limit: int = 100) -> list[dict]:
+        from desktop.company_bank_reconciliation import list_batches
+        return list_batches(self, limit)
+
     def export_approved_product_document(self, campaign_id: int, ordinal: int,
                                           catalog_item_id: int) -> dict:
         from desktop.company_product_documents import export
