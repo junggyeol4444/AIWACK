@@ -23,6 +23,11 @@ except ImportError:
     from merge_disjoint_json_changes import merge_disjoint_json
 
 try:
+    from validation.merge_preservation_policy import is_preserved_in_main
+except ImportError:
+    from merge_preservation_policy import is_preserved_in_main
+
+try:
     from validation.three_way_merge_review import review_three_way, _snapshot
 except ImportError:
     from three_way_merge_review import review_three_way, _snapshot
@@ -82,15 +87,25 @@ def stage_merge(audit: dict, main_root: Path, test_root: Path, destination: Path
     if any(len(versions) > 1 and path not in conflict_paths
            for path, versions in historical_versions.items()):
         raise ValueError('원본 다중버전 감사 누락')
+    # main에 이미 보존된 변경은 미병합 충돌로 오분류하지 않는다.
+    # 그러나 과거 다중버전 충돌은 동일 내용이어도 수동 검토로 보류한다.
+    test_before, test_unsafe = _snapshot(test_root)
+    history_before, history_unsafe = (_snapshot(historical_root)
+                                      if historical_root is not None else ({}, []))
+    if test_unsafe or history_unsafe:
+        raise ValueError('테스트·과거 원본 경로 안전검사 실패')
     eligible = []
     held = []
+    preserved = []
     merged_divergent = {}
     for item in result['review_items']:
         path, status = item['path'], item['classification']
         if path in conflict_paths:
             held.append(item)
             continue
-        if status == 'test_changed_from_original' or (
+        if is_preserved_in_main(item):
+            preserved.append(item)
+        elif status == 'test_changed_from_original' or (
                 status == 'test_only' and path not in original_paths):
             eligible.append(item)
         elif status == 'divergent_change' and historical_root is not None:
@@ -170,6 +185,10 @@ def stage_merge(audit: dict, main_root: Path, test_root: Path, destination: Path
             if staged.get(item['path']) != expected:
                 raise ValueError('병합 산출물 SHA 불일치: ' + item['path'])
         main_hashes, _ = _snapshot(main_root)
+        if _snapshot(test_root) != (test_before, []):
+            raise ValueError('테스트 원본이 병합 도중 변경됐습니다.')
+        if historical_root is not None and _snapshot(historical_root) != (history_before, []):
+            raise ValueError('과거 원본이 병합 도중 변경됐습니다.')
         if main_hashes != main_before:
             raise ValueError('main 원본이 병합 도중 변경됐습니다.')
         merged_names = {item['path'] for item in eligible}
@@ -185,6 +204,7 @@ def stage_merge(audit: dict, main_root: Path, test_root: Path, destination: Path
             'merged_divergent_evidence': {
                 path: {k: v for k, v in data.items() if k != 'content'}
                 for path, data in merged_divergent.items()},
+            'already_preserved_main_paths': sorted(item['path'] for item in preserved),
             'held_for_manual_review': sorted(held_paths),
             'historical_conflict_paths_held': sorted(conflict_paths),
             'main_original_preserved': True, 'test_original_preserved': True,
