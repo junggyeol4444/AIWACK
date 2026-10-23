@@ -194,11 +194,33 @@ def _parse_single_chief_completion(raw,prompt,name):
                 title,instruction=parts
             else:raise ValueError('총괄 단일 부서 계획 필드 오류')
         else:
-            combined=' '.join(normalized).strip()
-            if any(re.match('^'+re.escape(d)+r'\s*[:：\-]',combined)
-                   for d,_ in BLUEPRINT_DEPARTMENTS if d!=name):
-                raise ValueError('총괄 단일 부서 지시가 요청한 부서와 다릅니다.')
-            title,instruction=combined[:65],combined
+            # 한국어 키:값 형식의 실제 모델 응답을 엄격하게 확인한다.
+            # 필드 누락/중복/부서 불일치는 추정으로 보충하지 않는다.
+            aliases={'부서':'department','부서명':'department','department':'department',
+                     '제목':'title','업무 제목':'title','title':'title',
+                     '지시':'instruction','작업 지시':'instruction','instruction':'instruction'}
+            labelled={}
+            for item in normalized:
+                match=re.fullmatch(
+                    r'(부서명|부서|department|업무 제목|제목|title|작업 지시|지시|instruction)\s*[:：]\s*(.+)',
+                    item,re.I)
+                if match:
+                    key=aliases[match.group(1).lower()]
+                    if key in labelled:
+                        raise ValueError('총괄 단일 부서 출력에 중복된 필드가 있습니다.')
+                    labelled[key]=match.group(2).strip()
+            if labelled:
+                if (len(labelled)!=len(normalized)
+                        or not {'title','instruction'}<=set(labelled)
+                        or labelled.get('department',name)!=name):
+                    raise ValueError('총괄 단일 부서의 필드 누락·혼합 또는 부서 불일치')
+                title,instruction=labelled['title'],labelled['instruction']
+            else:
+                combined=' '.join(normalized).strip()
+                if any(re.match('^'+re.escape(d)+r'\s*[:：\-]',combined)
+                       for d,_ in BLUEPRINT_DEPARTMENTS if d!=name):
+                    raise ValueError('총괄 단일 부서 지시가 요청한 부서와 다릅니다.')
+                title,instruction=combined[:65],combined
     if not isinstance(title,str) or not isinstance(instruction,str):
         raise ValueError('총괄 단일 부서 출력 타입 오류')
     title=title.strip();instruction=instruction.strip()
