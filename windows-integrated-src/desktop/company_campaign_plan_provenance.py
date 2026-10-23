@@ -86,9 +86,29 @@ def snapshot(store, campaign_id: int) -> dict:
             FROM aiwack_wide_chief_plan_attempts
             WHERE source_task_id=? AND chief_employee_id=? AND parsed=0
             ORDER BY id''', (source_id, chief)).fetchall()
+        # The append-only failure mirror must match every real model call.
+        mirror_rows = con.execute('''SELECT model_call_id,attempt_kind,requested_departments,
+            output_sha256,output_chars,error_reason
+            FROM aiwack_wide_chief_rejected_attempts
+            WHERE source_task_id=? AND chief_employee_id=? ORDER BY id''',
+            (source_id, chief)).fetchall()
+        mirror = {row[0]: row for row in mirror_rows}
+        if (len(mirror) != len(mirror_rows)
+                or {row[0] for row in failed} != set(mirror)):
+            raise ValueError('실패 총괄 호출의 불변 이중 감사 기록이 누락되거나 중복됐습니다.')
         rejected = []
         for row in failed:
             call_id, attempt_kind, requested, digest, chars, error = row
+            counterpart = mirror[call_id]
+            try:
+                expected_names = json.dumps(requested.split(','), ensure_ascii=False,
+                                            separators=(',', ':'))
+            except (TypeError, AttributeError) as exc:
+                raise ValueError('실패 총괄 호출 부서 감사가 손상됐습니다.') from exc
+            if (counterpart[1] != attempt_kind or counterpart[2] != expected_names
+                    or counterpart[3] != digest or counterpart[4] != chars
+                    or counterpart[5][:100] != error):
+                raise ValueError('실패 총괄 호출의 원본 SHA·부서·사유 이중 감사가 다릅니다.')
             actual = con.execute('''SELECT employee_id,model_id,status,output_chars
                 FROM ai_model_call_history WHERE id=?''', (call_id,)).fetchone()
             if (actual is None or actual[0] != chief or actual[1] != model
