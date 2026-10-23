@@ -85,6 +85,17 @@ def reconcile(archive_path: Path, repository_root: Path, *, restore_missing: boo
                         raise ValueError('ZIP 원본 크기·CRC 검증 실패: ' + entry.filename)
                 if count != entry.file_size:
                     raise ValueError('ZIP 원본 크기 검증 실패: ' + entry.filename)
+        # Validate ALL destination paths before the first write. A later
+        # symlink must not leave an earlier historical file half-restored.
+        for entry in members:
+            candidate = root.joinpath(*PurePosixPath(entry.filename).parts)
+            for ancestor in (candidate, *candidate.parents):
+                if ancestor == root:
+                    break
+                if ancestor.is_symlink():
+                    raise ValueError(f'링크 경로를 통한 원본 복원 금지: {entry.filename}')
+            if not candidate.resolve(strict=False).is_relative_to(root):
+                raise ValueError(f'저장소 바깥 경로 복원 금지: {entry.filename}')
         for entry in members:
             path = root.joinpath(*PurePosixPath(entry.filename).parts)
             for ancestor in (path, *path.parents):
