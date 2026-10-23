@@ -997,3 +997,13 @@ CI 마지막 확정 실패: b9a09e88 커밋의 루트 138 PASS, 네이티브 335
 - 최신 확인 Actions 39898001117 Windows 2022·2025 EXE 빌드 각각 PASS. Actions 39898001134 양쪽 실 GGUF 30업무 3부서 3회·단일부서 3회 형식 실패. 재질의 변경은 아직 실GGUF 성공으로 검증되지 않음.
 - GitHub main f70dd72c74f4b6440ebea85501a66f4f5d85a391는 이 회차 동안 수정하지 않음. PR #9은 draft 미병합 유지. 24시간/실기 GUI 물리 클릭/외부 실거래/T01~T20 최종 합격 주장 금지.
 - 미완료: 1~21회차 원본 1099 전수 확인, 기존 원본 28개 원격 복원, main·테스트·보존 3-way 전체 잔여 충돌 병합, 전체 기존·신규 회귀·실GGUF 30업무/실제 Win10·11 EXE 검사, 발견 오류 수정·재검증, 검증 이후 GitHub main 커밋 및 원격 확인.
+
+## 2026-10-23 16:00 KST — 매시간 누적 실개발·원격 테스트 브랜치 커밋 (append-only)
+- **사용자 최우선 명령 원문:** “잔여 누적 소스 전체 main 병합”; “남은 전체 코드와 기능 여러 묶음을 먼저 실개발·원본 보존형 병합 → 기존·신규 전체 통합검증 → 실패 수정 → 재검증 → GitHub main 최종 커밋·원격 확인”.
+- **사용자 금지 원문:** “HTML/WebUI/대체 프로그램, 가짜 모델 출력, 기능 축소, 외부 Drive 강제, 원본/인수인계 덮어쓰기·삭제, 보안/권한 우회, 임의 PG 실거래·외부 계정·게시, 다른 프로젝트 및 예약 변경 금지.” 원본 Windows10/11 네이티브 EXE·한국어 Tk·SQLite·실 GGUF·15부서31AI30업무·T01~T20 요구 유지.
+- **실제 GitHub 테스트 브랜치 코드 커밋:** validation/windows_path_policy.py 377a55c86e5f9f6fef03a11eca76175a2bdc8b1a; validation/audit_cumulative_snapshot.py 587ab695323aec03730ae3ee73c601efc50d1fd9; validation/test_audit_cumulative_snapshot.py 5e6a020a9b8be21578ea24774106df90868c3c04, 유니코드 테스트 보정 7da94f694d547ca4158da6cabbdf8e90fa841f57; validation/restore_original_source_history.py 0005158cd06c55bc93eeaa38f1c77ec6677e6b3a; validation/test_restore_original_source_history.py 50b027e6d2a3e191dfcf5e64183e8982f6abf3ec, 문법 수정 0b8fd89fb7eb12838b36c76b63d6038cc029bc55. ZIP 원본을 덮어쓰지 않는 CRC 전수 선검증·원본 보존형 복원과 Windows 경로/유니코드 충돌 검사를 실제 코드에 연결.
+- **역사 원문 개별 원격 복원:** docs/AIWACK_20261021_5회차_검증요약.json ffac1297f02aaf7ca39917eb604404adcf3543ba; docs/AIWACK_20261022_11회차_네이티브전체검증로그.txt 576d6ca9e28eb4765e56ae272b5e813107171b03. 원본 28개 전체 복원 완료가 아니라 2개만 이번 회차 원격 등록.
+- **로컬 선택 회귀:** 57 PASS / 0 FAIL (검사/복원 47개와 기존 총괄 계획·최종보고·재개 10개). 첫 루트 디렉터리에서의 3개 ImportError는 동일 이름 desktop 패키지 경로 충돌이었고 windows-integrated-src 작업 디렉터리로 재실행하여 57 PASS. 확대 통합 회귀는 장시간으로 최종 결과 미확정; 전체 성공 주장 금지.
+- **원본 보존 검사:** 이전 누적 1,154경로 중 동일 1,145, 변경 9, 누락 0, unsafe 0 (변경 9는 별도 수동 대조 필요). 21회차 개별 보존 ZIP 31항목: 동일 30, 충돌 1 (validation/test_windows_native_window_handles.py), 누락 0; 원본 ZIP 보존, 기존 신버전 테스트 덮어쓰지 않음. 별도 1~21회차 1,099개 전체 ZIP 전수 대조는 미완료.
+- **원격 상태:** PR #9 draft 미병합, main f70dd72c74f4b6440ebea85501a66f4f5d85a391 미변경. 신규 Actions CI/Windows EXE/packaged GUI/실GGUF 검사는 실행 대기 또는 결과 미확정, 합격으로 기록하지 않음.
+- **미완료:** 이전 15:00 로컬 company_wide_campaign.py 한국어 GGUF parser 증분·테스트를 원격 테스트 브랜치에 반영하는 작업, 28개 역사 원본 중 잔여 파일 원격 복원, 1,099개 별도 원본 전수 대조, 잔여 3-way 코드 병합, 전체 통합검증→실패 수정→재검증, 실제 Win10/11 GUI 클릭·24시간·실GGUF 30업무·T01~T20 및 승인된 실서비스 시험, 최종 main 병합·원격 확인. 미실행 항목을 성공으로 주장하지 않음.
