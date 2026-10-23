@@ -28,6 +28,11 @@ except ImportError:
     from merge_preservation_policy import is_preserved_in_main
 
 try:
+    from validation.restore_missing_historical import verified_historical_recovery
+except ImportError:
+    from restore_missing_historical import verified_historical_recovery
+
+try:
     from validation.three_way_merge_review import review_three_way, _snapshot
 except ImportError:
     from three_way_merge_review import review_three_way, _snapshot
@@ -98,6 +103,7 @@ def stage_merge(audit: dict, main_root: Path, test_root: Path, destination: Path
     held = []
     preserved = []
     merged_divergent = {}
+    restored_historical = {}
     for item in result['review_items']:
         path, status = item['path'], item['classification']
         if path in conflict_paths:
@@ -105,6 +111,17 @@ def stage_merge(audit: dict, main_root: Path, test_root: Path, destination: Path
             continue
         if is_preserved_in_main(item):
             preserved.append(item)
+        elif status in ('missing_in_both', 'test_only') and historical_root is not None:
+            # 과거 원본 SHA가 단일·일치할 때만 별도 산출물에 복원한다.
+            # 테스트의 변경된 신규 파일은 여기서 자동 복원하지 않는다.
+            recovered = verified_historical_recovery(item, historical_root)
+            if recovered is not None:
+                eligible.append(item)
+                restored_historical[path] = recovered
+            elif status == 'test_only' and path not in original_paths:
+                eligible.append(item)
+            else:
+                held.append(item)
         elif status == 'test_changed_from_original' or (
                 status == 'test_only' and path not in original_paths):
             eligible.append(item)
@@ -161,7 +178,8 @@ def stage_merge(audit: dict, main_root: Path, test_root: Path, destination: Path
         for item in eligible:
             source = test_root / item['path']
             target = scratch / item['path']
-            if hashlib.sha256(source.read_bytes()).hexdigest() != item['test_sha256']:
+            if item['path'] not in restored_historical and (
+                    hashlib.sha256(source.read_bytes()).hexdigest() != item['test_sha256']):
                 raise ValueError('테스트 소스가 감사 후 변경됐습니다: ' + item['path'])
             main_source = main_root / item['path']
             if item['path'] in merged_divergent and (
@@ -174,6 +192,8 @@ def stage_merge(audit: dict, main_root: Path, test_root: Path, destination: Path
             target.parent.mkdir(parents=True, exist_ok=True)
             if item['path'] in merged_divergent:
                 target.write_bytes(merged_divergent[item['path']]['content'])
+            elif item['path'] in restored_historical:
+                target.write_bytes(restored_historical[item['path']]['content'])
             else:
                 shutil.copyfile(source, target)
         staged, unsafe = _snapshot(scratch)
@@ -181,7 +201,9 @@ def stage_merge(audit: dict, main_root: Path, test_root: Path, destination: Path
             raise ValueError('병합 산출물 Windows 경로 충돌: ' + str(unsafe[:2]))
         for item in eligible:
             expected = (merged_divergent[item['path']]['sha256']
-                        if item['path'] in merged_divergent else item['test_sha256'])
+                        if item['path'] in merged_divergent else
+                        restored_historical[item['path']]['sha256']
+                        if item['path'] in restored_historical else item['test_sha256'])
             if staged.get(item['path']) != expected:
                 raise ValueError('병합 산출물 SHA 불일치: ' + item['path'])
         main_hashes, _ = _snapshot(main_root)
@@ -204,6 +226,10 @@ def stage_merge(audit: dict, main_root: Path, test_root: Path, destination: Path
             'merged_divergent_evidence': {
                 path: {k: v for k, v in data.items() if k != 'content'}
                 for path, data in merged_divergent.items()},
+            'restored_historical_paths': sorted(restored_historical),
+            'restored_historical_evidence': {
+                path: {k: v for k, v in data.items() if k != 'content'}
+                for path, data in restored_historical.items()},
             'already_preserved_main_paths': sorted(item['path'] for item in preserved),
             'held_for_manual_review': sorted(held_paths),
             'historical_conflict_paths_held': sorted(conflict_paths),
