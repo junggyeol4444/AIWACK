@@ -10,13 +10,14 @@ import hashlib
 import json
 from pathlib import Path, PurePosixPath
 import shutil
+import stat
 import tempfile
 import zipfile
 
 try:
-    from validation.windows_path_policy import unsafe_part
+    from validation.windows_path_policy import collision_key, unsafe_part
 except ImportError:
-    from windows_path_policy import unsafe_part
+    from windows_path_policy import collision_key, unsafe_part
 
 _MAX_ENTRY_BYTES = 32 * 1024 * 1024
 _MAX_TOTAL_BYTES = 512 * 1024 * 1024
@@ -38,6 +39,7 @@ def _expected_versions(audit: dict) -> dict[str, set[str]]:
     if not isinstance(audit, dict) or audit.get('coverage_confirmed') is not True:
         raise ValueError('원본 전수 감사 완료 증빙이 필요합니다.')
     expected = {}
+    aliases = {}
     for section in ('identical', 'changed', 'missing'):
         rows = audit.get(section, [])
         if not isinstance(rows, list):
@@ -48,6 +50,10 @@ def _expected_versions(audit: dict) -> dict[str, set[str]]:
             path = row['path']
             if path in expected:
                 raise ValueError('원본 감사 경로 중복: ' + path)
+            alias = collision_key(path)
+            if alias in aliases and aliases[alias] != path:
+                raise ValueError('원본 감사 Windows 경로 충돌: ' + aliases[alias] + ' / ' + path)
+            aliases[alias] = path
             versions = row.get('original_versions')
             if not isinstance(versions, list) or not versions:
                 raise ValueError('원본 버전 정보 누락: ' + path)
@@ -98,6 +104,7 @@ def export_historical_versions(audit: dict, archives: list[Path], destination: P
     scratch = Path(tempfile.mkdtemp(prefix='.aiwack-history-', dir=destination.parent))
     seen = {path: {} for path in expected}
     archives_info = []
+    archive_aliases = {}
     total_bytes = 0
     try:
         for archive in paths:
@@ -105,10 +112,24 @@ def export_historical_versions(audit: dict, archives: list[Path], destination: P
             archive_info = {'archive': str(archive), 'sha256': original_hash,
                             'matched_entries': 0, 'unmatched_entries': 0}
             with zipfile.ZipFile(archive) as bundle:
+                seen_in_archive = set()
                 for entry in bundle.infolist():
                     if entry.is_dir():
                         continue
-                    if entry.filename not in expected:
+                    name = entry.filename
+                    if not _safe_path(name):
+                        raise ValueError('원본 ZIP 위험 경로: ' + repr(name))
+                    mode = (entry.external_attr >> 16) & 0o170000
+                    if mode not in (0, stat.S_IFREG) or entry.flag_bits & 1:
+                        raise ValueError('원본 ZIP 링크·특수 파일·암호화 항목 금지: ' + name)
+                    alias = collision_key(name)
+                    if alias in seen_in_archive:
+                        raise ValueError('원본 ZIP 내부 중복·Windows 경로 충돌: ' + name)
+                    seen_in_archive.add(alias)
+                    previous = archive_aliases.setdefault(alias, name)
+                    if previous != name:
+                        raise ValueError('원본 ZIP 간 Windows 경로 충돌: ' + previous + ' / ' + name)
+                    if name not in expected:
                         archive_info['unmatched_entries'] += 1
                         continue
                     if entry.file_size > _MAX_ENTRY_BYTES:
