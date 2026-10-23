@@ -1,0 +1,64 @@
+{
+  "project": "AIWACK Windows native EXE",
+  "round": 11,
+  "date_kst": "2026-10-22",
+  "baseline": "10회차 전체 누적 소스 ZIP",
+  "changed_files": [
+    ".github/workflows/ci.yml",
+    ".github/workflows/windows-exe.yml",
+    "windows-integrated-src/desktop/company_wide_campaign.py",
+    "windows-integrated-src/tests/test_company_wide_campaign.py",
+    "validation/windows_real_30_step_campaign_e2e.py",
+    "validation/windows_packaged_real_gguf_queue_e2e.py",
+    "validation/test_windows_native_window_handles.py"
+  ],
+  "new_files": [
+    "windows-integrated-src/tests/test_round11_plan_seals_and_resume.py",
+    "docs/AIWACK_20261022_11회차_전체누적_통합인수인계.md",
+    "docs/AIWACK_20261022_11회차_검증결과.json",
+    "docs/AIWACK_20261022_11회차_네이티브전체검증로그.txt"
+  ],
+  "distinct_test_results": [
+    {
+      "suite": "root tests",
+      "passed": 138
+    },
+    {
+      "suite": "company_wide_campaign",
+      "passed": 33
+    },
+    {
+      "suite": "8 other company modules",
+      "passed": 69
+    },
+    {
+      "suite": "round 8-10 regression",
+      "passed": 13
+    },
+    {
+      "suite": "round 11 regression",
+      "passed": 5
+    },
+    {
+      "suite": "Windows HWND and modal structural regression",
+      "passed": 9
+    }
+  ],
+  "total_distinct_passed": 267,
+  "compileall": "pass",
+  "sqlite_integrity": "ok",
+  "foreign_key_check": 0,
+  "yaml_parse": "pass",
+  "native_full_suite": {
+    "status": "not_complete",
+    "reason": "time_limit_or_incomplete",
+    "last_output": "........................................................................ [  2%]\n........................................................................ [  5%]\n........................................................................ [  8%]\n.......................................s................................ [ 11%]\n........................................................................ [ 14%]\n...................................",
+    "contains_final_pytest_summary": false
+  },
+  "windows_real_gguf_30_tasks": "not_run_this_round",
+  "windows_exe_physical_gui": "not_run_this_round",
+  "real_pg_transactions": "not_run_not_authorized",
+  "github_main_source_merge": "not_completed_safety_check_blocked",
+  "github_existing_handoff_append": "not_completed_safety_check_blocked",
+  "no_original_files_deleted": true
+}
