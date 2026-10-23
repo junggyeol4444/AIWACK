@@ -667,20 +667,36 @@ def propose(store,source_task_id:int,*,cancel:threading.Event|None=None):
                     if cancel is not None and cancel.is_set():
                         raise InterruptedError('단일 부서 총괄 계획 취소')
                     assert_running_allowed(store)
+                    # 실제 GGUF 재시도마다 출력 형식만 바꿔 재질의한다.
+                    # 모델 호출 자체와 불변 실패 감사, 관리자 승인 게이트를 유지한다.
+                    if solo_attempt == 0:
+                        retry_prompt = one_prompt
+                    elif solo_attempt == 1:
+                        retry_prompt = (
+                            f'부서 {name}의 실제 업무를 한국어 한 문장으로 작성하세요. '
+                            '제목 또는 접두사 없이 14자 이상 구체적인 실행 지시만 출력하세요. '
+                            '결제·계약·외부 게시·전송 금지. '
+                            f'기준 업무: {str(task[2])[:100]} / {str(task[3])[:170]}')
+                    else:
+                        retry_prompt = (
+                            f'Department: {name}. Write ONE practical instruction in Korean, '
+                            'at least 14 characters. Output ONLY the instruction. '
+                            'Do not include other departments or unauthorized external actions. '
+                            f'Work: {str(task[2])[:100]} / {str(task[3])[:170]}')
                     answer,solo_call=invoke_employee_model(
-                        store,chief,one_prompt,timeout=90,cancel=cancel,
+                        store,chief,retry_prompt,timeout=90,cancel=cancel,
                         required_tier='ceo',include_call_id=True)
                     if cancel is not None and cancel.is_set():
                         raise InterruptedError('취소된 단일 부서 계획은 저장하지 않습니다.')
                     try:
-                        parsed[name]=_parse_single_chief_completion(answer,one_prompt,name)
+                        parsed[name]=_parse_single_chief_completion(answer,retry_prompt,name)
                         _audit_chief_plan(store,source_task_id,chief,solo_call,
-                                          [name],'single_department',True,answer,prompt=one_prompt)
+                                          [name],'single_department',True,answer,prompt=retry_prompt)
                         calls[name]=int(solo_call)
                         break
                     except ValueError as exc:
                         _audit_chief_plan(store,source_task_id,chief,solo_call,
-                                          [name],'single_department',False,answer,exc,prompt=one_prompt)
+                                          [name],'single_department',False,answer,exc,prompt=retry_prompt)
                         continue
                 else:
                     raise ValueError('실제 총괄 모델의 3부서 계획이 세 번 연속 실패하고 단일 부서 재계획도 실패했습니다.')
