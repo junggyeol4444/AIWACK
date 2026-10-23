@@ -108,3 +108,25 @@ def test_focus_guard_refuses_foreign_foreground_without_click():
     with pytest.raises(AssertionError,match='foreground'):
         ctx['click'](target,120,320)
     assert not any(c[0]=='click' for c in calls)
+
+class ShortNativePrompt(Window):
+    """Physical Windows Server 2025 Tk simpledialog screenshot: 353 x 128."""
+    @property
+    def width(self): return 353
+    @property
+    def height(self): return 128
+
+def test_short_verified_chief_input_dialog_survives_native_size_filter():
+    modal=ShortNativePrompt(51,'총괄 AI → 직원 업무 지휘')
+    ctx,calls=load_window_helpers([[modal]],active=[modal])
+    ctx['_TARGET_EXE_PID']=100
+    assert ctx['find_dialog']('총괄 AI → 직원 업무 지휘',timeout=3) is modal
+    assert not any(c[0]=='click' for c in calls)
+
+def test_unrelated_small_native_window_cannot_be_mistaken_for_chief_modal():
+    foreign=ShortNativePrompt(52,'관련 없는 창')
+    ctx,calls=load_window_helpers([[foreign]],active=[foreign])
+    ctx['_TARGET_EXE_PID']=100
+    with pytest.raises(AssertionError,match='not found'):
+        ctx['find_dialog']('총괄 AI → 직원 업무 지휘',timeout=1)
+    assert not any(c[0]=='click' for c in calls)
