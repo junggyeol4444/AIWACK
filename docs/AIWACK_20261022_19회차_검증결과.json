@@ -1,0 +1,60 @@
+{
+  "round": 19,
+  "date_kst": "2026-10-22",
+  "previous_round_files": 1090,
+  "root_pytest": {
+    "passed": 138,
+    "exit": 0
+  },
+  "bank_campaign_tests": {
+    "passed": 13
+  },
+  "expanded_native_tests": {
+    "passed": 34,
+    "exit": 0
+  },
+  "finance_department_tests": {
+    "passed": 34,
+    "exit": 0
+  },
+  "native_full_integration": {
+    "status": "TIMEOUT",
+    "reason": "broad native regression timed out without completed result"
+  },
+  "linux_xvfb_wide_gui": "PASS, synthetic model fixture, not real GGUF",
+  "yaml_files_validated": 15,
+  "python_compileall": "PASS",
+  "windows_real_gguf_30": "NOT_RUN",
+  "windows_exe_physical": "NOT_RUN",
+  "windows10_11_24h": "NOT_RUN",
+  "independent_bank_provider_verification": "NOT_RUN",
+  "actual_payments_or_refunds_executed": false,
+  "source_merged_remote_main": false,
+  "github_run_failed_legacy": 39552378512,
+  "preserved_original_files": 1090,
+  "new_files": [
+    "windows-integrated-src/desktop/company_financial_close.py",
+    "windows-integrated-src/tests/test_round19_financial_close_and_campaign_inspect.py",
+    "docs/AIWACK_20261022_19회차_전체누적_통합인수인계.md"
+  ],
+  "changed_files": [
+    ".github/workflows/ci.yml",
+    ".github/workflows/validation-windows-company-office.yml",
+    ".github/workflows/validation-windows-fresh-all-gui.yml",
+    ".github/workflows/validation-windows-native-tabs-physical.yml",
+    ".github/workflows/validation-windows-one-worker-soak.yml",
+    ".github/workflows/validation-windows-packaged-exe.yml",
+    ".github/workflows/validation-windows-packaged-full-company.yml",
+    ".github/workflows/validation-windows-planning-physical.yml",
+    ".github/workflows/validation-windows-real-gguf-queue.yml",
+    ".github/workflows/validation-windows-real-gguf.yml",
+    ".github/workflows/windows-exe.yml",
+    "docs/AIWACK_20261020_1730_KST_전체개발_최종인수인계.md",
+    "docs/automation_full_handoff.md",
+    "windows-integrated-src/desktop/company_campaign_evidence.py",
+    "windows-integrated-src/desktop/company_office_gui.py",
+    "windows-integrated-src/desktop/storage.py"
+  ],
+  "unchanged_original_files": 1074,
+  "total_source_files": 1094
+}
