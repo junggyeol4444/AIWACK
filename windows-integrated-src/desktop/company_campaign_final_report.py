@@ -224,7 +224,7 @@ def propose(store,campaign_id:int,*,cancel:threading.Event|None=None):
         raise InterruptedError('총괄 최종 보고 실행 취소')
     from desktop.company_operations import assert_running_allowed
     assert_running_allowed(store)
-    raw,call_id=invoke_employee_model(store,chief,prompt,timeout=180,cancel=cancel,
+    raw,call_id=invoke_employee_model(store,chief,prompt,timeout=120,cancel=cancel,
                                        required_tier='ceo',include_call_id=True)
     if cancel is not None and cancel.is_set():
         raise InterruptedError('취소된 총괄 최종 보고 저장 금지')
