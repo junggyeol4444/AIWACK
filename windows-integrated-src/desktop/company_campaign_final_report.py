@@ -93,13 +93,27 @@ def _bounded_verified_final_prompt(source_excerpts: str, evidence_sha256: str) -
     if not isinstance(evidence_sha256, str) or len(evidence_sha256) != 64 or any(
             char not in '0123456789abcdef' for char in evidence_sha256):
         raise ValueError('전체 업무 증빙 SHA256 형식이 잘못됐습니다.')
+    def reject_duplicate_keys(pairs):
+        row = {}
+        for key, value in pairs:
+            if key in row:
+                raise ValueError('승인 원본 인용 데이터의 JSON 중복 키를 거부합니다.')
+            row[key] = value
+        return row
+
     try:
-        source_rows = [json.loads(line) for line in source_excerpts.splitlines()]
+        source_rows = [json.loads(line, object_pairs_hook=reject_duplicate_keys,
+                                  parse_constant=lambda value: (_ for _ in ()).throw(
+                                      ValueError('승인 인용 JSON의 비표준 상수 거부')))
+                       for line in source_excerpts.splitlines()]
     except (ValueError, TypeError) as exc:
-        raise ValueError('승인된 최종 보고 원문 인용 데이터가 손상됐습니다.') from exc
+        raise ValueError('승인된 최종 보고 원문 인용 데이터가 손상됐습니다: ' + str(exc)) from exc
     if (len(source_rows) != 30
+            or any(type(row) is not dict for row in source_rows)
             or [row.get('ordinal') for row in source_rows] != list(range(1, 31))
-            or any(not isinstance(row.get('department'), str) or not row['department']
+            or any(type(row.get('ordinal')) is not int
+                   or not isinstance(row.get('department'), str) or not row['department'].strip()
+                   or any(ord(char) < 32 for char in row['department'])
                    or not isinstance(row.get('worker_result_excerpt'), str)
                    or not isinstance(row.get('chief_review_excerpt'), str)
                    for row in source_rows)):
@@ -235,7 +249,8 @@ def propose(store,campaign_id:int,*,cancel:threading.Event|None=None):
         chief_now=wide.read(store,campaign_id)['chief_employee_id']
         call=con.execute('''SELECT employee_id,status,output_chars,model_id
                             FROM ai_model_call_history WHERE id=?''',(call_id,)).fetchone()
-        if chief_now!=chief or not call or call[0]!=chief or call[1]!='success' or call[2]<=0 or not call[3]:
+        if (chief_now!=chief or not call or call[0]!=chief or call[1]!='success'
+                or type(call[2]) is not int or call[2]!=len(raw) or not call[3]):
             raise ValueError('최종 보고의 동일 총괄 실제 모델 호출 기록이 유효하지 않습니다.')
         rid=int(con.execute('''INSERT INTO aiwack_campaign_final_reports
             (campaign_id,chief_employee_id,chief_model_call_id,evidence_sha256,report_body,report_sha256)
