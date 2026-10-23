@@ -35,6 +35,10 @@ class CompanyOwnerWorkflows:
         tabs.add(product, text='30업무 · 상품 결과물')
         continuity = ttk.Frame(tabs)
         tabs.add(continuity, text='운영 기록 · 중단 복구')
+        staff = ttk.Frame(tabs)
+        tools = ttk.Frame(tabs)
+        tabs.add(staff, text='실제 직원 평가 · 조직 개편')
+        tabs.add(tools, text='승인된 실제 로컬 도구')
         self._payment(payment)
         self._bank(bank)
         self._customer(customer)
@@ -43,6 +47,8 @@ class CompanyOwnerWorkflows:
         summary = ttk.Frame(tabs)
         tabs.add(summary, text='전체 운영 원본 통합 조회')
         self._operations_summary(summary)
+        self._staff_management(staff)
+        self._tool_management(tools)
         self.output = tk.Text(self.window, height=12, wrap='word')
         self.output.pack(fill='both', expand=True, padx=12, pady=10)
         self.output.insert('end','기존 SQLite 원본 결과와 관리자 승인 기록만 조회·연결합니다.')
@@ -131,6 +137,117 @@ class CompanyOwnerWorkflows:
     def _read_plan_provenance(self):
         from desktop.company_campaign_plan_provenance import snapshot
         return snapshot(self.store,self._id('summary_campaign'))
+
+    def _staff_management(self,panel):
+        """Only observed real employee work, explicit owner reviews and transfers."""
+        self._field(panel,'staff_employee','기존 직원 AI 번호')
+        self._field(panel,'staff_department','이동 대상 부서 번호')
+        self._field(panel,'staff_failed_run','동일 직원 실패 실행 번호')
+        self._field(panel,'staff_proposal','직원 이동 제안 번호')
+        self._field(panel,'staff_note','관리자 판단 사유 (5~200자)')
+        self._buttons(panel,[
+            ('31명 실제 모델 호출·성과 기록',lambda:self._perform(
+                'SQLite 실제 모델·직원 성과',self._staff_metrics)),
+            ('실패 직원 업무 제안 조회',lambda:self._perform(
+                '실제 실패 직원 후속 제안',lambda:self.store.failed_employee_followups(40))),
+            ('실제 실패 기반 후속 제안 생성',lambda:self._perform(
+                '실패 실행 기반 후속 업무 제안',lambda:self.store.scan_failed_employee_work(31),
+                '실제 실패 감사만 스캔합니다. 모델을 재호출하지 않고 로컬 제안을 생성합니까?'))])
+        self._field(panel,'followup_id','실패 개선 제안 번호')
+        self._field(panel,'followup_note','개선 업무 승인 사유')
+        self._buttons(panel,[
+            ('개선 업무 관리자 승인',lambda:self._review_followup('approved')),
+            ('개선 업무 관리자 반려',lambda:self._review_followup('rejected'))])
+        self._buttons(panel,[
+            ('실패 증빙 기반 직원 이동 제안',self._propose_staff_transfer),
+            ('직원 이동 감사 이력',lambda:self._perform('실제 조직 변경 감사',
+                lambda:self.store.staff_department_transfer_audit(30)))])
+        self._buttons(panel,[
+            ('관리자 직원 이동 승인',lambda:self._review_staff_transfer('accepted')),
+            ('관리자 직원 이동 반려',lambda:self._review_staff_transfer('rejected'))])
+        ttk.Label(panel,text=('직원 성과는 SQLite 실제 업무·모델 호출 건수입니다. '
+            '실제 GGUF 바이너리·외부 매출 검증과는 별개이며, 부서 이동은 기존 실행중 보호를 거칩니다.'),
+            wraplength=850).pack(anchor='w',padx=12,pady=10)
+
+    def _staff_metrics(self):
+        from desktop.company_staff_metrics import snapshot
+        return snapshot(self.store)
+
+    def _review_followup(self,decision):
+        label='승인' if decision=='approved' else '반려'
+        self._perform('실패 직원 후속 업무 '+label,
+            lambda:self.store.decide_failed_employee_followup(
+                self._id('followup_id'),decision,self._get('followup_note')),
+            '관리자 '+label+' 결과만 기록합니다. 승인 시 로컬 개선 업무를 만들되 '
+            '모델 실행·외부 행동은 시작하지 않습니다. 진행합니까?')
+
+    def _propose_staff_transfer(self):
+        def action():
+            result=self.store.propose_staff_department_transfer(
+                self._id('staff_employee'),self._id('staff_department'),
+                self._id('staff_failed_run'),self._get('staff_note'))
+            self.values['staff_proposal'].set(str(result['id']))
+            return result
+        self._perform('실제 실패 증빙 기반 직원 이동 제안',action,
+            '실제 실패 실행을 근거로 제안만 생성합니다. 소속을 변경하지 않습니다. 진행합니까?')
+
+    def _review_staff_transfer(self,decision):
+        label='승인' if decision=='accepted' else '반려'
+        self._perform('직원 조직 개편 '+label,
+            lambda:self.store.decide_staff_department_transfer(
+                self._id('staff_proposal'),decision,self._get('staff_note')),
+            '기존 부서장 보고 관계·실행 중 업무·배정 보호를 재확인한 뒤 관리자 '
+            +label+'을 기록합니다. 승인하면 기존 배정이 해제될 수 있습니다. 진행합니까?')
+
+    def _tool_management(self,panel):
+        """Use existing LocalStore preflight/owner approval for real local tools."""
+        self._field(panel,'tool_request','기존 로컬 도구 요청 번호')
+        self._field(panel,'tool_reason','관리자 도구 승인 사유')
+        self._buttons(panel,[
+            ('등록된 도구 목록',lambda:self._perform('로컬 도구 목록',
+                lambda:self.store.list_registered_ai_tools(limit=100))),
+            ('직원별 도구 요청 조회',lambda:self._perform('기존 도구 요청',
+                lambda:self.store.list_ai_tool_use_requests(100))),
+            ('도구 요청 원본 확인',lambda:self._perform('도구 요청 원본',
+                lambda:self.store.read_ai_tool_use_request(self._id('tool_request'))))])
+        self._buttons(panel,[
+            ('도구 요청 사전 권한 확인',lambda:self._perform('도구 사전 권한 검사',
+                lambda:self.store.check_ai_tool_use(self._id('tool_request')))),
+            ('도구 요청 관리자 승인',lambda:self._review_tool('approved')),
+            ('도구 요청 관리자 반려',lambda:self._review_tool('denied'))])
+        self._buttons(panel,[
+            ('승인된 로컬 읽기 도구 실행',lambda:self._execute_tool('local')),
+            ('승인된 Windows 버전 도구 실행',lambda:self._execute_tool('windows'))])
+        self._buttons(panel,[
+            ('로컬 읽기 실행 이력',lambda:self._perform('실제 로컬 읽기 감사',
+                lambda:self.store.approved_local_read_tool_history(30))),
+            ('Windows 버전 실행 이력',lambda:self._perform('실제 Windows 도구 감사',
+                lambda:self.store.approved_windows_version_tool_history(30))),
+            ('도구 요청 감사 조회',lambda:self._perform('도구 승인 원문',
+                lambda:self.store.ai_tool_use_audit(self._id('tool_request'))))])
+        ttk.Label(panel,text=('도구는 기존 요청/권한 사전 확인 및 관리자 승인에 따라 실행합니다. '
+            '결제·환불·게시·고객 전송 도구를 자동 실행하지 않습니다.'),
+            wraplength=850).pack(anchor='w',padx=12,pady=12)
+
+    def _review_tool(self,decision):
+        label='승인' if decision=='approved' else '반려'
+        self._perform('도구 사용 요청 '+label,
+            lambda:self.store.decide_ai_tool_use(
+                self._id('tool_request'),decision,self._get('tool_reason')),
+            '기존 도구 요청의 관리자 '+label+'만 기록합니다. 실행은 별도 명시적 클릭이 필요합니다. 진행합니까?')
+
+    def _execute_tool(self,kind):
+        if kind=='local':
+            action=self.store.execute_approved_local_read_tool
+            label='승인된 로컬 읽기 도구'
+        elif kind=='windows':
+            action=self.store.execute_approved_windows_version_tool
+            label='승인된 Windows 버전 도구'
+        else:
+            raise ValueError('허용되지 않은 도구 유형')
+        self._perform(label+' 실제 실행',
+            lambda:action(self._id('tool_request')),
+            '기존 승인·권한·비상정지·요청 검사를 통과한 '+label+'만 로컬에서 실행합니다. 진행합니까?')
 
     def _continuity(self,panel):
         """Native read-only uptime evidence plus deliberately reviewed recovery."""
