@@ -90,6 +90,17 @@ def audit_archives(archives: list[Path], repository: Path, *, expected_paths: in
               'expected_paths': expected_paths, 'distinct_original_paths': len(source),
               'identical': [], 'missing': [], 'changed': [], 'version_conflicts': [],
               'unsafe': [], 'repeated_identical': []}
+    # Treat Windows case/NFC aliases in the destination as unsafe, not missing.
+    repository_aliases = {}
+    for existing in root.rglob('*'):
+        rel = existing.relative_to(root).as_posix()
+        if rel == '.git' or rel.startswith('.git/'):
+            continue
+        folded = collision_key(rel)
+        previous = repository_aliases.setdefault(folded, rel)
+        if previous != rel:
+            result['unsafe'].append({'path': rel, 'reason': 'repository_windows_collision',
+                                     'conflicts_with': previous})
     for name, versions in sorted(source.items()):
         unique = sorted({v['sha256'] for v in versions})
         record = {'path': name, 'original_versions': versions}
@@ -97,6 +108,18 @@ def audit_archives(archives: list[Path], repository: Path, *, expected_paths: in
             result['version_conflicts'].append({**record, 'distinct_sha256': unique})
         elif len(versions) > 1:
             result['repeated_identical'].append(record)
+        alias_conflict = None
+        parts = PurePosixPath(name).parts
+        for index in range(1, len(parts) + 1):
+            prefix = '/'.join(parts[:index])
+            alias = repository_aliases.get(collision_key(prefix))
+            if alias is not None and alias != prefix:
+                alias_conflict = alias
+                break
+        if alias_conflict is not None:
+            result['unsafe'].append({**record, 'reason': 'repository_windows_alias',
+                                     'conflicts_with': alias_conflict})
+            continue
         candidate = root.joinpath(*PurePosixPath(name).parts)
         if any(p.is_symlink() for p in (candidate, *candidate.parents) if p != root):
             result['unsafe'].append({**record, 'reason': 'symlink'})
