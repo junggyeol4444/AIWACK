@@ -55,10 +55,14 @@ def verify_cli(primary: Path, model: Path, evidence: Path, selection: Path,
     evidence, selection = Path(evidence).absolute(), Path(selection).absolute()
     # Never allow a stale success marker from a previous run to survive
     # failed GGUF validation, CLI execution, or an incompatible argument.
-    if evidence == selection or selection in (primary, model):
-        raise ValueError('실제 GGUF 사전검사 결과 파일 경로가 겹칩니다.')
     if selection.is_symlink() or evidence.is_symlink():
         raise ValueError('사전검사 결과 파일의 심볼릭 링크를 허용하지 않습니다.')
+    # Resolve dot-dot aliases before comparing with immutable binary/model.
+    # Neither a stale marker nor diagnostics may replace a source input.
+    if (selection.resolve(strict=False) == evidence.resolve(strict=False)
+            or selection.resolve(strict=False) in (primary, model)
+            or evidence.resolve(strict=False) in (primary, model)):
+        raise ValueError('실제 GGUF 사전검사 결과 파일 경로가 겹칩니다.')
     if selection.exists():
         if not selection.is_file():
             raise ValueError('기존 사전검사 선택 결과가 일반 파일이 아닙니다.')
