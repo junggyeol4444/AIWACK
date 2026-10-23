@@ -210,11 +210,18 @@ def _parse_single_chief_completion(raw,prompt,name):
     return title,instruction
 
 
-def _audit_chief_plan(store,source_id,chief,call_id,names,kind,parsed,raw,error=''):
+def _audit_chief_plan(store,source_id,chief,call_id,names,kind,parsed,raw,error='',*,prompt=''):
     """Record genuine parse results; failed responses also remain immutable."""
     completion=raw if isinstance(raw,str) else repr(raw)
     digest=hashlib.sha256(completion.encode('utf-8')).hexdigest()
-    excerpt=''.join(ch if ch.isprintable() or ch==chr(10) else ' ' for ch in completion[:240])
+    # Keep the SHA256 of the original response unmodified for immutable audit.
+    # The displayed preview must contain generated completion only, never an echoed input prompt.
+    try:
+        generated='\n'.join(_generated_chief_lines(completion,prompt))
+    except ValueError:
+        generated=''
+    excerpt=''.join(ch if ch.isprintable() or ch==chr(10) else ' '
+                    for ch in generated[:240])
     with store._connect() as con:
         initialize(con)
         actual=con.execute('SELECT employee_id,status FROM ai_model_call_history WHERE id=?',
@@ -634,12 +641,12 @@ def propose(store,source_task_id:int,*,cancel:threading.Event|None=None):
             try:
                 parsed=_parse_group(raw,part,prompt=query)
                 _audit_chief_plan(store,source_task_id,chief,call_id,
-                                  [x[1] for x in part],'three_departments',True,raw)
+                                  [x[1] for x in part],'three_departments',True,raw,prompt=query)
                 calls={name:int(call_id) for _,name,_,_ in part}
                 break
             except ValueError as exc:
                 _audit_chief_plan(store,source_task_id,chief,call_id,
-                                  [x[1] for x in part],'three_departments',False,raw,exc)
+                                  [x[1] for x in part],'three_departments',False,raw,exc,prompt=query)
                 # These are REAL failed format attempts, not model-free fallback.
                 # A small GGUF that cannot emit three rows may emit one real
                 # department instruction per separate audited chief invocation.
@@ -668,12 +675,12 @@ def propose(store,source_task_id:int,*,cancel:threading.Event|None=None):
                     try:
                         parsed[name]=_parse_single_chief_completion(answer,one_prompt,name)
                         _audit_chief_plan(store,source_task_id,chief,solo_call,
-                                          [name],'single_department',True,answer)
+                                          [name],'single_department',True,answer,prompt=one_prompt)
                         calls[name]=int(solo_call)
                         break
                     except ValueError as exc:
                         _audit_chief_plan(store,source_task_id,chief,solo_call,
-                                          [name],'single_department',False,answer,exc)
+                                          [name],'single_department',False,answer,exc,prompt=one_prompt)
                         continue
                 else:
                     raise ValueError('실제 총괄 모델의 3부서 계획이 세 번 연속 실패하고 단일 부서 재계획도 실패했습니다.')
