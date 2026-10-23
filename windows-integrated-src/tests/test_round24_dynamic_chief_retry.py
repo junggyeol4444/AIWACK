@@ -37,3 +37,26 @@ def test_first_single_failure_gets_different_real_call_prompt_and_immutable_audi
         good=con.execute('SELECT COUNT(*) FROM aiwack_wide_chief_plan_attempts WHERE parsed=1').fetchone()[0]
     assert rejected==3*5+15 and good==15
     assert len(db.list_tasks()) == 1  # 관리자 승인이 없으면 업무 생성 금지
+
+
+def test_single_real_chief_korean_labelled_fields_preserve_requested_department():
+    name=wide.BLUEPRINT_DEPARTMENTS[0][0]
+    raw=f'부서: {name}\n제목: 내부 운영 자료 점검\n작업 지시: 승인된 내부 문서를 확인하고 담당 부서의 개선 항목을 정리합니다.'
+    title,instruction=wide._parse_single_chief_completion(raw,'다른 원본 질문',name)
+    assert title=='내부 운영 자료 점검'
+    assert instruction.startswith('승인된 내부 문서를')
+
+
+def test_single_real_chief_labelled_wrong_department_or_mixed_output_rejected():
+    import pytest
+    name=wide.BLUEPRINT_DEPARTMENTS[0][0]
+    other=wide.BLUEPRINT_DEPARTMENTS[1][0]
+    invalid=[
+        f'부서: {other}\n제목: 내부 점검\n작업 지시: 승인된 내부 문서의 품질 점검 항목을 정리합니다.',
+        '제목: 내부 점검\n작업 지시: 승인된 내부 문서의 품질 점검 항목을 정리합니다.\n추가 자유 텍스트',
+        '제목: 내부 점검\n제목: 중복 점검\n작업 지시: 승인된 내부 문서의 품질 점검 항목을 정리합니다.',
+        '부서: '+name+'\n작업 지시: 승인된 내부 문서의 품질 점검 항목을 정리합니다.',
+    ]
+    for raw in invalid:
+        with pytest.raises(ValueError):
+            wide._parse_single_chief_completion(raw,'원본 질문',name)
