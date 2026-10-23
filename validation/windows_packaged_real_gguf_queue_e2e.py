@@ -302,8 +302,10 @@ def _visible_window(w):
         matched=[]
         for candidate in windows:
             try:
-                if (candidate.title==name and candidate.width>300
-                        and candidate.height>250):
+                if (candidate.title==name and (
+                        (candidate.width>300 and candidate.height>250) or
+                        (name=='총괄 AI → 직원 업무 지휘'
+                         and candidate.width>=300 and candidate.height>=100))):
                     candidate_pid=_native_window_pid(candidate._hWnd)
                     if (globals().get('_TARGET_EXE_PID') is not None
                             and candidate_pid != globals()['_TARGET_EXE_PID']):
