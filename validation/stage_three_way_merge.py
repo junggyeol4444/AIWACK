@@ -32,6 +32,9 @@ def stage_merge(audit: dict, main_root: Path, test_root: Path, destination: Path
         historical_root = Path(historical_root).resolve(strict=True)
         if not historical_root.is_dir():
             raise ValueError('과거 원본은 실제 폴더여야 합니다.')
+    if historical_root is not None and (
+            destination == historical_root or historical_root in destination.parents):
+        raise ValueError('과거 원본 폴더 내부에 병합 산출물을 만들 수 없습니다.')
     if destination.exists():
         raise FileExistsError('기존 병합 산출물을 덮어쓸 수 없습니다.')
     if main_root == test_root or main_root in destination.parents or test_root in destination.parents:
@@ -76,6 +79,13 @@ def stage_merge(audit: dict, main_root: Path, test_root: Path, destination: Path
                 merged_divergent[path] = merged
         else:
             held.append(item)
+    # 검토 시점의 main 바이트를 고정해 복사 중 동시 수정·추가를 차단한다.
+    main_before, main_unsafe = _snapshot(main_root)
+    if main_unsafe:
+        raise ValueError('main 원본 경로 안전검사 실패')
+    for item in result['review_items']:
+        if main_before.get(item['path']) != item['main_sha256']:
+            raise ValueError('main 원본이 검토 이후 변경됐습니다: ' + item['path'])
     destination.parent.mkdir(parents=True, exist_ok=True)
     scratch = Path(tempfile.mkdtemp(prefix='.aiwack-merge-', dir=destination.parent))
     try:
@@ -86,6 +96,8 @@ def stage_merge(audit: dict, main_root: Path, test_root: Path, destination: Path
             target = scratch / rel
             target.parent.mkdir(parents=True, exist_ok=True)
             shutil.copyfile(source, target)
+            if hashlib.sha256(target.read_bytes()).hexdigest() != main_before.get(rel.as_posix()):
+                raise ValueError('main 원본 복사 중 변경됐습니다: ' + rel.as_posix())
         for item in eligible:
             source = test_root / item['path']
             target = scratch / item['path']
@@ -113,6 +125,8 @@ def stage_merge(audit: dict, main_root: Path, test_root: Path, destination: Path
             if staged.get(item['path']) != expected:
                 raise ValueError('병합 산출물 SHA 불일치: ' + item['path'])
         main_hashes, _ = _snapshot(main_root)
+        if main_hashes != main_before:
+            raise ValueError('main 원본이 병합 도중 변경됐습니다.')
         merged_names = {item['path'] for item in eligible}
         for path, sha in main_hashes.items():
             if path not in merged_names and staged.get(path) != sha:
