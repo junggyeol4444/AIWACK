@@ -177,6 +177,15 @@ def _reject_duplicate_json_keys(pairs):
     return obj
 
 
+class NonFiniteModelJSONError(ValueError):
+    """The model emitted a non-JSON numeric constant."""
+
+
+def _reject_nonfinite_json_constant(value):
+    """Non-standard NaN/Infinity is not valid auditable GGUF JSON."""
+    raise NonFiniteModelJSONError('실제 총괄 모델 JSON 비표준 숫자: ' + value)
+
+
 def _model_json_alias_value(row, names):
     """Never prefer a contradictory field alias in genuine model JSON."""
     found = [(key, row[key]) for key in names if key in row]
@@ -194,8 +203,9 @@ def _parse_single_chief_completion(raw,prompt,name):
     json_start=next((i for i,v in enumerate(normalized) if v.startswith('{')),None)
     if json_start is not None:
         candidate='\n'.join(normalized[json_start:]).strip()
-        try:obj,end=json.JSONDecoder(object_pairs_hook=_reject_duplicate_json_keys).raw_decode(candidate)
-        except DuplicateModelJSONKeyError:raise
+        try:obj,end=json.JSONDecoder(object_pairs_hook=_reject_duplicate_json_keys,
+                                             parse_constant=_reject_nonfinite_json_constant).raw_decode(candidate)
+        except (DuplicateModelJSONKeyError, NonFiniteModelJSONError):raise
         except ValueError as error:raise ValueError('총괄 단일 부서 JSON 생성 결과 오류') from error
         if candidate[end:].strip() or not isinstance(obj,dict):
             raise ValueError('총괄 단일 부서 JSON 생성 결과 오류')
@@ -518,8 +528,9 @@ def _parse_group(raw, expected, *, prompt=''):
         for start in json_indices[:2]:
             portion = '\n'.join(lines[start:]).strip()
             try:
-                parsed, end = json.JSONDecoder(object_pairs_hook=_reject_duplicate_json_keys).raw_decode(portion)
-            except DuplicateModelJSONKeyError:
+                parsed, end = json.JSONDecoder(object_pairs_hook=_reject_duplicate_json_keys,
+                                              parse_constant=_reject_nonfinite_json_constant).raw_decode(portion)
+            except (DuplicateModelJSONKeyError, NonFiniteModelJSONError):
                 raise
             except ValueError:
                 continue
@@ -530,8 +541,12 @@ def _parse_group(raw, expected, *, prompt=''):
         if data is None:
             raise ValueError('총괄 JSON 계획이 손상되거나 다른 출력과 섞였습니다.')
         if isinstance(data, dict):
-            data = data.get('departments', data.get('부서별계획',
-                   data.get('plans', data.get('tasks', data))))
+            wrappers = [key for key in ('departments', '부서별계획', 'plans', 'tasks')
+                        if key in data]
+            if len(wrappers) > 1:
+                raise ValueError('총괄 JSON 계획 목록 필드 별칭 충돌')
+            if wrappers:
+                data = data[wrappers[0]]
             if isinstance(data, dict):
                 rows = []
                 for name, fields in data.items():
@@ -593,8 +608,9 @@ def _parse_single_real_chief(raw, requested, prompt):
     clean = '\n'.join(lines)
     if clean.startswith('{'):
         try:
-            item = json.loads(clean, object_pairs_hook=_reject_duplicate_json_keys)
-        except DuplicateModelJSONKeyError:
+            item = json.loads(clean, object_pairs_hook=_reject_duplicate_json_keys,
+                              parse_constant=_reject_nonfinite_json_constant)
+        except (DuplicateModelJSONKeyError, NonFiniteModelJSONError):
             raise
         except ValueError as exc:
             raise ValueError('실제 총괄 단일 부서 JSON 출력 손상') from exc
