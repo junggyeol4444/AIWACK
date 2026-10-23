@@ -6,6 +6,8 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
+import tempfile
 from pathlib import Path
 import subprocess
 import sys
@@ -29,11 +31,38 @@ def _unsupported_flag(stderr: str) -> bool:
         'unrecognized option', 'invalid option', 'unknown flag'))
 
 
+def _atomic_write(path: Path, value: str) -> None:
+    """Publish complete evidence/selection without leaving partial output."""
+    path.parent.mkdir(parents=True, exist_ok=True)
+    if path.is_symlink():
+        raise ValueError('사전검사 출력 심볼릭 링크는 허용되지 않습니다.')
+    fd, temporary = tempfile.mkstemp(prefix='.aiwack-gguf-', dir=path.parent)
+    try:
+        with os.fdopen(fd, 'w', encoding='utf-8', newline='\n') as stream:
+            stream.write(value)
+            stream.flush()
+            os.fsync(stream.fileno())
+        os.replace(temporary, path)
+    finally:
+        if os.path.exists(temporary):
+            os.unlink(temporary)
+
+
 def verify_cli(primary: Path, model: Path, evidence: Path, selection: Path,
                *, timeout: int = 70) -> Path:
     primary = Path(primary).resolve(strict=True)
     model = Path(model).resolve(strict=True)
-    evidence, selection = Path(evidence), Path(selection)
+    evidence, selection = Path(evidence).absolute(), Path(selection).absolute()
+    # Never allow a stale success marker from a previous run to survive
+    # failed GGUF validation, CLI execution, or an incompatible argument.
+    if evidence == selection or selection in (primary, model):
+        raise ValueError('실제 GGUF 사전검사 결과 파일 경로가 겹칩니다.')
+    if selection.is_symlink() or evidence.is_symlink():
+        raise ValueError('사전검사 결과 파일의 심볼릭 링크를 허용하지 않습니다.')
+    if selection.exists():
+        if not selection.is_file():
+            raise ValueError('기존 사전검사 선택 결과가 일반 파일이 아닙니다.')
+        selection.unlink()
     if not primary.is_file() or not model.is_file():
         raise ValueError('실제 검증된 Windows CLI 및 GGUF 파일이 필요합니다.')
     if primary.name.lower() not in ('llama-completion.exe', 'llama-cli.exe'):
@@ -85,16 +114,17 @@ def verify_cli(primary: Path, model: Path, evidence: Path, selection: Path,
         if selected is not None:
             break
     evidence.parent.mkdir(parents=True, exist_ok=True)
-    evidence.write_text(json.dumps({
+    _report = json.dumps({
         'direct_real_model_preflight_only': True,
         'not_windows_gui_acceptance': True,
         'attempts': results,
         'selected': selected.name if selected is not None else None,
-    }, ensure_ascii=False, indent=2) + '\n', encoding='utf-8')
+    }, ensure_ascii=False, indent=2) + '\n'
+    _atomic_write(evidence, _report)
     if selected is None:
         raise RuntimeError('실제 Windows llama.cpp GGUF 추론을 성공적으로 완료한 CLI가 없습니다.')
     selection.parent.mkdir(parents=True, exist_ok=True)
-    selection.write_text(str(selected) + '\n', encoding='utf-8')
+    _atomic_write(selection, str(selected) + '\n')
     return selected
 
 
