@@ -177,6 +177,14 @@ def _reject_duplicate_json_keys(pairs):
     return obj
 
 
+def _model_json_alias_value(row, names):
+    """Never prefer a contradictory field alias in genuine model JSON."""
+    found = [(key, row[key]) for key in names if key in row]
+    if len(found) > 1 and any(value != found[0][1] for _, value in found[1:]):
+        raise ValueError('실제 총괄 모델 JSON 필드 별칭 충돌')
+    return found[0][1] if found else None
+
+
 def _parse_single_chief_completion(raw,prompt,name):
     """Strict parse of a genuine single department call, including small GGUF text."""
     lines=_generated_chief_lines(raw,prompt)
@@ -191,10 +199,10 @@ def _parse_single_chief_completion(raw,prompt,name):
         except ValueError as error:raise ValueError('총괄 단일 부서 JSON 생성 결과 오류') from error
         if candidate[end:].strip() or not isinstance(obj,dict):
             raise ValueError('총괄 단일 부서 JSON 생성 결과 오류')
-        if obj.get('department',obj.get('부서명'))!=name:
+        if _model_json_alias_value(obj, ('department','부서명','부서'))!=name:
             raise ValueError('총괄 단일 부서 지시가 요청한 부서와 다릅니다.')
-        title=obj.get('title',obj.get('업무 제목',obj.get('제목')))
-        instruction=obj.get('instruction',obj.get('작업 지시',obj.get('지시')))
+        title=_model_json_alias_value(obj, ('title','업무 제목','제목'))
+        instruction=_model_json_alias_value(obj, ('instruction','작업 지시','지시'))
     else:
         rows=[v.strip('|').strip() for v in normalized if '|' in v]
         if len(rows)>1:raise ValueError('총괄 단일 부서 계획에 여러 부서 지시가 섞였습니다.')
@@ -538,9 +546,9 @@ def _parse_group(raw, expected, *, prompt=''):
         for row in data:
             if not isinstance(row, dict):
                 raise ValueError('총괄 JSON 계획의 항목 구조 오류')
-            add(row.get('department', row.get('부서명')),
-                row.get('title', row.get('업무 제목', row.get('제목'))),
-                row.get('instruction', row.get('작업 지시', row.get('지시'))))
+            add(_model_json_alias_value(row, ('department','부서명','부서')),
+                _model_json_alias_value(row, ('title','업무 제목','제목')),
+                _model_json_alias_value(row, ('instruction','작업 지시','지시')))
     else:
         for line in lines:
             line = re.sub(r'^\s*(?:[-*]\s+|\d+[.)]\s+)', '', line)
@@ -590,10 +598,10 @@ def _parse_single_real_chief(raw, requested, prompt):
             raise
         except ValueError as exc:
             raise ValueError('실제 총괄 단일 부서 JSON 출력 손상') from exc
-        if not isinstance(item, dict) or item.get('department', item.get('부서명')) != requested:
+        if not isinstance(item, dict) or _model_json_alias_value(item, ('department','부서명','부서')) != requested:
             raise ValueError('실제 총괄 단일 부서 JSON의 부서 불일치')
-        title = item.get('title', item.get('제목', item.get('업무 제목')))
-        instruction = item.get('instruction', item.get('지시', item.get('작업 지시')))
+        title = _model_json_alias_value(item, ('title','제목','업무 제목'))
+        instruction = _model_json_alias_value(item, ('instruction','지시','작업 지시'))
     else:
         normalized = [re.sub(r'^\s*(?:[-*]\s+|\d+[.)]\s+)', '',
                       line.replace('｜', '|').replace('¦', '|')).strip()
