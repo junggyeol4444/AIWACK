@@ -44,3 +44,24 @@ def test_non_object_row_rejected():
     lines = _payload(_rows()).splitlines(); lines[0] = '[]'
     with pytest.raises(ValueError, match='순서·형식'):
         _bounded_verified_final_prompt('\n'.join(lines), 'f'*64)
+
+
+def test_final_report_rejects_model_audit_length_mismatch(tmp_path, monkeypatch):
+    from desktop import company_campaign_final_report as final
+    from tests.test_round18_bank_and_campaign_evidence import campaign_fixture, complete_one
+    store, campaign = campaign_fixture(tmp_path, monkeypatch)
+    for _ in range(30):
+        complete_one(store, campaign)
+
+    def invalid_audit(st, chief, prompt, **kwargs):
+        output = '실제 총괄 최종 보고 원문과 승인 감사 결과가 일치하는지 검토하고 관리자에게 제출합니다.'
+        call_id, _ = st.begin_employee_model_call(chief, '최종 보고 시험 호출', required_tier='ceo')
+        st.finish_employee_model_call(call_id, 'success', output_chars=len(output)+1, duration_ms=1)
+        return output, call_id
+
+    monkeypatch.setattr(final, 'invoke_employee_model', invalid_audit)
+    with pytest.raises(ValueError, match='동일 총괄 실제 모델 호출'):
+        final.propose(store, campaign['id'])
+    with store._connect() as con:
+        final.initialize(con)
+        assert con.execute('SELECT COUNT(*) FROM aiwack_campaign_final_reports').fetchone()[0] == 0
