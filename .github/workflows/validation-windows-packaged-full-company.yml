@@ -43,7 +43,7 @@ jobs:
         shell: pwsh
         run: |
           Set-Location (Join-Path $env:RUNNER_TEMP 'aiwack-real-binary-e2e/AIWACK-Stage54')
-          python -m PyInstaller --noconfirm --clean --onefile --windowed --name AIWACK --paths . --hidden-import desktop.company_operations --hidden-import desktop.company_office_gui --hidden-import desktop.company_bank_reconciliation --hidden-import desktop.company_campaign_evidence --hidden-import desktop.company_campaign_final_report --hidden-import desktop.company_financial_close --hidden-import desktop.company_campaign_resume_gate --add-data 'docs/roadmap_100.csv;docs' desktop/entry.py
+          python -m PyInstaller --noconfirm --clean --onefile --windowed --name AIWACK --paths . --hidden-import desktop.company_operations --hidden-import desktop.company_office_gui --hidden-import desktop.company_bank_reconciliation --hidden-import desktop.company_campaign_evidence --hidden-import desktop.company_campaign_final_report --hidden-import desktop.company_financial_close --hidden-import desktop.company_campaign_resume_gate --hidden-import desktop.company_campaign_plan_provenance --hidden-import desktop.company_campaign_owner_dossier --hidden-import desktop.company_campaign_chain_integrity --hidden-import desktop.company_owner_operational_summary --add-data 'docs/roadmap_100.csv;docs' desktop/entry.py
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           if (-not (Test-Path 'dist/AIWACK.exe')) { throw 'AIWACK.exe missing' }
           python -m PyInstaller --noconfirm --clean --onefile --console --name AIWACK-ModelStub (Join-Path $env:GITHUB_WORKSPACE 'validation/windows_fake_llm.py')
