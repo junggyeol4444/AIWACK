@@ -10,6 +10,12 @@ on:
       - 'validation/real_gguf_preflight.py'
       - 'validation/windows_built_exe_gui.py'
       - 'windows-integrated-src/**'
+  pull_request:
+    branches: [main]
+    paths:
+      - 'windows-integrated-src/**'
+      - 'validation/**'
+      - '.github/workflows/validation-windows-real-gguf-queue.yml'
   workflow_dispatch:
 permissions:
   contents: read
