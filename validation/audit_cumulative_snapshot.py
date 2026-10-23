@@ -12,6 +12,11 @@ import json
 from pathlib import Path, PurePosixPath
 import stat
 
+if __package__:
+    from validation.windows_path_policy import collision_key, unsafe_part
+else:  # Windows direct script invocation
+    from windows_path_policy import collision_key, unsafe_part
+
 
 def _paths(manifest: dict) -> dict[str, str]:
     if not isinstance(manifest, dict) or not isinstance(manifest.get('source_sha256'), dict):
@@ -24,12 +29,14 @@ def _paths(manifest: dict) -> dict[str, str]:
             raise ValueError('원본 경로 또는 SHA256 타입 오류')
         p = PurePosixPath(raw)
         if (not raw or raw != p.as_posix() or p.is_absolute() or '\\' in raw
-                or ':' in raw or any(s in ('', '.', '..') or s.endswith((' ', '.')) for s in raw.split('/'))
+                or any(unsafe_part(s) == 'windows_invalid_name' for s in raw.split('/'))
                 or len(digest) != 64 or any(c not in '0123456789abcdef' for c in digest.lower())):
             raise ValueError('매니페스트 원본 경로 또는 SHA256 형식 오류')
-        if raw.casefold() in folded:
+        if any(unsafe_part(part) == 'windows_reserved_name' for part in p.parts):
+            raise ValueError('Windows 예약 장치명 원본 경로')
+        if collision_key(raw) in folded:
             raise ValueError('Windows 대소문자 충돌 원본 경로')
-        folded.add(raw.casefold())
+        folded.add(collision_key(raw))
         result[raw] = digest.lower()
     return result
 
@@ -63,7 +70,21 @@ def audit(manifest_path: Path, root_path: Path) -> dict:
         current = h.hexdigest()
         row = {'path': name, 'original_sha256': expected, 'current_sha256': current}
         result['verified_identical' if current == expected else 'modified'].append(row)
+    seen_current = {}
     for candidate in sorted(root.rglob('*')):
+        relative = candidate.relative_to(root).as_posix()
+        if relative.startswith(('.git/', '__pycache__/')):
+            continue
+        folded = collision_key(relative)
+        previous = seen_current.setdefault(folded, relative)
+        if previous != relative:
+            result['unsafe'].append({'path': relative, 'reason': 'windows_case_collision',
+                                     'conflicts_with': previous})
+        for part in PurePosixPath(relative).parts:
+            reason = unsafe_part(part)
+            if reason:
+                result['unsafe'].append({'path': relative, 'reason': reason})
+                break
         if candidate.is_symlink():
             relative = candidate.relative_to(root).as_posix()
             if relative not in original:
