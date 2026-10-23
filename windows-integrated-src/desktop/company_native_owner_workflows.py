@@ -40,6 +40,9 @@ class CompanyOwnerWorkflows:
         self._customer(customer)
         self._product(product)
         self._continuity(continuity)
+        summary = ttk.Frame(tabs)
+        tabs.add(summary, text='전체 운영 원본 통합 조회')
+        self._operations_summary(summary)
         self.output = tk.Text(self.window, height=12, wrap='word')
         self.output.pack(fill='both', expand=True, padx=12, pady=10)
         self.output.insert('end','기존 SQLite 원본 결과와 관리자 승인 기록만 조회·연결합니다.')
@@ -92,6 +95,42 @@ class CompanyOwnerWorkflows:
             filetypes=[('CSV', '*.csv'), ('전체 파일', '*.*')])
         if path:
             self.values['csv'].set(path)
+
+    def _operations_summary(self,panel):
+        """기존 실제 총괄/직원/관리자/금융 원본의 읽기 전용 연결."""
+        self._field(panel,'summary_campaign','30업무 협업 번호')
+        self._field(panel,'summary_business','사업 번호 (선택)')
+        self._buttons(panel,[
+            ('전체 실제 운영 원본 재조회',lambda:self._perform(
+                '총괄 5그룹·30업무·최종 승인·결제/은행/조직 원본',
+                self._read_operations_summary)),
+            ('30업무 최종 승인 원본 연결 검증',lambda:self._perform(
+                '총괄 5그룹·30업무·최종 보고·관리자 인계 동일 원본',
+                lambda:self.store.verified_campaign_owner_chain(
+                    self._id('summary_campaign')))),
+            ('인계 디스크·SQLite 중단 복구 감사',lambda:self._perform(
+                '승인 인계 파일 누락·손상·미등록 원본 확인 (삭제/복구 없음)',
+                lambda:self.store.inspect_owner_dossier_disk_consistency(100))),
+            ('30업무 중단·재개 사전 점검',lambda:self._perform(
+                '실제 승인·모델 실행 이력 및 중복 실행 방지',
+                lambda:self.store.inspect_full_company_resume_gate(
+                    self._id('summary_campaign')))),
+            ('5그룹 총괄 호출 불변 출처',lambda:self._perform(
+                '실제 총괄 5그룹 호출 원본·SHA256',self._read_plan_provenance))])
+        ttk.Label(panel,text=('현재 SQLite와 로컬 승인 파일의 원본만 조회합니다. '
+            '실제 Windows10/11·24시간·GGUF 바이너리·PG 실거래·T01~T20 최종 합격은 '
+            '조회만으로 주장하지 않습니다.'),wraplength=850).pack(
+                anchor='w',padx=12,pady=12)
+
+    def _read_operations_summary(self):
+        from desktop.company_owner_operational_summary import snapshot
+        business=self._get('summary_business')
+        return snapshot(self.store,self._id('summary_campaign'),
+                        self._id('summary_business') if business else None)
+
+    def _read_plan_provenance(self):
+        from desktop.company_campaign_plan_provenance import snapshot
+        return snapshot(self.store,self._id('summary_campaign'))
 
     def _continuity(self,panel):
         """Native read-only uptime evidence plus deliberately reviewed recovery."""
@@ -289,9 +328,13 @@ class CompanyOwnerWorkflows:
     def _product(self, panel):
         for key,label in [('campaign','전체 협업 계획 번호'),('ordinal','업무 단계 번호 (1~30)'),
                           ('catalog','상품 카탈로그 번호'),('product_doc','상품 문서 번호'),
-                          ('evidence_export','모델 호출 감사 번호')]:
+                          ('evidence_export','모델 호출 감사 번호'),
+                          ('owner_final_report','관리자 승인된 총괄 최종보고 ID'),
+                          ('owner_dossier','최종 결과 인계 파일 번호')]:
             self._field(panel,key,label)
         self._buttons(panel,[
+            ('총괄 5그룹 실제 GGUF 계획 감사',lambda:self._perform(
+                '15부서 총괄 계획·실제 호출 원본',self._read_plan_provenance)),
             ('실제 30업무 증빙 조회',lambda:self._perform('직원/총괄 승인 증빙',
                 lambda:self.store.inspect_campaign_step_evidence(self._id('campaign')))),
             ('승인 상품 로컬 문서 생성',self._export_product)])
@@ -301,8 +344,29 @@ class CompanyOwnerWorkflows:
             ('실제 모델 감사 로컬 내보내기',self._export_campaign)])
         self._buttons(panel,[('호출 감사 파일 조회',lambda:self._perform('30업무 호출 감사',
             lambda:self.store.read_campaign_call_evidence(self._id('evidence_export'))))])
+        self._buttons(panel,[
+            ('관리자 최종 승인 30업무 결과 패키지 생성',self._export_final_dossier),
+            ('최종 인계 파일·원본 SHA 확인',lambda:self._perform('30업무 최종 인계 감사',
+                lambda:self.store.read_owner_approved_final_dossier(self._id('owner_dossier')))),
+            ('손상 기록 포함 최종 인계 감사',lambda:self._perform(
+                '원본 인계별 정상·손상 기록',
+                lambda:self.store.inspect_owner_final_dossier_history(50))),
+            ('최종 승인 인계 이력·무결성',lambda:self._perform('실제 승인 인계 목록',
+                lambda:self.store.list_owner_approved_final_dossiers(30))),
+            ('현재 협업 최종 인계 재확인',lambda:self._perform('30업무 최종 승인 원본 재검토',
+                lambda:self.store.find_owner_approved_final_dossier_by_campaign(self._id('campaign'))))])
         ttk.Label(panel,text='직원·총괄 실제 호출 및 관리자 승인 결과물만 사용합니다. 상품을 외부 게시/판매하지 않습니다.',
             wraplength=860).pack(padx=12,pady=12)
+
+    def _export_final_dossier(self):
+        def work():
+            result=self.store.export_owner_approved_final_dossier(
+                self._id('owner_final_report'))
+            self.values['owner_dossier'].set(str(result['id']))
+            return result
+        self._perform('관리자 승인 완료 30업무 최종 인계 패키지',work,
+            '30업무 전부와 실제 총괄 최종 보고의 관리자 승인·원본 무결성을 확인한 뒤 '
+            '로컬 파일만 생성합니다. 외부 게시·결제·전송은 하지 않습니다. 진행합니까?')
 
     def _export_product(self):
         def work():
