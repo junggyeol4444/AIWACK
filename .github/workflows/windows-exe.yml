@@ -9,6 +9,12 @@ on:
       - 'source-archives/**'
       - 'windows-integrated-src/**'
       - 'deployment/**'
+  pull_request:
+    branches: [main]
+    paths:
+      - 'windows-integrated-src/**'
+      - 'validation/**'
+      - '.github/workflows/windows-exe.yml'
   workflow_dispatch:
 
 permissions:
