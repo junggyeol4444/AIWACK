@@ -38,6 +38,7 @@ def test_export_preserves_three_sources(tmp_path):
 def test_multi_history_kept_unresolved(tmp_path):
     audit, history, main, test = _fixture(tmp_path)
     audit['identical'][0]['original_versions'].append({'sha256': _sha(b'older\n')})
+    audit['identical'][0]['original_versions'].append({'sha256': _sha(b'another')})
     audit['version_conflicts'] = [{'path': 'core.py'}]
     export_review_bundle(audit, main, test, tmp_path / 'review', history)
     case = tmp_path / 'review/cases/00001'

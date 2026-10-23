@@ -58,6 +58,7 @@ def test_mismatched_historical_bytes_never_merged(tmp_path):
 def test_multi_version_history_held(tmp_path):
     audit, old, left, right = _fixture(tmp_path, b'a\nb\nc\n', b'A\nb\nc\n', b'a\nb\nC\n')
     audit['identical'][0]['original_versions'].append({'sha256': _sha(b'other')})
+    audit['version_conflicts'] = [{'path': 'core.py'}]
     result = stage_merge(audit, left, right, tmp_path / 'stage', old)
     assert result['held_for_manual_review'] == ['core.py']
 

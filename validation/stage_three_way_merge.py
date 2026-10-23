@@ -28,31 +28,58 @@ def stage_merge(audit: dict, main_root: Path, test_root: Path, destination: Path
     main_root = Path(main_root).resolve(strict=True)
     test_root = Path(test_root).resolve(strict=True)
     destination = Path(destination).absolute()
+    # Resolve parent aliases before creating any staging directory.
+    resolved_destination = destination.resolve(strict=False)
     if historical_root is not None:
         historical_root = Path(historical_root).resolve(strict=True)
         if not historical_root.is_dir():
             raise ValueError('과거 원본은 실제 폴더여야 합니다.')
-    if historical_root is not None and (
-            destination == historical_root or historical_root in destination.parents):
-        raise ValueError('과거 원본 폴더 내부에 병합 산출물을 만들 수 없습니다.')
+    protected_roots = [main_root, test_root]
+    if historical_root is not None:
+        protected_roots.append(historical_root)
+    if any(resolved_destination == root or root in resolved_destination.parents
+           for root in protected_roots):
+        raise ValueError('원본·테스트·과거 원본 내부에 병합 산출물을 만들 수 없습니다.')
     if destination.exists():
         raise FileExistsError('기존 병합 산출물을 덮어쓸 수 없습니다.')
-    if main_root == test_root or main_root in destination.parents or test_root in destination.parents:
-        raise ValueError('원본 또는 테스트 폴더 내부에 병합 산출물을 만들 수 없습니다.')
+    if main_root == test_root:
+        raise ValueError('main과 테스트 원본은 서로 다른 폴더여야 합니다.')
     result = review_three_way(audit, main_root, test_root)
     if (result['unsafe'] or not result['historical_coverage_confirmed']
-            or result['historical_version_conflicts']
             or audit.get('unsafe') or audit.get('baseline_paths_unseen')
             or audit.get('baseline_paths_sha_mismatch')):
-        raise ValueError('역사 원본/Windows 경로 충돌 또는 감사 미완료로 병합 차단')
-    original_paths = {
-        item['path'] for group in ('identical', 'changed', 'missing')
+        raise ValueError('원본 전수 감사 또는 Windows 경로 안전검사 충돌·미완료로 병합 차단')
+    historical_versions = {
+        item['path']: {v['sha256'] for v in item['original_versions']}
+        for group in ('identical', 'changed', 'missing')
         for item in audit.get(group, [])}
+    original_paths = set(historical_versions)
+    conflicts = audit.get('version_conflicts', [])
+    if not isinstance(conflicts, list):
+        raise ValueError('역사 버전 충돌 감사 형식 오류')
+    conflict_paths = set()
+    for conflict in conflicts:
+        if not isinstance(conflict, dict) or not isinstance(conflict.get('path'), str):
+            raise ValueError('역사 버전 충돌 감사 항목 오류')
+        path = conflict['path']
+        if path in conflict_paths or len(historical_versions.get(path, set())) < 2:
+            raise ValueError('역사 버전 충돌 목록과 원본 SHA 이력 불일치: ' + path)
+        reported = conflict.get('distinct_sha256')
+        if reported is not None and (not isinstance(reported, list)
+                                     or set(reported) != historical_versions[path]):
+            raise ValueError('역사 버전 충돌 SHA 목록 불일치: ' + path)
+        conflict_paths.add(path)
+    if any(len(versions) > 1 and path not in conflict_paths
+           for path, versions in historical_versions.items()):
+        raise ValueError('원본 다중버전 감사 누락')
     eligible = []
     held = []
     merged_divergent = {}
     for item in result['review_items']:
         path, status = item['path'], item['classification']
+        if path in conflict_paths:
+            held.append(item)
+            continue
         if status == 'test_changed_from_original' or (
                 status == 'test_only' and path not in original_paths):
             eligible.append(item)
@@ -79,6 +106,8 @@ def stage_merge(audit: dict, main_root: Path, test_root: Path, destination: Path
                 merged_divergent[path] = merged
         else:
             held.append(item)
+    # Same-in-both content does not resolve a multi-version historical baseline.
+    held_paths = {item['path'] for item in held} | conflict_paths
     # 검토 시점의 main 바이트를 고정해 복사 중 동시 수정·추가를 차단한다.
     main_before, main_unsafe = _snapshot(main_root)
     if main_unsafe:
@@ -140,7 +169,8 @@ def stage_merge(audit: dict, main_root: Path, test_root: Path, destination: Path
             'merged_divergent_evidence': {
                 path: {k: v for k, v in data.items() if k != 'content'}
                 for path, data in merged_divergent.items()},
-            'held_for_manual_review': [item['path'] for item in held],
+            'held_for_manual_review': sorted(held_paths),
+            'historical_conflict_paths_held': sorted(conflict_paths),
             'main_original_preserved': True, 'test_original_preserved': True,
             'github_main_updated': False}
 

@@ -71,6 +71,24 @@ def review_three_way(audit: dict, main_root: Path, test_root: Path) -> dict:
             historical[name] = hashes
     if not historical or (audit.get('distinct_original_paths', len(historical)) != len(historical)):
         raise ValueError('원본 경로 개수·감사 내역이 불완전합니다.')
+    conflicts = audit.get('version_conflicts', [])
+    if not isinstance(conflicts, list):
+        raise ValueError('역사 버전 충돌 감사 형식 오류')
+    conflict_paths = set()
+    for row in conflicts:
+        if not isinstance(row, dict) or not isinstance(row.get('path'), str):
+            raise ValueError('역사 버전 충돌 경로 오류')
+        name = row['path']
+        if name in conflict_paths or len(historical.get(name, set())) < 2:
+            raise ValueError('역사 버전 충돌 원본 SHA 누락·중복: ' + name)
+        declared = row.get('distinct_sha256')
+        if declared is not None and (not isinstance(declared, list)
+                                     or set(declared) != historical[name]):
+            raise ValueError('역사 버전 충돌 SHA 목록 불일치: ' + name)
+        conflict_paths.add(name)
+    if any(len(versions) > 1 and name not in conflict_paths
+           for name, versions in historical.items()):
+        raise ValueError('역사 다중버전 충돌 감사 누락')
     main, main_unsafe = _snapshot(main_root)
     test, test_unsafe = _snapshot(test_root)
     rows = []
@@ -92,8 +110,9 @@ def review_three_way(audit: dict, main_root: Path, test_root: Path) -> dict:
         else:
             status = 'divergent_change'
         counts[status] = counts.get(status, 0) + 1
-        if status != 'same_in_both' or (original and a not in original):
+        if status != 'same_in_both' or (original and a not in original) or name in conflict_paths:
             rows.append({'path': name, 'classification': status,
+                         'historical_conflict': name in conflict_paths,
                          'main_sha256': a, 'test_sha256': b,
                          'historical_sha256': sorted(original),
                          'historical_match_main': a in original if a else False,
@@ -106,12 +125,13 @@ def review_three_way(audit: dict, main_root: Path, test_root: Path) -> dict:
         'classifications': counts, 'review_items': rows,
         'unsafe': [{'tree': 'main', **r} for r in main_unsafe]
                   + [{'tree': 'test', **r} for r in test_unsafe],
-        'historical_version_conflicts': len(audit.get('version_conflicts', [])),
+        'historical_version_conflicts': len(conflict_paths),
+        'historical_conflict_paths': sorted(conflict_paths),
         'historical_coverage_confirmed': audit['coverage_confirmed'],
         'ready_for_main': bool(audit['coverage_confirmed']
                                and not audit.get('requires_manual_merge_review')
                                and not audit.get('unsafe')
-                               and not audit.get('version_conflicts')
+                               and not conflict_paths
                                and not audit.get('baseline_paths_unseen')
                                and not audit.get('baseline_paths_sha_mismatch')
                                and not rows and not main_unsafe and not test_unsafe),
