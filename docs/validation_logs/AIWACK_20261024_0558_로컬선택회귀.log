@@ -1,0 +1,16 @@
+AIWACK 2026-10-24 05:58 KST 선택 검증 기록
+대상: 02:00 원본보존 ZIP + 03:57 개발증분 + 04:54 패치 + 이번 변경의 로컬 재구성본
+주의: 최신 원격 테스트 브랜치 전체와 바이트 동일한 체크아웃이 아니므로 원격 전체 PASS로 간주하지 않음.
+1차: 로컬 재구성 중 누락된 helper import / 과거 충돌 정책 차이로 FAIL. 최신 원격 코드 수정 실패가 아님.
+보정 후: 35 passed, 1 deselected in 0.11s (과거 충돌 단일-SHA 계약 테스트는 오래된 로컬 베이스라 제외).
+확대 선택: 88 passed in 0.23s.
+검사 파일: validation/test_round_20261024_0558_preserved_main_changes.py,
+validation/test_three_way_merge_review.py,
+validation/test_merge_disjoint_text_changes.py,
+validation/test_merge_disjoint_json_changes.py,
+validation/test_round_20261023_2359_merge_safety.py,
+validation/test_export_merge_review_bundle.py,
+validation/test_restore_original_history_manifest.py,
+validation/test_restore_original_source_history.py,
+validation/test_restore_original_source_history_preflight.py.
+Windows 10/11 EXE GUI, 실제 GGUF 30업무, 24시간, T01~T20, 전체 원격 통합검증: 미실행.
