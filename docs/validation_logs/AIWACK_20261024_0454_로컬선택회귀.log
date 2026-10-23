@@ -1,0 +1,7 @@
+실행 환경: Linux 로컬
+기준: 2026-10-24 02:00 누적 ZIP + 03:57 개발 증분 + 04:54 신규 변경 재현
+최신 원격 테스트 브랜치와 바이트 동일하지 않음.
+명령: python -m pytest -q validation/test_round_20261024_0454_json_merge_root_isolation.py validation/test_merge_disjoint_json_changes.py validation/test_stage_three_way_merge.py
+.........................                                                [100%]
+25 passed in 0.13s
+Windows EXE/실GGUF 30업무/T01~T20/24시간 운영 검증 결과가 아님.
