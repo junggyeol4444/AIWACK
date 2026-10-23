@@ -740,6 +740,7 @@ def perform(exe, model_cli, gguf):
         # written by the driver. Owner approvals remain separate actions.
         p = gui.start(exe, DATA)
         w = gui.find_window()
+        _bind_new_exe_process(p, w)
         write(w, 175, 395, OWNER)
         write(w, 175, 437, PASSWORD)
         click(w, 175, 480)
@@ -847,6 +848,7 @@ def perform(exe, model_cli, gguf):
         evidence("exe-closed-cleanly")
         p = gui.start(exe, DATA)
         w = gui.find_window()
+        _bind_new_exe_process(p, w)
         write(w, 175, 395, OWNER)
         write(w, 175, 437, PASSWORD)
         click(w, 175, 480)
@@ -940,6 +942,7 @@ def perform(exe, model_cli, gguf):
         evidence("all-models-and-emergency-stop-exe-closed")
         p = gui.start(exe, DATA)
         w = gui.find_window()
+        _bind_new_exe_process(p, w)
         write(w, 175, 395, OWNER)
         write(w, 175, 437, PASSWORD)
         click(w, 175, 480)
