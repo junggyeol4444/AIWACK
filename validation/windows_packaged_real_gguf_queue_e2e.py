@@ -330,7 +330,15 @@ def find_dialog(fragment, timeout=65):
     deadline = time.monotonic() + timeout
     while time.monotonic() < deadline:
         found = []
-        for win in pygetwindow.getAllWindows():
+        try:
+            windows = pygetwindow.getAllWindows()
+        except (RuntimeError, OSError) as exc:
+            # Win32 1400 indicates a destroyed Tk HWND: retry, never blind-click.
+            if '1400' not in str(exc):
+                raise
+            time.sleep(.3)
+            continue
+        for win in windows:
             try:
                 if (fragment in win.title and win.width >= 300
                         and _is_window(win._hWnd) and _owner_pid(win._hWnd)>0):
