@@ -93,3 +93,16 @@ def test_invalid_sha_refused(tmp_path):
     audit = _audit(); audit['identical'][0]['original_versions'][0]['sha256'] = 'broken'
     with pytest.raises(ValueError, match='SHA256'):
         review_three_way(audit, a, b)
+
+
+def test_forged_ready_flag_cannot_hide_unsafe_history(tmp_path):
+    a, b = _trees(tmp_path)
+    audit = _audit(); audit['unsafe'] = [{'path': 'bad', 'reason': 'symlink'}]
+    assert not review_three_way(audit, a, b)['ready_for_main']
+
+
+def test_forged_empty_original_report_rejected(tmp_path):
+    a, b = _trees(tmp_path)
+    audit = _audit(); audit['identical'] = []
+    with pytest.raises(ValueError, match='불완전'):
+        review_three_way(audit, a, b)
