@@ -163,6 +163,20 @@ def _generated_chief_lines(raw,prompt=''):
     return lines
 
 
+class DuplicateModelJSONKeyError(ValueError):
+    """A model emitted duplicate JSON keys; keep failure provenance explicit."""
+
+
+def _reject_duplicate_json_keys(pairs):
+    """Reject conflicting JSON keys in genuine model output, never guess a winner."""
+    obj = {}
+    for key, value in pairs:
+        if key in obj:
+            raise DuplicateModelJSONKeyError('실제 총괄 모델 JSON 중복 키')
+        obj[key] = value
+    return obj
+
+
 def _parse_single_chief_completion(raw,prompt,name):
     """Strict parse of a genuine single department call, including small GGUF text."""
     lines=_generated_chief_lines(raw,prompt)
@@ -172,7 +186,8 @@ def _parse_single_chief_completion(raw,prompt,name):
     json_start=next((i for i,v in enumerate(normalized) if v.startswith('{')),None)
     if json_start is not None:
         candidate='\n'.join(normalized[json_start:]).strip()
-        try:obj,end=json.JSONDecoder().raw_decode(candidate)
+        try:obj,end=json.JSONDecoder(object_pairs_hook=_reject_duplicate_json_keys).raw_decode(candidate)
+        except DuplicateModelJSONKeyError:raise
         except ValueError as error:raise ValueError('총괄 단일 부서 JSON 생성 결과 오류') from error
         if candidate[end:].strip() or not isinstance(obj,dict):
             raise ValueError('총괄 단일 부서 JSON 생성 결과 오류')
@@ -495,7 +510,9 @@ def _parse_group(raw, expected, *, prompt=''):
         for start in json_indices[:2]:
             portion = '\n'.join(lines[start:]).strip()
             try:
-                parsed, end = json.JSONDecoder().raw_decode(portion)
+                parsed, end = json.JSONDecoder(object_pairs_hook=_reject_duplicate_json_keys).raw_decode(portion)
+            except DuplicateModelJSONKeyError:
+                raise
             except ValueError:
                 continue
             if portion[end:].strip():
@@ -568,7 +585,9 @@ def _parse_single_real_chief(raw, requested, prompt):
     clean = '\n'.join(lines)
     if clean.startswith('{'):
         try:
-            item = json.loads(clean)
+            item = json.loads(clean, object_pairs_hook=_reject_duplicate_json_keys)
+        except DuplicateModelJSONKeyError:
+            raise
         except ValueError as exc:
             raise ValueError('실제 총괄 단일 부서 JSON 출력 손상') from exc
         if not isinstance(item, dict) or item.get('department', item.get('부서명')) != requested:
