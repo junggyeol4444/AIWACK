@@ -1,0 +1,31 @@
+{
+  "round": 14,
+  "test_results": {
+    "root": "138 PASS (Linux Python)",
+    "native_existing": "128 PASS (Linux Python; company_wide_campaign, operations, payment reconciliation, staff reallocation, autopilot, backup, continuity, handoffs, approved tools, deliverables, chief review, parallel approved cycle)",
+    "native_round8_14": "37 PASS (Linux Python; round8~14 parser, GGUF resume, provenance)",
+    "gui_structural": "8 PASS (Linux AST/fake HWND, not physical Windows)",
+    "compiled": "PASS",
+    "native_self_test": "PASS",
+    "ci_yaml": "PASS",
+    "windows_10_11_exe": "NOT RUN",
+    "windows_2022_2025_real_gguf": "NOT RUN",
+    "pg_real": "NOT RUN",
+    "native_all_2400": "NOT RUN",
+    "github_main_code_commit": "NOT DONE"
+  },
+  "changed_paths": [
+    ".github/workflows/ci.yml",
+    "windows-integrated-src/desktop/company_wide_campaign.py",
+    "validation/windows_packaged_real_gguf_queue_e2e.py",
+    "validation/windows_real_30_step_campaign_e2e.py",
+    "windows-integrated-src/tests/test_round14_strict_genuine_plan.py",
+    "validation/test_round14_native_keyboard_focus.py"
+  ],
+  "previous_archive_files": 1071,
+  "prior_source_preserved": true,
+  "real_gguf_windows_tested": false,
+  "physical_windows_gui_tested": false,
+  "github_docs_update": "BLOCKED by safety checks",
+  "github_main_code_commit": "NOT DONE"
+}
