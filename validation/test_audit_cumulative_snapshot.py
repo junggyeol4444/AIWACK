@@ -63,3 +63,44 @@ def test_rejects_casefold_collision(tmp_path):
     root=tmp_path/'repo';root.mkdir()
     with pytest.raises(ValueError, match='대소문자'):
         audit(_manifest(tmp_path, {'Doc.md':_sha(b'a'),'doc.md':_sha(b'b')}), root)
+
+
+@pytest.mark.parametrize('path', ['CON','CON.txt','dir/PRN.json','folder/com1.log','LPT9.dat'])
+def test_rejects_windows_reserved_device_names_in_manifest(tmp_path,path):
+    root=tmp_path/'repo';root.mkdir()
+    with pytest.raises(ValueError,match='예약 장치명'):
+        audit(_manifest(tmp_path,{path:_sha(b'original')}),root)
+
+
+def test_detects_new_windows_case_collision_without_mutation(tmp_path):
+    root=tmp_path/'repo';root.mkdir()
+    (root/'Original.md').write_bytes(b'original')
+    (root/'original.md').write_bytes(b'new variant')
+    if len(list(root.iterdir()))<2:
+        pytest.skip('대소문자를 구별하지 않는 파일시스템')
+    result=audit(_manifest(tmp_path,{'Original.md':_sha(b'original')}),root)
+    assert any(item['reason']=='windows_case_collision' for item in result['unsafe'])
+    assert result['snapshot_fully_identical'] is False
+
+
+@pytest.mark.parametrize('path', ['report?.md','a<b>.txt','dir/pipe|name','folder/colon:name',
+                                  'docs/trailing.','docs/blank ', 'docs/low\\x01.txt'])
+def test_rejects_windows_invalid_manifest_names(tmp_path, path):
+    root=tmp_path/'repo';root.mkdir()
+    with pytest.raises(ValueError,match='형식'):
+        audit(_manifest(tmp_path,{path:_sha(b'original')}),root)
+
+
+def test_unicode_nfc_manifest_collision_rejected(tmp_path):
+    root=tmp_path/'repo';root.mkdir()
+    with pytest.raises(ValueError,match='대소문자'):
+        audit(_manifest(tmp_path,{'é.txt':_sha(b'a'),'e\\u0301.txt':_sha(b'b')}),root)
+
+
+def test_new_windows_illegal_file_is_flagged_without_mutation(tmp_path):
+    root=tmp_path/'repo';root.mkdir()
+    (root/'legal.md').write_bytes(b'unchanged')
+    (root/'bad?.md').write_bytes(b'bad on Windows')
+    result=audit(_manifest(tmp_path,{'legal.md':_sha(b'unchanged')}),root)
+    assert any(x['reason']=='windows_invalid_name' for x in result['unsafe'])
+    assert (root/'legal.md').read_bytes()==b'unchanged'
