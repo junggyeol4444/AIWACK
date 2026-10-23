@@ -38,7 +38,7 @@ def test_changed_file_is_never_overwritten(tmp_path):
     assert (root/'docs/original.md').read_bytes()==b'newer'
 
 
-@pytest.mark.parametrize('path',['../escape','/absolute','docs\\evil','C:/drive',
+@pytest.mark.parametrize('path', ['../escape','/absolute','docs\\evil','C:/drive',
                                  'docs/CON.txt','docs/trailing. ','docs/../../escape',
                                  'docs//alias.txt','docs/./alias.txt','docs/has?.txt',
                                  'docs/a<b>.md','docs/pipe|name','docs/illegal*.md'])
