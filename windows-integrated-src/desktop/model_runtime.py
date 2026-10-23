@@ -72,6 +72,25 @@ def validate_config(config: ModelConfig) -> ModelConfig:
     return ModelConfig(config.name.strip(), config.backend, str(program), str(model) if model else "", config.max_tokens)
 
 
+def _extract_llama_completion(raw: str, prompt: str) -> str:
+    """Remove only an exact stdout echo of the supplied input, never a guessed reply.
+
+    Some real llama Windows binaries print the input before the generated
+    completion. Unknown logging preambles and unverifiable echoes remain
+    unchanged; downstream length and approval guards can reject them.
+    """
+    if not isinstance(raw, str) or not isinstance(prompt, str):
+        raise TypeError('모델 출력/프롬프트 형식 오류')
+    visible = raw.lstrip('\ufeff\r\n\t ')
+    original = prompt.strip()
+    if not original or not visible.startswith(original):
+        return raw.strip()
+    generated = visible[len(original):].strip()
+    if not generated:
+        raise ValueError('실제 모델의 생성 응답이 없고 프롬프트만 출력됐습니다.')
+    return generated
+
+
 def run_local_model(config: ModelConfig, prompt: str, *, timeout: int = 60,
                     cancel: threading.Event | None = None) -> str:
     """Run a selected LOCAL model executable on explicit demand, without a shell.
@@ -164,4 +183,9 @@ def run_local_model(config: ModelConfig, prompt: str, *, timeout: int = 60,
         raise ValueError('로컬 모델 응답이 20000자를 초과했습니다. 잘린 결과를 저장하지 않습니다.')
     if not output.strip():
         raise ValueError('로컬 모델이 빈 응답을 반환했습니다.')
+    # Raw output length is already checked above before any exact echo cleanup.
+    if os.path.basename(os.fspath(args[0])).lower() in {
+        'llama-cli.exe', 'llama-completion.exe', 'llama-cli', 'llama-completion'
+    }:
+        return _extract_llama_completion(output, prompt)
     return output.strip()
