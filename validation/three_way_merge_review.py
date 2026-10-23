@@ -64,6 +64,8 @@ def review_three_way(audit: dict, main_root: Path, test_root: Path) -> dict:
                                  for h in hashes):
                 raise ValueError('원본 감사 SHA256 손상: '+name)
             historical[name] = hashes
+    if not historical or (audit.get('distinct_original_paths', len(historical)) != len(historical)):
+        raise ValueError('원본 경로 개수·감사 내역이 불완전합니다.')
     main, main_unsafe = _snapshot(main_root)
     test, test_unsafe = _snapshot(test_root)
     rows = []
@@ -103,6 +105,10 @@ def review_three_way(audit: dict, main_root: Path, test_root: Path) -> dict:
         'historical_coverage_confirmed': audit['coverage_confirmed'],
         'ready_for_main': bool(audit['coverage_confirmed']
                                and not audit.get('requires_manual_merge_review')
+                               and not audit.get('unsafe')
+                               and not audit.get('version_conflicts')
+                               and not audit.get('baseline_paths_unseen')
+                               and not audit.get('baseline_paths_sha_mismatch')
                                and not rows and not main_unsafe and not test_unsafe),
         'automatic_merge_performed': False,
     }
