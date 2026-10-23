@@ -50,7 +50,13 @@ def verified_historical_recovery(item: dict, historical_root: Path) -> dict | No
     source = root.joinpath(*path.parts)
     if not source.is_file() or source.is_symlink():
         return None
+    # 부모 디렉터리가 내부 다른 위치를 가리키는 링크여도 원본 경로가 모호하다.
+    if any(ancestor.is_symlink() for ancestor in (source, *source.parents)
+           if ancestor != root):
+        return None
     if not source.resolve().is_relative_to(root):
+        return None
+    if source.stat().st_size > 32 * 1024 * 1024:
         return None
     data = source.read_bytes()
     digest = hashlib.sha256(data).hexdigest()
