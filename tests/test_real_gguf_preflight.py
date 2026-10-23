@@ -113,3 +113,26 @@ def test_success_marker_is_published_after_real_process_result(tmp_path):
     assert verify_cli(primary, model, evidence, chosen) == primary
     assert chosen.read_text(encoding='utf-8').strip() == str(primary)
     assert json.loads(evidence.read_text(encoding='utf-8'))['selected'] == primary.name
+
+
+def test_output_dotdot_alias_cannot_replace_model(tmp_path):
+    model, evidence, chosen = fixtures(tmp_path)
+    (tmp_path / 'nested').mkdir()
+    primary = tmp_path / 'llama-cli.exe'
+    primary.write_bytes(b'fixture')
+    aliased_model = tmp_path / 'nested' / '..' / model.name
+    original = model.read_bytes()
+    with pytest.raises(ValueError, match='겹칩니다'):
+        verify_cli(primary, model, evidence, aliased_model)
+    assert model.read_bytes() == original
+
+
+def test_evidence_alias_cannot_replace_binary(tmp_path):
+    model, evidence, chosen = fixtures(tmp_path)
+    (tmp_path / 'nested').mkdir()
+    primary = tmp_path / 'llama-cli.exe'
+    primary.write_bytes(b'fixture')
+    original = primary.read_bytes()
+    with pytest.raises(ValueError, match='겹칩니다'):
+        verify_cli(primary, model, tmp_path / 'nested' / '..' / primary.name, chosen)
+    assert primary.read_bytes() == original
