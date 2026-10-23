@@ -18,6 +18,11 @@ except ImportError:
     from merge_disjoint_text_changes import merge_disjoint_text
 
 try:
+    from validation.merge_disjoint_json_changes import merge_disjoint_json
+except ImportError:
+    from merge_disjoint_json_changes import merge_disjoint_json
+
+try:
     from validation.three_way_merge_review import review_three_way, _snapshot
 except ImportError:
     from three_way_merge_review import review_three_way, _snapshot
@@ -99,6 +104,9 @@ def stage_merge(audit: dict, main_root: Path, test_root: Path, destination: Path
                 continue
             merged = merge_disjoint_text(base, (main_root / path).read_bytes(),
                                          (test_root / path).read_bytes())
+            if merged is None and path.lower().endswith('.json'):
+                merged = merge_disjoint_json(base, (main_root / path).read_bytes(),
+                                             (test_root / path).read_bytes())
             if merged is None:
                 held.append(item)
             else:
