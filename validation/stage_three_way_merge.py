@@ -47,8 +47,13 @@ def stage_merge(audit: dict, main_root: Path, test_root: Path, destination: Path
         raise ValueError('원본·테스트·과거 원본 내부에 병합 산출물을 만들 수 없습니다.')
     if destination.exists():
         raise FileExistsError('기존 병합 산출물을 덮어쓸 수 없습니다.')
-    if main_root == test_root:
-        raise ValueError('main과 테스트 원본은 서로 다른 폴더여야 합니다.')
+    if (main_root == test_root or main_root in test_root.parents
+            or test_root in main_root.parents):
+        raise ValueError('main과 테스트 원본은 서로 중첩되지 않은 별도 폴더여야 합니다.')
+    if historical_root is not None and any(
+            historical_root == root or historical_root in root.parents
+            or root in historical_root.parents for root in (main_root, test_root)):
+        raise ValueError('과거 원본 폴더는 main·테스트 폴더와 중첩될 수 없습니다.')
     result = review_three_way(audit, main_root, test_root)
     if (result['unsafe'] or not result['historical_coverage_confirmed']
             or audit.get('unsafe') or audit.get('baseline_paths_unseen')
@@ -102,11 +107,14 @@ def stage_merge(audit: dict, main_root: Path, test_root: Path, destination: Path
             if hashlib.sha256(base).hexdigest() != historical[0]:
                 held.append(item)
                 continue
-            merged = merge_disjoint_text(base, (main_root / path).read_bytes(),
-                                         (test_root / path).read_bytes())
-            if merged is None and path.lower().endswith('.json'):
-                merged = merge_disjoint_json(base, (main_root / path).read_bytes(),
-                                             (test_root / path).read_bytes())
+            main_bytes = (main_root / path).read_bytes()
+            test_bytes = (test_root / path).read_bytes()
+            # JSON은 텍스트 병합으로 우회하면 중복 키·NaN·형식 오류가
+            # 통과할 수 있다. 엄격한 JSON 의미 병합만 허용한다.
+            if path.lower().endswith('.json'):
+                merged = merge_disjoint_json(base, main_bytes, test_bytes)
+            else:
+                merged = merge_disjoint_text(base, main_bytes, test_bytes)
             if merged is None:
                 held.append(item)
             else:
