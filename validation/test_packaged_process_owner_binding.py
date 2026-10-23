@@ -41,3 +41,29 @@ def test_dead_or_invalid_bootstrap_never_binds(pid,exit_code):
     env,process,window=bind(root=pid)
     process.poll=lambda:exit_code
     with pytest.raises(AssertionError):env['_bind_new_exe_process'](process,window)
+
+def test_all_real_exe_launches_rebind_new_hwnd_before_physical_click():
+    """Guard against future reintroduction of stale PID after hard crash/re-login."""
+    tree=ast.parse(SOURCE.read_text(encoding='utf-8'))
+    starts=[]
+    for node in ast.walk(tree):
+        if not isinstance(node,ast.FunctionDef) or node.name!='perform':
+            continue
+        for statements in (n.body for n in ast.walk(node) if isinstance(n,ast.Try)):
+            for i,stmt in enumerate(statements):
+                if (isinstance(stmt,ast.Assign) and
+                        isinstance(stmt.value,ast.Call) and
+                        isinstance(stmt.value.func,ast.Attribute) and
+                        isinstance(stmt.value.func.value,ast.Name) and
+                        stmt.value.func.value.id=='gui' and
+                        stmt.value.func.attr=='start'):
+                    starts.append((statements,i))
+    assert len(starts)==4, 'Initial launch plus three same-data EXE restarts must be verified.'
+    for statements,index in starts:
+        following=statements[index+1:index+3]
+        assert (len(following)==2 and
+                isinstance(following[1],ast.Expr) and
+                isinstance(following[1].value,ast.Call) and
+                isinstance(following[1].value.func,ast.Name) and
+                following[1].value.func.id=='_bind_new_exe_process'), (
+                    'Every restarted EXE must verify and rebind the new physical GUI PID.')
