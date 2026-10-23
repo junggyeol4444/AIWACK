@@ -84,7 +84,7 @@ def test_detects_new_windows_case_collision_without_mutation(tmp_path):
 
 
 @pytest.mark.parametrize('path', ['report?.md','a<b>.txt','dir/pipe|name','folder/colon:name',
-                                  'docs/trailing.','docs/blank ', 'docs/low\\x01.txt'])
+                                  'docs/trailing.','docs/blank ', 'docs/low\x01.txt'])
 def test_rejects_windows_invalid_manifest_names(tmp_path, path):
     root=tmp_path/'repo';root.mkdir()
     with pytest.raises(ValueError,match='형식'):
@@ -94,7 +94,7 @@ def test_rejects_windows_invalid_manifest_names(tmp_path, path):
 def test_unicode_nfc_manifest_collision_rejected(tmp_path):
     root=tmp_path/'repo';root.mkdir()
     with pytest.raises(ValueError,match='대소문자'):
-        audit(_manifest(tmp_path,{'é.txt':_sha(b'a'),'e\\u0301.txt':_sha(b'b')}),root)
+        audit(_manifest(tmp_path,{'é.txt':_sha(b'a'),'e\u0301.txt':_sha(b'b')}),root)
 
 
 def test_new_windows_illegal_file_is_flagged_without_mutation(tmp_path):
