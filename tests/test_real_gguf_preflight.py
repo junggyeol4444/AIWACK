@@ -8,7 +8,7 @@ from validation.real_gguf_preflight import verify_cli
 
 
 def script(path, *, code, text='SYNTHETIC TEST OUTPUT'):
-    path.write_text(f'#!{sys.executable}\nimport sys\nprint({text!r})\nsys.exit({code})\n', encoding='utf-8')
+    path.write_text(f'#!{sys.executable} -S\nimport sys\nprint({text!r})\nsys.exit({code})\n', encoding='utf-8')
     path.chmod(0o755)
     return path
 
