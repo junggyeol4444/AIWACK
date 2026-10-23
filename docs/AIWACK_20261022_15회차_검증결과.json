@@ -1,0 +1,49 @@
+{
+  "round": 15,
+  "project": "AIWACK",
+  "target": "Windows native Tk EXE and real GGUF",
+  "source_baseline": "AIWACK_20261022_14회차_전체누적_실개발_소스.zip",
+  "root_tests": {
+    "passed": 138,
+    "command": "python -m pytest -q"
+  },
+  "native_regression": {
+    "passed": 27,
+    "command": "round8-14 selected + round15 preliminary"
+  },
+  "new_round15_tests": {
+    "passed": 8,
+    "command": "python -m pytest -q tests/test_round15_durable_chief_groups.py"
+  },
+  "company_wide": {
+    "passed": 32,
+    "deselected": 1
+  },
+  "related_native": {
+    "passed": 63,
+    "skipped": 1
+  },
+  "windows_structural": {
+    "passed": 8,
+    "note": "Linux AST/structural, not physical Windows"
+  },
+  "gui_smoke": {
+    "result": "pass",
+    "environment": "Linux Xvfb Tk, synthetic model text"
+  },
+  "native_selftest": {
+    "exit_code": 0
+  },
+  "actual_windows_exe": false,
+  "actual_windows_real_gguf_30_tasks": false,
+  "actual_windows_10_11_24h": false,
+  "actual_payment_transactions": false,
+  "all_native_tests_completed": false,
+  "T01_T20_final_accepted": false,
+  "main_source_committed": false,
+  "errors_fixed": [
+    "test validation import path",
+    "root pytest collection path",
+    "nonexistent related test filenames"
+  ]
+}
