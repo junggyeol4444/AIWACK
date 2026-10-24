@@ -94,3 +94,26 @@ def test_report_audit_does_not_accept_invented_success(audit_store):
             final_report._record_final_model_attempt(
                 con, 7, 9, 21, 'a' * 64, 'x' * 16,
                 parsed=True, report_sha256='')
+
+def test_read_only_audit_rejects_changed_model_call_ledger(audit_store):
+    raw = 'x' * 16
+    with audit_store._connect() as con:
+        final_report._record_final_model_attempt(
+            con, 7, 9, 21, 'a' * 64, raw, parsed=False, error='형식 오류')
+    with audit_store._connect() as con:
+        con.execute('UPDATE ai_model_call_history SET output_chars=15 WHERE id=21')
+    with pytest.raises(ValueError, match='호출 원본'):
+        final_report.model_attempts(audit_store, 7)
+
+
+@pytest.mark.parametrize('seal,report_sha', [
+    ('g' * 64, 'b' * 64),
+    ('a' * 63, 'b' * 64),
+    ('a' * 64, 'Z' * 64),
+])
+def test_final_model_audit_rejects_non_sha256_values(audit_store, seal, report_sha):
+    with audit_store._connect() as con:
+        with pytest.raises(ValueError, match='형식'):
+            final_report._record_final_model_attempt(
+                con, 7, 9, 21, seal, 'x' * 16,
+                parsed=True, report_sha256=report_sha)
