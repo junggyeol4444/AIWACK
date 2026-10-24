@@ -47,7 +47,14 @@ def snapshot(store, campaign_id: int, *, require_genuine_provenance: bool = True
         raise ValueError('실제 총괄 모델/관리자 승인 진행 원본이 손상됐습니다.')
     first_pending = next((s for s in steps if s.get('task_status') != 'done'), None)
     if first_pending is None:
+        # 완료 표시는 승인된 15부서/30개 모델 호출 원본까지 연결돼야 한다.
+        # 단순 30개 상태 플래그만으로 재개·종료 성공을 주장하지 않는다.
         complete = (prefix == 30 and count == 30
+                    and progress.get('state') == 'approved'
+                    and progress.get('total_tasks') == 30
+                    and progress.get('verified_distinct_departments') == 15
+                    and progress.get('verified_chief_model_call_links') == 30
+                    and progress.get('next_task_id') is None
                     and progress.get('all_30_tasks_evidence_verified') is True
                     and progress.get('all_30_chief_model_call_links_verified') is True)
         return {'campaign_id': campaign_id,
