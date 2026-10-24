@@ -100,7 +100,26 @@ def snapshot(store, campaign_id: int, *, require_genuine_provenance: bool = True
         reasons.append('직전 직원 결과·관리자 승인 원본 연결이 부족합니다.')
     if require_genuine_provenance and prefix != ordinal - 1:
         reasons.append('직전 총괄 실제 모델 호출 연결이 부족합니다.')
-    if progress.get('next_task_id') != task_id:
+    # 진행 집계의 선택적 원본 필드가 제공됐다면 서로 모순된 값으로
+    # 'ready'를 반환하지 않는다. 과거 저장소의 누락 필드는 그대로 둔다.
+    if 'state' in progress and progress['state'] != 'approved':
+        reasons.append('실제 진행 원본의 관리자 승인 상태가 일치하지 않습니다.')
+    if 'total_tasks' in progress and (type(progress['total_tasks']) is not int
+                                      or progress['total_tasks'] != 30):
+        reasons.append('실제 진행 원본의 전체 업무 수가 30이 아닙니다.')
+    if (progress.get('all_30_tasks_evidence_verified') is True
+            or progress.get('all_30_chief_model_call_links_verified') is True):
+        reasons.append('미완료 업무가 있는데 전체 완료 증빙이 표시됐습니다.')
+    for field, maximum, label in (
+        ('verified_distinct_workers', count, '직원'),
+        ('verified_distinct_departments', min(count, 15), '부서'),
+        ('verified_chief_model_call_links', count, '총괄 호출'),
+    ):
+        if field in progress and (type(progress[field]) is not int
+                                  or not 0 <= progress[field] <= maximum):
+            reasons.append('실제 진행 원본의 ' + label + ' 집계가 모순됩니다.')
+    if (type(progress.get('next_task_id')) is not int
+            or progress['next_task_id'] != task_id):
         reasons.append('다음 실행 대상이 기존 진행 원본과 다릅니다.')
     return {'campaign_id': campaign_id, 'state': 'blocked' if reasons else 'ready',
             'reason': ' / '.join(reasons) if reasons else '다음 한 업무만 관리자 확인 후 실행 가능',
