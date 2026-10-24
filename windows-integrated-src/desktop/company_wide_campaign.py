@@ -122,10 +122,10 @@ def _record_genuine_chief_plan_rejection(store, source_task_id, chief, call_id,
     completion=raw if isinstance(raw,str) else repr(raw)
     with store._connect() as con:
         initialize(con)
-        call=con.execute('''SELECT employee_id,status FROM ai_model_call_history
+        call=con.execute('''SELECT employee_id,status,output_chars FROM ai_model_call_history
                             WHERE id=?''',(int(call_id),)).fetchone()
-        if call!=(chief,'success'):
-            raise ValueError('총괄 모델 실패 감사의 호출 출처가 불일치합니다.')
+        if call!=(chief,'success',len(completion)):
+            raise ValueError('총괄 모델 실패 감사의 호출 출처·응답 길이가 불일치합니다.')
         con.execute('''INSERT INTO aiwack_wide_chief_rejected_attempts
             (source_task_id,chief_employee_id,model_call_id,attempt_kind,
              requested_departments,output_sha256,output_chars,error_reason)
@@ -279,10 +279,10 @@ def _audit_chief_plan(store,source_id,chief,call_id,names,kind,parsed,raw,error=
                     for ch in generated[:240])
     with store._connect() as con:
         initialize(con)
-        actual=con.execute('SELECT employee_id,status FROM ai_model_call_history WHERE id=?',
+        actual=con.execute('SELECT employee_id,status,output_chars FROM ai_model_call_history WHERE id=?',
                            (int(call_id),)).fetchone()
-        if actual!=(chief,'success'):
-            raise ValueError('계획 감사의 실제 총괄 모델 호출 ID가 일치하지 않습니다.')
+        if actual!=(chief,'success',len(completion)):
+            raise ValueError('계획 감사의 실제 총괄 모델 호출 ID·응답 길이가 일치하지 않습니다.')
         con.execute('''INSERT INTO aiwack_wide_chief_plan_attempts
             (source_task_id,chief_employee_id,model_call_id,department_names,
              attempt_kind,parsed,error_kind,output_sha256,output_chars,completion_preview)
@@ -570,7 +570,7 @@ def _parse_group(raw, expected, *, prompt=''):
             parts = [x.strip() for x in
                      line.strip().strip('|').replace('｜', '|').replace('¦', '|').split('|')]
             if len(parts) != 3:
-                continue
+                raise ValueError('총괄의 부서별 계획에 설명문 또는 잘못된 필드가 섞였습니다.')
             if (parts[0].lower() in ('department', '부서', '부서명')
                     and parts[1].lower() in ('title', '제목', '업무 제목', '작업 제목')):
                 continue
@@ -626,6 +626,8 @@ def _parse_single_real_chief(raw, requested, prompt):
         if len(rows) > 1:
             raise ValueError('총괄 단일 부서 계획에 다중 행이 섞였습니다.')
         if rows:
+            if len(rows) != len(normalized):
+                raise ValueError('총괄 단일 부서 지시에 추가 설명문이 섞였습니다.')
             parts = [x.strip() for x in rows[0].split('|')]
             if len(parts) == 3:
                 if parts[0] != requested:
