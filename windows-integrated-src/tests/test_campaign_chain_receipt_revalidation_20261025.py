@@ -71,3 +71,33 @@ def test_missing_or_invalid_receipt_fails_closed(monkeypatch, invalid):
 def test_invalid_campaign_id_rejected_before_snapshot(invalid_id):
     with pytest.raises(ValueError, match='양의 정수'):
         chain.verify_receipt(object(), invalid_id, _receipt())
+
+
+def test_cross_campaign_receipt_rejected_without_source_query(monkeypatch):
+    def must_not_read(*args, **kwargs):
+        raise AssertionError('다른 캠페인 원본을 조회해서는 안 됩니다')
+    monkeypatch.setattr(chain, 'snapshot', must_not_read)
+    with pytest.raises(ValueError, match='캠페인 번호'):
+        chain.verify_receipt(object(), 5, _receipt(campaign_id=4))
+
+
+@pytest.mark.parametrize('invalid', [True, 4.0, '4', None])
+def test_receipt_campaign_identifier_must_be_exact_integer(monkeypatch, invalid):
+    monkeypatch.setattr(chain, 'snapshot', lambda *args: _receipt())
+    receipt = _receipt()
+    receipt['campaign_id'] = invalid
+    with pytest.raises(ValueError, match='캠페인 번호'):
+        chain.verify_receipt(object(), 4, receipt)
+
+
+def test_receipt_json_rejects_unpaired_surrogate_as_value_error():
+    with pytest.raises(ValueError, match='유니코드'):
+        chain.verify_receipt_json(object(), 4, '{"invalid":"\\ud800"}'.replace('\\\\ud800', '\\ud800'))
+
+
+def test_receipt_digest_rejects_uppercase_sha256(monkeypatch):
+    original = _receipt()
+    monkeypatch.setattr(chain, 'snapshot', lambda store, campaign_id: original)
+    forged = dict(original, receipt_sha256='A' * 64)
+    with pytest.raises(ValueError, match='SHA256'):
+        chain.verify_receipt(object(), 4, forged)
