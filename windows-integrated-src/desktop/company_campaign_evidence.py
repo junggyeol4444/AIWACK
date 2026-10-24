@@ -7,6 +7,7 @@ from __future__ import annotations
 import hashlib
 import json
 import os
+import re
 from pathlib import Path
 import sqlite3
 
@@ -154,7 +155,8 @@ def read(store,export_id:int):
     path=folder/name
     if (name!=f'campaign_{campaign}_{completed}_{digest[:20]}.json'
             or folder.is_symlink() or path.is_symlink() or not path.is_file()
-            or hashlib.sha256(body).hexdigest()!=digest or path.read_bytes()!=body):
+            or hashlib.sha256(body).hexdigest()!=digest
+            or path.stat().st_size != len(body) or path.read_bytes()!=body):
         raise ValueError('30업무 감사 원본 파일 또는 승인 체인이 변경됐습니다.')
     return {'id':export_id,'campaign_id':campaign,'completed_tasks':completed,
             'filename':str(path),'sha256':digest,
@@ -192,3 +194,88 @@ def inspect(store, campaign_id: int) -> dict:
                 len(rows)==30 and progress['verified_genuine_prefix_tasks']==30),
             'rows':rows,'independent_model_execution_or_binary_verified':False,
             'physical_windows_exe_verified':False}
+
+
+
+def inspect_disk_consistency(store, limit: int = 100) -> dict:
+    """읽기 전용 30업무 호출 감사 파일/SQLite 중단 복구 목록.
+
+    정상/손상/미등록/위험 경로를 구분한다. 파일 삭제·복구·승인·모델
+    실행은 수행하지 않는다. 범위를 넘긴 경우 전체 무결성 통과를 주장하지 않는다.
+    """
+    store.require_permission('company:manage')
+    if type(limit) is not int or not 1 <= limit <= 1000:
+        raise ValueError('호출 감사 파일 점검 한도는 1~1000 정수여야 합니다.')
+    folder = _folder(store)
+    if folder.is_symlink():
+        raise ValueError('호출 감사 폴더가 심볼릭 링크여서 안전하게 점검할 수 없습니다.')
+    with store._connect() as con:
+        initialize(con)
+        total = con.execute(
+            'SELECT COUNT(*) FROM aiwack_campaign_evidence_exports'
+        ).fetchone()[0]
+        rows = con.execute(
+            '''SELECT id,filename FROM aiwack_campaign_evidence_exports
+               ORDER BY id LIMIT ?''', (limit,)
+        ).fetchall()
+
+    verified, damaged = [], []
+    for ident, name in rows:
+        try:
+            if (not isinstance(name, str) or not re.fullmatch(
+                    r'campaign_[1-9][0-9]*_(?:[1-9]|[12][0-9]|30)_[0-9a-f]{20}\.json',
+                    name)):
+                raise ValueError('등록된 호출 감사 파일 이름이 올바르지 않습니다.')
+            proof = read(store, int(ident))
+        except (ValueError, PermissionError, OSError, sqlite3.Error) as exc:
+            damaged.append({'id': int(ident), 'filename': name,
+                            'error_type': type(exc).__name__,
+                            'reason': str(exc)[:240]})
+        else:
+            verified.append({'id': int(ident), 'filename': name,
+                             'sha256': proof['sha256']})
+
+    orphans, unsafe = [], []
+    scanned = 0
+    truncated_files = False
+    if folder.exists():
+        with os.scandir(folder) as entries, store._connect() as con:
+            for entry in entries:
+                name = entry.name
+                if not (name.startswith('campaign_') and name.endswith('.json')):
+                    continue
+                if scanned >= limit:
+                    truncated_files = True
+                    break
+                scanned += 1
+                if (entry.is_symlink() or not entry.is_file(follow_symlinks=False)
+                        or not re.fullmatch(
+                            r'campaign_[1-9][0-9]*_(?:[1-9]|[12][0-9]|30)_[0-9a-f]{20}\.json',
+                            name)):
+                    unsafe.append(name)
+                elif con.execute(
+                    'SELECT 1 FROM aiwack_campaign_evidence_exports WHERE filename=?',
+                    (name,)
+                ).fetchone() is None:
+                    orphans.append(name)
+
+    complete = total <= limit and not truncated_files
+    return {
+        'format': 'AIWACK_CAMPAIGN_EVIDENCE_CRASH_INVENTORY_V1',
+        'registered_rows_scanned': len(rows),
+        'registered_rows_total': total,
+        'candidate_files_scanned': scanned,
+        'registered_files_verified': verified,
+        'registered_files_failed': damaged,
+        'orphaned_unregistered_files': sorted(orphans),
+        'unsafe_candidate_paths': sorted(unsafe),
+        'scan_complete': complete,
+        'all_scanned_registered_files_intact': not damaged,
+        'no_orphaned_files_confirmed': complete and not orphans and not unsafe,
+        'requires_owner_review': bool(damaged or orphans or unsafe or not complete),
+        'files_deleted': False,
+        'automatic_recovery_performed': False,
+        'external_actions_executed': False,
+        'physical_windows_10_11_recovery_verified': False,
+        'uninterrupted_24h_operation_verified': False,
+    }

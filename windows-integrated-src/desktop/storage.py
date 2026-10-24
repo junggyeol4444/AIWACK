@@ -4772,6 +4772,11 @@ class LocalStore:
         from desktop.company_campaign_evidence import inspect
         return inspect(self, campaign_id)
 
+    def inspect_campaign_evidence_disk_consistency(self, limit: int = 100) -> dict:
+        """호출 감사 파일/SQLite의 누락·손상·미등록 원본을 읽기 전용 점검."""
+        from desktop.company_campaign_evidence import inspect_disk_consistency
+        return inspect_disk_consistency(self, limit)
+
     def find_campaign_final_report(self, campaign_id: int):
         from desktop.company_campaign_final_report import find_by_campaign
         return find_by_campaign(self, campaign_id)

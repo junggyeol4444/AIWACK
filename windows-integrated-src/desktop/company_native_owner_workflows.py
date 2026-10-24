@@ -117,6 +117,9 @@ class CompanyOwnerWorkflows:
             ('인계 디스크·SQLite 중단 복구 감사',lambda:self._perform(
                 '승인 인계 파일 누락·손상·미등록 원본 확인 (삭제/복구 없음)',
                 lambda:self.store.inspect_owner_dossier_disk_consistency(100))),
+            ('30업무 호출 감사 디스크·SQLite 점검',lambda:self._perform(
+                '직원·총괄 호출 감사 파일 누락·손상·미등록 원본 (읽기 전용)',
+                lambda:self.store.inspect_campaign_evidence_disk_consistency(100))),
             ('30업무 중단·재개 사전 점검',lambda:self._perform(
                 '실제 승인·모델 실행 이력 및 중복 실행 방지',
                 lambda:self.store.inspect_full_company_resume_gate(
