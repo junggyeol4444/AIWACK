@@ -66,7 +66,11 @@ def _record_final_model_attempt(con, campaign_id: int, chief: int, call_id: int,
     if (call is None or call[0] != chief or call[1] != 'success'
             or type(call[2]) is not int or call[2] != len(raw)):
         raise ValueError('총괄 최종 보고 시도의 실제 모델 호출 출처·응답 길이 불일치')
-    if (parsed and (len(report_sha256) != 64 or error)
+    def valid_digest(value):
+        return (isinstance(value, str) and len(value) == 64
+                and all(ch in '0123456789abcdef' for ch in value))
+    if (not valid_digest(seal)
+            or parsed and (not valid_digest(report_sha256) or error)
             or not parsed and (report_sha256 or not error)):
         raise ValueError('총괄 최종 보고 실모델 시도 결과 형식 오류')
     con.execute('''INSERT INTO aiwack_campaign_final_model_attempts
@@ -339,13 +343,21 @@ def model_attempts(store, campaign_id: int) -> list[dict]:
         raise ValueError('회사 전체 협업 번호 오류')
     with store._connect() as con:
         initialize(con)
-        rows = con.execute('''SELECT model_call_id,chief_employee_id,
-            evidence_sha256,completion_sha256,completion_chars,parsed,
-            report_sha256,error_reason FROM aiwack_campaign_final_model_attempts
-            WHERE campaign_id=? ORDER BY id''', (campaign_id,)).fetchall()
-    return [dict(zip(('model_call_id','chief_employee_id','evidence_sha256',
-                      'completion_sha256','completion_chars','parsed',
-                      'report_sha256','error_reason'), row)) for row in rows]
+        rows = con.execute('''SELECT a.model_call_id,a.chief_employee_id,
+            a.evidence_sha256,a.completion_sha256,a.completion_chars,a.parsed,
+            a.report_sha256,a.error_reason,h.employee_id,h.status,h.output_chars
+            FROM aiwack_campaign_final_model_attempts a
+            LEFT JOIN ai_model_call_history h ON h.id=a.model_call_id
+            WHERE a.campaign_id=? ORDER BY a.id''', (campaign_id,)).fetchall()
+    results = []
+    for row in rows:
+        if (row[8] != row[1] or row[9] != 'success'
+                or type(row[10]) is not int or row[10] != row[4]):
+            raise ValueError('보존된 최종 보고 실모델 감사의 호출 원본이 변경됐습니다.')
+        results.append(dict(zip(('model_call_id','chief_employee_id',
+            'evidence_sha256','completion_sha256','completion_chars','parsed',
+            'report_sha256','error_reason'), row[:8])))
+    return results
 
 
 def decide(store,report_id:int,decision:str,reason:str):
