@@ -23,9 +23,11 @@ def snapshot(store, campaign_id: int, *, require_genuine_provenance: bool = True
         raise ValueError('30업무 협업 번호는 양의 정수여야 합니다.')
     plan = store.read_full_company_campaign(campaign_id)
     steps = plan.get('steps')
-    if (plan.get('id') != campaign_id or not isinstance(steps, list)
+    if (type(plan.get('id')) is not int or plan['id'] != campaign_id
+            or not isinstance(steps, list)
             or len(steps) != 30
             or any(not isinstance(s, dict) for s in steps)
+            or any(type(s.get('ordinal')) is not int for s in steps)
             or [s.get('ordinal') for s in steps] != list(range(1, 31))):
         raise ValueError('30업무 순서·배정 원본이 누락되거나 중복되었습니다.')
     if plan.get('state') != 'approved':
@@ -39,7 +41,7 @@ def snapshot(store, campaign_id: int, *, require_genuine_provenance: bool = True
                    for s in steps)):
         raise ValueError('승인된 30업무의 실제 배정 번호가 누락되거나 중복되었습니다.')
     progress = store.verified_full_company_progress(campaign_id)
-    if progress.get('campaign_id') != campaign_id:
+    if type(progress.get('campaign_id')) is not int or progress['campaign_id'] != campaign_id:
         raise ValueError('30업무 진행 원본의 협업 번호가 다릅니다.')
     prefix = progress.get('verified_genuine_prefix_tasks')
     count = progress.get('verified_completed_tasks')
