@@ -21,6 +21,7 @@ class _Completed:
                 'total_tasks': 30, 'verified_completed_tasks': 30,
                 'verified_genuine_prefix_tasks': 30,
                 'verified_distinct_departments': 15,
+                'verified_distinct_workers': 30,
                 'verified_chief_model_call_links': 30,
                 'next_task_id': None,
                 'all_30_tasks_evidence_verified': True,
@@ -30,6 +31,7 @@ class _Completed:
 @pytest.mark.parametrize('key,value', [
     ('state', 'draft'), ('total_tasks', 29),
     ('verified_distinct_departments', 14),
+    ('verified_distinct_workers', 29),
     ('verified_chief_model_call_links', 29),
     ('next_task_id', 129),
     ('all_30_tasks_evidence_verified', False),
@@ -76,3 +78,24 @@ def test_run_next_never_reports_success_for_missing_chief_link(monkeypatch):
                         lambda obj, cid: obj.verified_full_company_progress(cid))
     with pytest.raises(ValueError, match='완료 증빙 재검사 실패'):
         wide.run_next(store, 8, require_genuine_provenance=True)
+
+
+@pytest.mark.parametrize('invalid', [None, 'broken', 1, []])
+def test_campaign_step_must_be_mapping_before_any_execution(invalid):
+    class Malformed(_Completed):
+        def read_full_company_campaign(self, campaign_id):
+            data = super().read_full_company_campaign(campaign_id)
+            data['steps'][4] = invalid
+            return data
+    with pytest.raises(ValueError, match='순서·배정 원본'):
+        gate.snapshot(Malformed(), 8)
+
+
+@pytest.mark.parametrize('value', [True, 30.0, '30', None])
+def test_completed_gate_rejects_non_integer_worker_count(value):
+    class Invalid(_Completed):
+        def verified_full_company_progress(self, campaign_id):
+            data = super().verified_full_company_progress(campaign_id)
+            data['verified_distinct_workers'] = value
+            return data
+    assert gate.snapshot(Invalid(), 8)['state'] == 'blocked'
