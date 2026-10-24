@@ -156,16 +156,88 @@ def verify_against_archives(evidence_root: Path) -> dict:
             'github_main_updated': False}
 
 
+
+def compare_checkout_with_archives(evidence_root: Path, checkout_root: Path) -> dict:
+    """실제 ZIP과 증빙을 먼저 검증한 뒤 기존 소스 트리 1:1 SHA 차이를 읽기 전용으로 기록한다.
+
+    다중 역사 버전은 현재 체크아웃이 어느 한 버전과 일치해도
+    자동 채택하지 않는다. '비교 완료'와 '병합 완료'는 별개다.
+    """
+    try:
+        from validation.three_way_merge_review import _snapshot
+    except ImportError:
+        from three_way_merge_review import _snapshot
+
+    archive_report = verify_against_archives(evidence_root)
+    manifest = json.loads((Path(evidence_root) / 'manifest.json').read_text(encoding='utf-8'))
+    checkout_root = Path(checkout_root).resolve(strict=True)
+    if not checkout_root.is_dir():
+        raise ValueError('현재 소스 비교 대상은 폴더여야 합니다.')
+    before, unsafe = _snapshot(checkout_root)
+    if unsafe:
+        raise ValueError('현재 소스 Windows 경로 안전검사 실패: ' + str(unsafe[:2]))
+    details = []
+    seen = set()
+    counts = {'unchanged': 0, 'changed': 0, 'missing': 0,
+              'historical_conflict_matching': 0, 'historical_conflict_changed': 0}
+    for row in manifest['paths']:
+        name = row['path']
+        if name in seen:
+            raise ValueError('역사 경로 중복: ' + name)
+        seen.add(name)
+        expected = sorted(row['expected_sha256'])
+        actual = before.get(name)
+        if len(expected) > 1:
+            state = ('historical_conflict_matching' if actual in expected
+                     else 'historical_conflict_changed')
+        elif actual is None:
+            state = 'missing'
+        elif actual == expected[0]:
+            state = 'unchanged'
+        else:
+            state = 'changed'
+        counts[state] += 1
+        details.append({'path': name, 'status': state,
+                        'checkout_sha256': actual,
+                        'historical_sha256': expected,
+                        'manual_review_required': state != 'unchanged'})
+    after, unsafe_after = _snapshot(checkout_root)
+    if unsafe_after or after != before:
+        raise ValueError('비교 중 현재 소스가 변경되었거나 경로 안전검사가 실패했습니다.')
+    untracked = sorted(set(before) - seen)
+    full = (len(seen) == 1099 and archive_report['missing_versions'] == 0
+            and archive_report['unmatched_archive_entries_total'] == 0)
+    return {'comparison_completed': True,
+            'independent_archive_comparison': True,
+            'historical_paths_compared': len(seen),
+            'archive_entries_verified': archive_report['archive_entries_verified'],
+            'unmatched_archive_entries_total': archive_report['unmatched_archive_entries_total'],
+            'missing_historical_versions': archive_report['missing_versions'],
+            'full_1099_originals_compared': full,
+            'status_counts': counts, 'path_results': details,
+            'checkout_only_paths': untracked,
+            'manual_review_required': (any(v for k, v in counts.items() if k != 'unchanged')
+                                       or archive_report['missing_versions'] != 0
+                                       or archive_report['unmatched_archive_entries_total'] != 0),
+            'checkout_original_preserved': True, 'github_main_updated': False}
+
+
+
 def main(argv=None) -> int:
     parser = argparse.ArgumentParser(description='AIWACK 원본 ZIP 독립 대조')
     parser.add_argument('evidence', type=Path)
+    parser.add_argument('--checkout-root', type=Path,
+                        help='원본 ZIP과 현재 소스 파일의 SHA256을 읽기 전용 대조')
     args = parser.parse_args(argv)
     try:
-        result = verify_against_archives(args.evidence)
+        result = (compare_checkout_with_archives(args.evidence, args.checkout_root)
+                  if args.checkout_root is not None else verify_against_archives(args.evidence))
     except (OSError, ValueError, TypeError, KeyError, zipfile.BadZipFile, RuntimeError) as error:
         print(json.dumps({'verified': False, 'error': str(error)}, ensure_ascii=False))
         return 3
     print(json.dumps(result, ensure_ascii=False, indent=2))
+    if args.checkout_root is not None:
+        return 2 if result['manual_review_required'] else 0
     return 0 if result['missing_versions'] == 0 else 2
 
 
