@@ -111,13 +111,15 @@ def verify_receipt(store, campaign_id: int, receipt: dict) -> dict:
         raise ValueError('회사 전체 협업 번호는 양의 정수여야 합니다.')
     if not isinstance(receipt, dict):
         raise ValueError('30업무 최종 인계 지문 형식이 올바르지 않습니다.')
+    if type(receipt.get('campaign_id')) is not int or receipt['campaign_id'] != campaign_id:
+        raise ValueError('최종 인계 지문의 캠페인 번호가 현재 요청과 다릅니다.')
     current = snapshot(store, campaign_id)
     if set(receipt) != set(current):
         raise ValueError('최종 인계 지문의 필드가 원본과 다릅니다.')
     candidate = dict(receipt)
     digest = candidate.pop('receipt_sha256', None)
-    if not isinstance(digest, str) or len(digest) != 64:
-        raise ValueError('최종 인계 지문 SHA256이 누락됐습니다.')
+    if not _sha256(digest):
+        raise ValueError('최종 인계 지문 SHA256이 누락되거나 형식이 잘못됐습니다.')
     canonical = json.dumps(candidate, ensure_ascii=False, sort_keys=True,
                            separators=(',', ':')).encode('utf-8')
     recalculated = hashlib.sha256(canonical).hexdigest()
@@ -144,7 +146,13 @@ def verify_receipt_json(store, campaign_id: int, raw: str) -> dict:
     Duplicate JSON keys, NaN/Infinity, extra fields and cross-campaign
     substitution are rejected. This is not a signature or GGUF binary test.
     """
-    if not isinstance(raw, str) or not 0 < len(raw.encode('utf-8')) <= 65536:
+    if not isinstance(raw, str):
+        raise ValueError('최종 인계 JSON의 형식 또는 크기가 올바르지 않습니다.')
+    try:
+        encoded_size = len(raw.encode('utf-8'))
+    except UnicodeError as exc:
+        raise ValueError('최종 인계 JSON의 유니코드가 올바르지 않습니다.') from exc
+    if not 0 < encoded_size <= 65536:
         raise ValueError('최종 인계 JSON의 형식 또는 크기가 올바르지 않습니다.')
 
     def unique_pairs(pairs):
