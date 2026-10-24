@@ -243,11 +243,11 @@ def inspect_export_history(store, limit: int = 30) -> list[dict]:
 
 
 def inspect_disk_consistency(store, limit: int = 100) -> dict:
-    """Read-only crash-recovery inventory of owner-approved handoff files.
+    """읽기 전용 관리자 인계 디스크/SQLite 불일치 전수 분류.
 
-    An abrupt OS shutdown can leave an exported file without the SQLite
-    commit. Never delete/relabel an orphan or auto-approve a dossier. Each
-    registered record is independently revalidated using ``read``.
+    등록 레코드 감사와 폴더 파일 감사를 독립적으로 제한한다. 폴더의
+    비대상 파일은 조회 한도를 소모하지 않으며, 감사 한도를 넘긴
+    등록 파일을 미등록 고아 파일로 오판하지 않는다.
     """
     store.require_permission('company:manage')
     if type(limit) is not int or not 1 <= limit <= 1000:
@@ -257,8 +257,10 @@ def inspect_disk_consistency(store, limit: int = 100) -> dict:
         raise ValueError('관리자 인계 폴더가 안전한 일반 디렉터리가 아닙니다.')
     with store._connect() as con:
         initialize(con)
+        # 미검사 등록 파일도 전체 등록 이름에 포함하여 고아 파일 오판 방지.
         rows = con.execute('''SELECT id,filename FROM aiwack_campaign_owner_dossiers
-            ORDER BY id LIMIT ?''', (limit + 1,)).fetchall()
+            ORDER BY id''').fetchall()
+    registered_names = {name for _, name in rows}
     registered = {name: int(ident) for ident, name in rows[:limit]}
     truncated_records = len(rows) > limit
     verified, damaged = [], []
@@ -274,23 +276,27 @@ def inspect_disk_consistency(store, limit: int = 100) -> dict:
                              'sha256': proof['file_sha256']})
     orphans, unsafe = [], []
     truncated_files = False
+    scanned_candidates = 0
     if folder.exists():
         with os.scandir(folder) as iterator:
-            for index, entry in enumerate(iterator):
-                if index >= limit:
+            for entry in iterator:
+                name = entry.name
+                if not re.fullmatch(r'owner_final_[0-9a-f]{32}\\.json', name):
+                    continue
+                if scanned_candidates >= limit:
                     truncated_files = True
                     break
-                name = entry.name
-                if not re.fullmatch(r'owner_final_[0-9a-f]{32}\.json', name):
-                    continue
+                scanned_candidates += 1
                 if entry.is_symlink() or not entry.is_file(follow_symlinks=False):
                     unsafe.append(name)
-                elif name not in registered:
+                elif name not in registered_names:
                     orphans.append(name)
     complete = not truncated_records and not truncated_files
     return {
         'format': 'AIWACK_OWNER_DOSSIER_CRASH_INVENTORY_V1',
         'registered_rows_scanned': len(registered),
+        'registered_rows_total': len(rows),
+        'candidate_files_scanned': scanned_candidates,
         'registered_files_verified': verified,
         'registered_files_failed': damaged,
         'orphaned_unregistered_files': sorted(orphans),
