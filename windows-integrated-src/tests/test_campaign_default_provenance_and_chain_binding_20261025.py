@@ -103,3 +103,31 @@ def test_native_run_next_defaults_to_genuine_chief_call_provenance():
 def test_native_run_next_rejects_non_boolean_provenance_without_execution():
     with pytest.raises(ValueError, match='참/거짓'):
         wide.run_next(object(), 7, require_genuine_provenance='false')
+
+def test_canonical_receipt_json_roundtrip_against_current_sources(original):
+    raw = chain.export_receipt_json(original, 7)
+    assert raw.endswith('\n')
+    assert chain.verify_receipt_json(original, 7, raw)['verified'] is True
+    original.report['evidence_sha256'] = 'e' * 64
+    with pytest.raises(ValueError, match='현재 승인 원본'):
+        chain.verify_receipt_json(original, 7, raw)
+
+
+@pytest.mark.parametrize('change', [
+    lambda raw: raw.replace('"campaign_id":7', '"campaign_id":7,"campaign_id":7'),
+    lambda raw: raw.replace('"verified_departments":15', '"verified_departments":NaN'),
+    lambda raw: raw.replace('"campaign_id":7', '"campaign_id":8'),
+    lambda raw: raw.replace('"campaign_id":7', '"campaign_id":7,"unapproved":true'),
+    lambda raw: raw + '{',
+])
+def test_receipt_json_rejects_corruption_without_mutating_sources(original, change):
+    raw = chain.export_receipt_json(original, 7)
+    with pytest.raises(ValueError):
+        chain.verify_receipt_json(original, 7, change(raw))
+
+
+def test_receipt_json_rejects_oversized_and_non_string(original):
+    with pytest.raises(ValueError):
+        chain.verify_receipt_json(original, 7, ' ' * 65537)
+    with pytest.raises(ValueError):
+        chain.verify_receipt_json(original, 7, {'campaign_id': 7})
