@@ -30,7 +30,7 @@ jobs:
       - name: Verify approved final dossier crash inventory and 30-step completion gate
         run: |
           cd windows-integrated-src
-          python -m pytest -q tests/test_owner_dossier_crash_inventory_bounds_20261025.py tests/test_campaign_completed_gate_and_run_next_20261025.py tests/test_campaign_future_step_resume_integrity_20261025.py tests/test_campaign_chain_receipt_revalidation_20261025.py tests/test_campaign_default_provenance_and_chain_binding_20261025.py tests/test_campaign_final_model_attempt_audit_20261025.py tests/test_campaign_exact_integer_provenance_20261025.py
+          python -m pytest -q tests/test_owner_dossier_crash_inventory_bounds_20261025.py tests/test_campaign_completed_gate_and_run_next_20261025.py tests/test_campaign_future_step_resume_integrity_20261025.py tests/test_campaign_chain_receipt_revalidation_20261025.py tests/test_campaign_default_provenance_and_chain_binding_20261025.py tests/test_campaign_final_model_attempt_audit_20261025.py tests/test_campaign_exact_integer_provenance_20261025.py tests/test_campaign_progress_and_report_binding_20261025.py
       - name: Verify Windows HWND recovery guards without claiming physical clicks
         run: python -m pytest -q validation/test_windows_native_window_handles.py validation/test_packaged_process_owner_binding.py
       - name: Real-model chief plan rejection audit regressions (metadata only)
