@@ -51,6 +51,9 @@ def merge_disjoint_text(base: bytes, main: bytes, test: bytes) -> dict | None:
                                           key=lambda item: (item[0], item[1]), reverse=True):
         merged[start:end] = replacement
     data = ''.join(merged).encode('utf-8')
+    # 원본과 양측 변경을 결합한 결과도 동일한 크기 제한을 적용한다.
+    if len(data) > _MAX_TEXT_BYTES:
+        return None
     return {'content': data, 'sha256': sha256(data).hexdigest(),
             'main_edits': len(main_edits), 'test_edits': len(test_edits),
             'base_sha256': sha256(base).hexdigest()}
