@@ -176,8 +176,30 @@ def main(argv=None) -> int:
     parser.add_argument('archive', type=Path)
     parser.add_argument('repository', type=Path)
     parser.add_argument('--restore-missing', action='store_true', help='없는 파일만 복원, 덮어쓰기 금지')
+    parser.add_argument('--nested-audit', action='store_true',
+                        help='중첩 역사 ZIP의 실제 바이트를 읽기 전용 SHA256 감사')
     parser.add_argument('--report', type=Path, help='JSON 검사 결과 저장 경로')
     args = parser.parse_args(argv)
+    if args.nested_audit:
+        if args.restore_missing:
+            print(json.dumps({'complete': False, 'error': '중첩 감사와 원본 복원은 동시 실행할 수 없습니다.'},
+                             ensure_ascii=False), file=sys.stderr)
+            return 3
+        try:
+            if __package__:
+                from validation.audit_nested_original_archives import inventory_nested_zip
+            else:
+                from audit_nested_original_archives import inventory_nested_zip
+            report = inventory_nested_zip(args.archive)
+        except (ValueError, OSError, zipfile.BadZipFile, RuntimeError) as exc:
+            print(json.dumps({'complete': False, 'error': str(exc)}, ensure_ascii=False), file=sys.stderr)
+            return 3
+        output = json.dumps(report, ensure_ascii=False, indent=2)
+        print(output)
+        if args.report:
+            args.report.parent.mkdir(parents=True, exist_ok=True)
+            args.report.write_text(output + '\\n', encoding='utf-8')
+        return 0
     try:
         report = reconcile(args.archive, args.repository, restore_missing=args.restore_missing)
     except (ValueError, OSError, zipfile.BadZipFile) as exc:
