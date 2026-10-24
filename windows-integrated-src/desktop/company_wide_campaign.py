@@ -353,17 +353,22 @@ def _verified_staged_group(con,source_task_id,start,fingerprint,roster_sha,
         audited=con.execute('''SELECT employee_id,model_id,status,output_chars
             FROM ai_model_call_history WHERE id=?''',(call_id,)).fetchone()
         if (audited is None or int(audited[0])!=chief or int(audited[1])!=model
-              or audited[2]!='success' or int(audited[3])<=0):
+              or audited[2]!='success' or type(audited[3]) is not int
+              or audited[3]<=0):
             raise ValueError('총괄 실제 모델 호출 감사가 단계별 저장과 불일치합니다.')
         if con.execute('SELECT 1 FROM aiwack_wide_chief_rejected_attempts WHERE model_call_id=?',
                        (call_id,)).fetchone():
             raise ValueError('실패한 총괄 호출을 계획에 재사용할 수 없습니다.')
         audit=con.execute('''SELECT source_task_id,chief_employee_id,department_names,
-                 attempt_kind,parsed FROM aiwack_wide_chief_plan_attempts WHERE model_call_id=?''',
+                 attempt_kind,parsed,output_chars,output_sha256
+                 FROM aiwack_wide_chief_plan_attempts WHERE model_call_id=?''',
                  (call_id,)).fetchone()
         names=','.join(x[1] for x in part)
         if (audit is None or int(audit[0])!=source_task_id or int(audit[1])!=chief
                 or int(audit[4])!=1
+                or type(audit[5]) is not int or audit[5]!=audited[3]
+                or not isinstance(audit[6],str) or len(audit[6])!=64
+                or any(c not in '0123456789abcdef' for c in audit[6])
                 or audit[3] not in ('three_departments','single_department')
                 or (audit[3]=='three_departments' and audit[2]!=names)
                 or (audit[3]=='single_department' and audit[2]!=name)):
