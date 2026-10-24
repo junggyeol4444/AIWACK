@@ -71,3 +71,18 @@ def test_symlinked_version_rejected(tmp_path):
         pytest.skip('심볼릭 링크 사용 불가')
     with pytest.raises(ValueError, match='링크'):
         verify_evidence(folder)
+
+
+def test_duplicate_version_cannot_hide_missing_version(tmp_path):
+    folder, _ = _evidence(tmp_path)
+    manifest = folder / 'manifest.json'
+    data = json.loads(manifest.read_text())
+    row = data['paths'][0]
+    extra = hashlib.sha256(b'not-present').hexdigest()
+    row['expected_sha256'].append(extra)
+    row['found_sha256'].append(extra)
+    row['versions'].append(dict(row['versions'][0]))
+    row['historical_conflict'] = True
+    manifest.write_text(json.dumps(data))
+    with pytest.raises(ValueError, match='누락·중복'):
+        verify_evidence(folder)
