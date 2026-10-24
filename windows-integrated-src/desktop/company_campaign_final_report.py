@@ -34,11 +34,48 @@ def initialize(con: sqlite3.Connection):
         reason TEXT NOT NULL,
         evidence_sha256 TEXT NOT NULL CHECK(length(evidence_sha256)=64),
         created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP)''')
-    for table in ('aiwack_campaign_final_reports','aiwack_campaign_final_decisions'):
+    con.execute('''CREATE TABLE IF NOT EXISTS aiwack_campaign_final_model_attempts (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        campaign_id INTEGER NOT NULL REFERENCES aiwack_wide_campaigns(id),
+        chief_employee_id INTEGER NOT NULL REFERENCES ai_employee_profiles(id),
+        model_call_id INTEGER NOT NULL UNIQUE REFERENCES ai_model_call_history(id),
+        evidence_sha256 TEXT NOT NULL CHECK(length(evidence_sha256)=64),
+        completion_sha256 TEXT NOT NULL CHECK(length(completion_sha256)=64),
+        completion_chars INTEGER NOT NULL CHECK(completion_chars>=0),
+        parsed INTEGER NOT NULL CHECK(parsed IN (0,1)),
+        report_sha256 TEXT NOT NULL DEFAULT '',
+        error_reason TEXT NOT NULL DEFAULT '',
+        created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP)''')
+    for table in ('aiwack_campaign_final_reports','aiwack_campaign_final_decisions',
+                  'aiwack_campaign_final_model_attempts'):
         for action in ('UPDATE','DELETE'):
             con.execute(f'''CREATE TRIGGER IF NOT EXISTS {table}_immutable_{action.lower()}
                 BEFORE {action} ON {table}
-                BEGIN SELECT RAISE(ABORT,'총괄 최종 보고·관리자 결정 변경 및 삭제 금지'); END''')
+                BEGIN SELECT RAISE(ABORT,'총괄 최종 보고·관리자 결정·실모델 시도 감사 변경 및 삭제 금지'); END''')
+
+
+def _record_final_model_attempt(con, campaign_id: int, chief: int, call_id: int,
+                                seal: str, raw: str, *, parsed: bool,
+                                report_sha256: str = '', error: str = '') -> None:
+    """Persist a genuine call's format outcome, never a fabricated completion."""
+    if (type(call_id) is not int or call_id <= 0 or not isinstance(raw, str)
+            or type(parsed) is not bool):
+        raise ValueError('총괄 최종 보고 실모델 시도 감사 입력 오류')
+    call = con.execute('''SELECT employee_id,status,output_chars FROM ai_model_call_history
+                          WHERE id=?''', (call_id,)).fetchone()
+    if (call is None or call[0] != chief or call[1] != 'success'
+            or type(call[2]) is not int or call[2] != len(raw)):
+        raise ValueError('총괄 최종 보고 시도의 실제 모델 호출 출처·응답 길이 불일치')
+    if (parsed and (len(report_sha256) != 64 or error)
+            or not parsed and (report_sha256 or not error)):
+        raise ValueError('총괄 최종 보고 실모델 시도 결과 형식 오류')
+    con.execute('''INSERT INTO aiwack_campaign_final_model_attempts
+        (campaign_id,chief_employee_id,model_call_id,evidence_sha256,
+         completion_sha256,completion_chars,parsed,report_sha256,error_reason)
+        VALUES(?,?,?,?,?,?,?,?,?)''',
+        (campaign_id, chief, call_id, seal,
+         hashlib.sha256(raw.encode('utf-8')).hexdigest(), len(raw),
+         int(parsed), report_sha256, str(error)[:250]))
 
 
 def _complete_evidence(store,campaign_id:int):
@@ -253,15 +290,25 @@ def propose(store,campaign_id:int,*,cancel:threading.Event|None=None):
                                        required_tier='ceo',include_call_id=True)
     if cancel is not None and cancel.is_set():
         raise InterruptedError('취소된 총괄 최종 보고 저장 금지')
-    if not isinstance(raw,str):
-        raise ValueError('실제 총괄 모델 최종 보고 내용이 문자열이 아닙니다.')
-    if raw.strip()==prompt.strip():
-        raise ValueError('실제 총괄 모델이 요청 프롬프트를 복사했습니다.')
-    body='\n'.join(wide._generated_chief_lines(raw,prompt)).strip()
-    if not 30<=len(body)<=15000:
-        raise ValueError('실제 총괄 모델 최종 보고가 비어 있거나 내용이 부족합니다.')
-    if body==prompt.strip() or source_excerpts in body:
-        raise ValueError('실제 총괄 모델이 요청 프롬프트를 복사했습니다.')
+    try:
+        if not isinstance(raw,str):
+            raise ValueError('실제 총괄 모델 최종 보고 내용이 문자열이 아닙니다.')
+        if raw.strip()==prompt.strip():
+            raise ValueError('실제 총괄 모델이 요청 프롬프트를 복사했습니다.')
+        body='\n'.join(wide._generated_chief_lines(raw,prompt)).strip()
+        if not 30<=len(body)<=15000:
+            raise ValueError('실제 총괄 모델 최종 보고가 비어 있거나 내용이 부족합니다.')
+        if body==prompt.strip() or source_excerpts in body:
+            raise ValueError('실제 총괄 모델이 요청 프롬프트를 복사했습니다.')
+    except ValueError as exc:
+        # Keep failed genuine model completions in an immutable local audit.
+        # No synthetic output or automatic approval is permitted.
+        if isinstance(raw,str):
+            with store._connect() as audit_con:
+                initialize(audit_con)
+                _record_final_model_attempt(audit_con,campaign_id,chief,call_id,
+                                            seal,raw,parsed=False,error=str(exc))
+        raise
     digest=hashlib.sha256(body.encode('utf-8')).hexdigest()
     store.require_permission('company:manage')
     store.require_permission('agents:manage')
@@ -280,7 +327,25 @@ def propose(store,campaign_id:int,*,cancel:threading.Event|None=None):
         rid=int(con.execute('''INSERT INTO aiwack_campaign_final_reports
             (campaign_id,chief_employee_id,chief_model_call_id,evidence_sha256,report_body,report_sha256)
             VALUES(?,?,?,?,?,?)''',(campaign_id,chief,call_id,seal,body,digest)).lastrowid)
+        _record_final_model_attempt(con,campaign_id,chief,call_id,seal,raw,
+                                    parsed=True,report_sha256=digest)
     return read(store,rid)
+
+
+def model_attempts(store, campaign_id: int) -> list[dict]:
+    """Read-only immutable genuine final-report call outcomes, without raw text."""
+    store.require_permission('company:manage')
+    if type(campaign_id) is not int or campaign_id <= 0:
+        raise ValueError('회사 전체 협업 번호 오류')
+    with store._connect() as con:
+        initialize(con)
+        rows = con.execute('''SELECT model_call_id,chief_employee_id,
+            evidence_sha256,completion_sha256,completion_chars,parsed,
+            report_sha256,error_reason FROM aiwack_campaign_final_model_attempts
+            WHERE campaign_id=? ORDER BY id''', (campaign_id,)).fetchall()
+    return [dict(zip(('model_call_id','chief_employee_id','evidence_sha256',
+                      'completion_sha256','completion_chars','parsed',
+                      'report_sha256','error_reason'), row)) for row in rows]
 
 
 def decide(store,report_id:int,decision:str,reason:str):
