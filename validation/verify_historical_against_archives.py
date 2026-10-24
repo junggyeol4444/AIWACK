@@ -55,6 +55,8 @@ def verify_against_archives(evidence_root: Path) -> dict:
     seen_archives = set()
     checked_entries = 0
     unmatched_entries_total = 0
+    unmatched_entries_verified = 0
+    unmatched_bytes_verified = 0
     unmatched_entries_sample = []
     _MAX_UNMATCHED_SAMPLE = 100
     for record in archives:
@@ -89,12 +91,32 @@ def verify_against_archives(evidence_root: Path) -> dict:
                 aliases.add(alias)
                 key = (record['archive'], name_in_zip)
                 if key not in expected_sources:
+                    # 증빙 목록에서 누락된 항목도 실제 압축 해제·CRC·SHA 검사를
+                    # 수행한다. 이름·CRC만으로 역사 원본을 확인했다고 하지 않는다.
+                    if item.file_size > _MAX_ENTRY_BYTES:
+                        raise ValueError('미추적 원본 ZIP 항목 크기 제한 초과: ' + name_in_zip)
+                    total_bytes += item.file_size
+                    if total_bytes > _MAX_TOTAL_BYTES:
+                        raise ValueError('원본 ZIP 누적 해제 크기 제한 초과')
+                    digest = hashlib.sha256()
+                    read_bytes = 0
+                    with bundle.open(item) as stream:
+                        for block in iter(lambda: stream.read(1024 * 1024), b''):
+                            read_bytes += len(block)
+                            if read_bytes > item.file_size:
+                                raise ValueError('미추적 원본 ZIP 압축 해제 크기 불일치: ' + name_in_zip)
+                            digest.update(block)
+                    if read_bytes != item.file_size:
+                        raise ValueError('미추적 원본 ZIP 크기 불일치: ' + name_in_zip)
                     unmatched += 1
                     unmatched_entries_total += 1
+                    unmatched_entries_verified += 1
+                    unmatched_bytes_verified += read_bytes
                     if len(unmatched_entries_sample) < _MAX_UNMATCHED_SAMPLE:
                         unmatched_entries_sample.append({
                             'archive': record['archive'], 'zip_entry': name_in_zip,
-                            'bytes': item.file_size, 'zip_crc32': f'{item.CRC:08x}'})
+                            'bytes': read_bytes, 'zip_crc32': f'{item.CRC:08x}',
+                            'sha256': digest.hexdigest()})
                     continue
                 if item.file_size > _MAX_ENTRY_BYTES:
                     raise ValueError('원본 ZIP 항목 크기 제한 초과: ' + name_in_zip)
@@ -125,6 +147,8 @@ def verify_against_archives(evidence_root: Path) -> dict:
             'missing_versions': local['missing_versions'],
             'independent_archive_comparison': True,
             'unmatched_archive_entries_total': unmatched_entries_total,
+            'unmatched_archive_entries_verified': unmatched_entries_verified,
+            'unmatched_archive_bytes_verified': unmatched_bytes_verified,
             'unmatched_archive_entries_sample': unmatched_entries_sample,
             'unmatched_archive_entries_sample_truncated': (
                 unmatched_entries_total > len(unmatched_entries_sample)),
