@@ -10,6 +10,15 @@ import hmac
 import json
 
 
+def _positive_id(value) -> bool:
+    return type(value) is int and value > 0
+
+
+def _sha256(value) -> bool:
+    return (isinstance(value, str) and len(value) == 64
+            and all(character in '0123456789abcdef' for character in value))
+
+
 def snapshot(store, campaign_id: int) -> dict:
     """서로 다른 캠페인/보고서/인계 파일을 합쳐 성공 처리하지 않는다."""
     store.require_permission('company:manage')
@@ -27,12 +36,19 @@ def snapshot(store, campaign_id: int) -> dict:
             or plan.get('plan_state') != 'approved'
             or plan.get('verified_plan_groups') != 5
             or plan.get('verified_departments') != 15
-            or not 5 <= plan.get('verified_chief_call_count', 0) <= 15):
+            or type(plan.get('verified_chief_call_count')) is not int
+            or not 5 <= plan['verified_chief_call_count'] <= 15
+            or not _positive_id(plan.get('source_task_id'))
+            or not _positive_id(plan.get('chief_employee_id'))
+            or not _sha256(plan.get('snapshot_sha256'))
+            or plan.get('failed_attempts_model_provenance_checked') is not True
+            or plan.get('sqlite_model_call_audit_checked') is not True):
         raise ValueError('실제 총괄 5그룹·15부서 승인 원본 연결 오류')
     if (progress.get('campaign_id') != campaign_id
             or progress.get('state') != 'approved'
             or progress.get('verified_completed_tasks') != 30
             or progress.get('verified_distinct_departments') != 15
+            or progress.get('verified_distinct_workers') != 30
             or progress.get('verified_genuine_prefix_tasks') != 30
             or progress.get('verified_chief_model_call_links') != 30
             or progress.get('all_30_tasks_evidence_verified') is not True
@@ -41,15 +57,20 @@ def snapshot(store, campaign_id: int) -> dict:
     if (not isinstance(report, dict) or report.get('campaign_id') != campaign_id
             or report.get('decision') != 'accepted'
             or report.get('all_30_model_call_and_owner_review_audits_verified') is not True
-            or type(report.get('id')) is not int
-            or type(report.get('chief_model_call_id')) is not int
-            or report['chief_model_call_id'] <= 0):
+            or not _positive_id(report.get('id'))
+            or not _positive_id(report.get('chief_model_call_id'))
+            or report.get('chief_employee_id') != plan['chief_employee_id']
+            or not _sha256(report.get('report_sha256'))
+            or not _sha256(report.get('evidence_sha256'))):
         raise ValueError('총괄 실제 모델 최종보고·관리자 승인 연결 오류')
     if (not isinstance(dossier, dict) or dossier.get('campaign_id') != campaign_id
             or dossier.get('owner_final_approved') is not True
             or dossier.get('verified_approved_employee_steps') != 30
             or dossier.get('final_report_id') != report['id']
-            or type(dossier.get('id')) is not int):
+            or not _positive_id(dossier.get('id'))
+            or not _sha256(dossier.get('file_sha256'))
+            or type(dossier.get('byte_count')) is not int
+            or not 1 <= dossier['byte_count'] <= 1024 * 1024):
         raise ValueError('최종 인계와 승인된 총괄 보고서가 동일하지 않습니다.')
 
     receipt = {
