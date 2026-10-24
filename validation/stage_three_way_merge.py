@@ -23,6 +23,13 @@ except ImportError:
     from merge_disjoint_json_changes import merge_disjoint_json
 
 try:
+    from validation.merge_disjoint_python_functions import (
+        merge_disjoint_python_functions, valid_python_bytes)
+except ImportError:
+    from merge_disjoint_python_functions import (
+        merge_disjoint_python_functions, valid_python_bytes)
+
+try:
     from validation.merge_append_only_handoffs import (
         merge_append_only_handoffs, is_append_only_handoff_path)
 except ImportError:
@@ -155,6 +162,14 @@ def stage_merge(audit: dict, main_root: Path, test_root: Path, destination: Path
             elif is_append_only_handoff_path(path):
                 # 원문을 고친 기록이나 중복 회차는 텍스트 병합으로 우회하지 않는다.
                 merged = merge_append_only_handoffs(path, base, main_bytes, test_bytes)
+            elif path.lower().endswith('.py'):
+                # 기존 main의 함수 변경과 테스트의 다른 함수 변경을 보존한다.
+                # 함수 외 변경은 기존 텍스트 병합만 허용하되 문법 검사를 추가한다.
+                merged = merge_disjoint_python_functions(base, main_bytes, test_bytes)
+                if merged is None:
+                    merged = merge_disjoint_text(base, main_bytes, test_bytes)
+                    if merged is not None and not valid_python_bytes(merged['content']):
+                        merged = None
             else:
                 merged = merge_disjoint_text(base, main_bytes, test_bytes)
             if merged is None:
