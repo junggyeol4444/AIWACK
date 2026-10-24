@@ -62,16 +62,21 @@ def snapshot(store, campaign_id: int) -> dict:
             or progress.get('all_30_tasks_evidence_verified') is not True
             or progress.get('all_30_chief_model_call_links_verified') is not True):
         raise ValueError('30업무 직원·총괄 실제 호출 및 관리자 승인 연결 오류')
-    if (not isinstance(report, dict) or report.get('campaign_id') != campaign_id
+    if (not isinstance(report, dict)
+            or type(report.get('campaign_id')) is not int
+            or report['campaign_id'] != campaign_id
             or report.get('decision') != 'accepted'
             or report.get('all_30_model_call_and_owner_review_audits_verified') is not True
             or not _positive_id(report.get('id'))
             or not _positive_id(report.get('chief_model_call_id'))
-            or report.get('chief_employee_id') != plan['chief_employee_id']
+            or type(report.get('chief_employee_id')) is not int
+            or report['chief_employee_id'] != plan['chief_employee_id']
             or not _sha256(report.get('report_sha256'))
             or not _sha256(report.get('evidence_sha256'))):
         raise ValueError('총괄 실제 모델 최종보고·관리자 승인 연결 오류')
-    if (not isinstance(dossier, dict) or dossier.get('campaign_id') != campaign_id
+    if (not isinstance(dossier, dict)
+            or type(dossier.get('campaign_id')) is not int
+            or dossier['campaign_id'] != campaign_id
             or dossier.get('owner_final_approved') is not True
             or not _exact_count(dossier.get('verified_approved_employee_steps'), 30)
             or type(dossier.get('final_report_id')) is not int
