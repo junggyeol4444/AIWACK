@@ -198,7 +198,7 @@ def main(argv=None) -> int:
         print(output)
         if args.report:
             args.report.parent.mkdir(parents=True, exist_ok=True)
-            args.report.write_text(output + '\\n', encoding='utf-8')
+            args.report.write_text(output + '\n', encoding='utf-8')
         return 0
     try:
         report = reconcile(args.archive, args.repository, restore_missing=args.restore_missing)
