@@ -262,8 +262,33 @@ def stage_merge(audit: dict, main_root: Path, test_root: Path, destination: Path
     finally:
         if scratch.exists():
             shutil.rmtree(scratch)
+    # 수동 검토 대상의 정확한 SHA와 분류를 누락 없이 남긴다.
+    # 자동으로 역사 버전을 선택하거나 기존 main을 덮어쓰지 않는다.
+    held_review_evidence = []
+    for item in sorted(held, key=lambda row: row['path']):
+        path = item['path']
+        if path in conflict_paths:
+            reason = 'historical_multi_version'
+        elif item['classification'] == 'divergent_change' and historical_root is None:
+            reason = 'historical_baseline_unavailable'
+        elif item['classification'] == 'divergent_change':
+            reason = 'independent_changes_not_safely_mergeable'
+        else:
+            reason = 'manual_review_required'
+        held_review_evidence.append({
+            'path': path, 'reason': reason,
+            'classification': item['classification'],
+            'main_sha256': item['main_sha256'],
+            'test_sha256': item['test_sha256'],
+            'historical_sha256': item['historical_sha256'],
+        })
+    merged_path_hashes = {
+        path: staged[path] for path in sorted(item['path'] for item in eligible)
+    }
     return {'staging_path': str(destination), 'staged_paths': len(staged),
             'merged_paths': [item['path'] for item in eligible],
+            'merged_path_hashes': merged_path_hashes,
+            'held_review_evidence': held_review_evidence,
             'merged_divergent_evidence': {
                 path: {k: v for k, v in data.items() if k != 'content'}
                 for path, data in merged_divergent.items()},
