@@ -96,6 +96,9 @@ def export_historical_versions(audit: dict, archives: list[Path], destination: P
         if path.is_symlink() or not path.is_file() or path.suffix.lower() != '.zip':
             raise ValueError('원본 ZIP은 일반 파일이어야 합니다: ' + str(path))
     destination = Path(destination).absolute()
+    # 부모 심볼릭 링크를 통해 원본/보존 폴더로 우회 출력하지 않는다.
+    if any(parent.is_symlink() for parent in destination.parents):
+        raise ValueError('증빙 출력 경로에 심볼릭 링크 부모가 있습니다.')
     if destination.exists():
         raise FileExistsError('기존 증빙 폴더는 덮어쓸 수 없습니다.')
     if any(destination == path or destination in path.parents for path in paths):
@@ -114,7 +117,15 @@ def export_historical_versions(audit: dict, archives: list[Path], destination: P
             with zipfile.ZipFile(archive) as bundle:
                 seen_in_archive = set()
                 for entry in bundle.infolist():
+                    # 디렉터리도 ZIP 내부 경로다. 먼저 검사하지 않으면
+                    # ../ 또는 링크 디렉터리가 조용히 감사에서 빠진다.
                     if entry.is_dir():
+                        directory = entry.filename[:-1]
+                        directory_mode = (entry.external_attr >> 16) & 0o170000
+                        if not _safe_path(directory):
+                            raise ValueError('원본 ZIP 위험 경로: ' + repr(entry.filename))
+                        if directory_mode not in (0, stat.S_IFDIR) or entry.flag_bits & 1:
+                            raise ValueError('원본 ZIP 링크·특수 디렉터리 금지: ' + directory)
                         continue
                     name = entry.filename
                     if not _safe_path(name):
