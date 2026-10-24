@@ -1082,12 +1082,14 @@ def verified_progress(store, campaign_id: int) -> dict:
 
 
 def run_next(store,campaign_id:int,*,cancel:threading.Event|None=None,
-             require_genuine_provenance:bool=False):
+             require_genuine_provenance:bool=True):
     """Execute next genuine GGUF step only after the previous owner-reviewed step.
 
     The Windows real-model and owner UI route must require genuine chief
     provenance.  Never mark all 30 complete on status flags alone.
     """
+    if type(require_genuine_provenance) is not bool:
+        raise ValueError('총괄 실제 모델 출처 검사 설정은 참/거짓이어야 합니다.')
     from desktop.company_operations import execute_approved_chief_cycle
     plan=read(store,campaign_id)
     if plan['state']!='approved':
