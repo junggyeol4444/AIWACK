@@ -69,7 +69,7 @@ def snapshot(store, campaign_id: int) -> dict:
                     parsed_ok != 1 or error or worker != chief or used_model != model or
                     status != 'success' or not isinstance(output_sha, str) or
                     len(output_sha) != 64 or type(chars) is not int or chars <= 0 or
-                    type(model_chars) is not int or model_chars <= 0):
+                    type(model_chars) is not int or model_chars != chars):
                     raise ValueError('총괄 모델 호출 유형·원본 감사·직원/모델 ID가 불일치합니다.')
                 title, instruction = parsed[name]
                 entries.append({'department': name, 'model_call_id': call_id,
@@ -113,7 +113,7 @@ def snapshot(store, campaign_id: int) -> dict:
                 FROM ai_model_call_history WHERE id=?''', (call_id,)).fetchone()
             if (actual is None or actual[0] != chief or actual[1] != model
                     or actual[2] != 'success' or type(actual[3]) is not int
-                    or actual[3] <= 0 or attempt_kind not in
+                    or actual[3] != chars or attempt_kind not in
                     ('three_departments', 'single_department')
                     or not isinstance(requested, str) or not requested
                     or not isinstance(digest, str)
