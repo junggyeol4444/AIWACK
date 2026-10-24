@@ -91,8 +91,9 @@ def test_receipt_campaign_identifier_must_be_exact_integer(monkeypatch, invalid)
 
 
 def test_receipt_json_rejects_unpaired_surrogate_as_value_error():
+    raw = '{"invalid":"' + chr(0xD800) + '"}'
     with pytest.raises(ValueError, match='유니코드'):
-        chain.verify_receipt_json(object(), 4, '{"invalid":"\\ud800"}'.replace('\\\\ud800', '\\ud800'))
+        chain.verify_receipt_json(object(), 4, raw)
 
 
 def test_receipt_digest_rejects_uppercase_sha256(monkeypatch):
