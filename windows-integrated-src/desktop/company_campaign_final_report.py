@@ -61,13 +61,18 @@ def _approved_content_excerpts(store,payload):
     parts=[]
     with store._connect() as con:
         for step in payload['steps']:
-            row=con.execute("""SELECT a.body,rep.body,a.sha256,rep.sha256
+            # Never silently select the first chief review if historical data
+            # contains duplicate reviews for the same approved artifact.
+            matches=con.execute("""SELECT a.body,rep.body,a.sha256,rep.sha256
                FROM company_task_artifacts a
                JOIN company_chief_task_reports rep ON rep.artifact_id=a.id
                WHERE a.id=? AND a.task_id=?""",
-               (step['artifact_id'],step['task_id'])).fetchone()
-            if (not row or
-                hashlib.sha256(row[0].encode('utf-8')).hexdigest()!=step['artifact_sha256']
+               (step['artifact_id'],step['task_id'])).fetchall()
+            if len(matches)!=1:
+                raise ValueError('최종 보고 입력 결과물의 총괄 검수 기록이 없거나 중복됐습니다.')
+            row=matches[0]
+            if (not isinstance(row[0],str) or not isinstance(row[1],str)
+                or hashlib.sha256(row[0].encode('utf-8')).hexdigest()!=step['artifact_sha256']
                 or hashlib.sha256(row[1].encode('utf-8')).hexdigest()!=step['chief_report_sha256']
                 or row[2]!=step['artifact_sha256'] or row[3]!=step['chief_report_sha256']):
                 raise ValueError('최종 보고 입력 결과물 또는 총괄 검수 원문이 변경됐습니다.')
