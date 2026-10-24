@@ -145,8 +145,12 @@ def _generated_chief_lines(raw,prompt=''):
     clean=re.sub(r'\x1b\[[0-9;]*m','',raw).replace('\r','')
     if prompt and prompt in clean:
         clean=clean.rsplit(prompt,1)[-1]
+    # Multiple completion delimiters can hide an earlier contradictory
+    # model answer. Do not select only the last answer for approval.
+    if clean.count('RESPONSE:')>1:
+        raise ValueError('총괄 모델 응답에 중복된 RESPONSE 구분자가 있습니다.')
     if 'RESPONSE:' in clean:
-        clean=clean.rsplit('RESPONSE:',1)[-1]
+        clean=clean.split('RESPONSE:',1)[-1]
     lines=[]
     for line in clean.splitlines():
         line=line.strip().strip('\x00').strip()
