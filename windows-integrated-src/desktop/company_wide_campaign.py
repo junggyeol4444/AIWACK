@@ -1095,10 +1095,13 @@ def run_next(store,campaign_id:int,*,cancel:threading.Event|None=None,
     progress=verified_progress(store,campaign_id)
     pending=[row for row in plan['steps'] if row['task_status']!='done']
     if not pending:
-        if not progress['all_30_tasks_evidence_verified']:
-            raise ValueError('30개 업무의 실제 직원·총괄·관리자 승인 기록이 부족합니다.')
-        if require_genuine_provenance and progress['verified_genuine_prefix_tasks']!=30:
-            raise ValueError('30개 총괄 실제 모델 호출 연결이 불완전합니다.')
+        # 기존 실행·관리자 승인 원본을 재검사하지 않고 단순 완료를 반환하지 않는다.
+        # 읽기 전용 재개 게이트의 15부서/30업무/30호출 완료 판정을 재사용한다.
+        from desktop.company_campaign_resume_gate import snapshot as resume_snapshot
+        gate = resume_snapshot(store, campaign_id,
+                               require_genuine_provenance=require_genuine_provenance)
+        if gate['state'] != 'completed':
+            raise ValueError('30업무 완료 증빙 재검사 실패: ' + gate['reason'])
         return {'completed':True,'remaining':0}
     step=pending[0]
     if (progress['verified_completed_tasks']!=step['ordinal']-1
