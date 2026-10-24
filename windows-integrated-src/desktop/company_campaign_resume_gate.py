@@ -25,6 +25,7 @@ def snapshot(store, campaign_id: int, *, require_genuine_provenance: bool = True
     steps = plan.get('steps')
     if (plan.get('id') != campaign_id or not isinstance(steps, list)
             or len(steps) != 30
+            or any(not isinstance(s, dict) for s in steps)
             or [s.get('ordinal') for s in steps] != list(range(1, 31))):
         raise ValueError('30업무 순서·배정 원본이 누락되거나 중복되었습니다.')
     if plan.get('state') != 'approved':
@@ -51,9 +52,14 @@ def snapshot(store, campaign_id: int, *, require_genuine_provenance: bool = True
         # 단순 30개 상태 플래그만으로 재개·종료 성공을 주장하지 않는다.
         complete = (prefix == 30 and count == 30
                     and progress.get('state') == 'approved'
-                    and progress.get('total_tasks') == 30
-                    and progress.get('verified_distinct_departments') == 15
-                    and progress.get('verified_chief_model_call_links') == 30
+                    and type(progress.get('total_tasks')) is int
+                    and progress['total_tasks'] == 30
+                    and type(progress.get('verified_distinct_departments')) is int
+                    and progress['verified_distinct_departments'] == 15
+                    and type(progress.get('verified_distinct_workers')) is int
+                    and progress['verified_distinct_workers'] == 30
+                    and type(progress.get('verified_chief_model_call_links')) is int
+                    and progress['verified_chief_model_call_links'] == 30
                     and progress.get('next_task_id') is None
                     and progress.get('all_30_tasks_evidence_verified') is True
                     and progress.get('all_30_chief_model_call_links_verified') is True)
