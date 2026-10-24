@@ -534,22 +534,18 @@ def _parse_group(raw, expected, *, prompt=''):
     if json_indices:
         if json_indices[0] != 0:
             raise ValueError('총괄 JSON 계획 앞에 미확인 설명문이 섞였습니다.')
-        data = None
-        for start in json_indices[:2]:
-            portion = '\n'.join(lines[start:]).strip()
-            try:
-                parsed, end = json.JSONDecoder(object_pairs_hook=_reject_duplicate_json_keys,
-                                              parse_constant=_reject_nonfinite_json_constant).raw_decode(portion)
-            except (DuplicateModelJSONKeyError, NonFiniteModelJSONError):
-                raise
-            except ValueError:
-                continue
-            if portion[end:].strip():
-                continue
-            data = parsed
-            break
-        if data is None:
-            raise ValueError('총괄 JSON 계획이 손상되거나 다른 출력과 섞였습니다.')
+        # Never skip an invalid first JSON object and accept a later object.
+        # The entire genuine completion must contain exactly one JSON value.
+        portion = '\n'.join(lines).strip()
+        try:
+            data, end = json.JSONDecoder(object_pairs_hook=_reject_duplicate_json_keys,
+                                         parse_constant=_reject_nonfinite_json_constant).raw_decode(portion)
+        except (DuplicateModelJSONKeyError, NonFiniteModelJSONError):
+            raise
+        except ValueError as exc:
+            raise ValueError('총괄 JSON 계획이 손상되거나 다른 출력과 섞였습니다.') from exc
+        if portion[end:].strip():
+            raise ValueError('총괄 JSON 계획에 추가 출력 또는 두 번째 JSON이 섞였습니다.')
         if isinstance(data, dict):
             wrappers = [key for key in ('departments', '부서별계획', 'plans', 'tasks')
                         if key in data]
@@ -632,6 +628,10 @@ def _parse_single_real_chief(raw, requested, prompt):
             raise ValueError('실제 총괄 단일 부서 JSON 출력 손상') from exc
         if not isinstance(item, dict) or _model_json_alias_value(item, ('department','부서명','부서')) != requested:
             raise ValueError('실제 총괄 단일 부서 JSON의 부서 불일치')
+        allowed = {'department','부서명','부서','title','제목','업무 제목',
+                   'instruction','지시','작업 지시'}
+        if set(item) - allowed:
+            raise ValueError('실제 총괄 단일 부서 JSON에 요청하지 않은 필드가 있습니다.')
         title = _model_json_alias_value(item, ('title','제목','업무 제목'))
         instruction = _model_json_alias_value(item, ('instruction','지시','작업 지시'))
     else:
