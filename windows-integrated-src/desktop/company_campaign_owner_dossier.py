@@ -281,7 +281,7 @@ def inspect_disk_consistency(store, limit: int = 100) -> dict:
         with os.scandir(folder) as iterator:
             for entry in iterator:
                 name = entry.name
-                if not re.fullmatch(r'owner_final_[0-9a-f]{32}\\.json', name):
+                if not re.fullmatch(r'owner_final_[0-9a-f]{32}\.json', name):
                     continue
                 if scanned_candidates >= limit:
                     truncated_files = True
