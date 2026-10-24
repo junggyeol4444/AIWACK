@@ -14,6 +14,11 @@ def _positive_id(value) -> bool:
     return type(value) is int and value > 0
 
 
+def _exact_count(value, expected: int) -> bool:
+    """Reject floats/bools that compare equal to audited integer counts."""
+    return type(value) is int and value == expected
+
+
 def _sha256(value) -> bool:
     return (isinstance(value, str) and len(value) == 64
             and all(character in '0123456789abcdef' for character in value))
@@ -32,10 +37,12 @@ def snapshot(store, campaign_id: int) -> dict:
     report = store.find_campaign_final_report(campaign_id)
     dossier = store.find_owner_approved_final_dossier_by_campaign(campaign_id)
 
-    if (plan.get('campaign_id') != campaign_id
+    if (not isinstance(plan, dict) or not isinstance(progress, dict)
+            or type(plan.get('campaign_id')) is not int
+            or plan['campaign_id'] != campaign_id
             or plan.get('plan_state') != 'approved'
-            or plan.get('verified_plan_groups') != 5
-            or plan.get('verified_departments') != 15
+            or not _exact_count(plan.get('verified_plan_groups'), 5)
+            or not _exact_count(plan.get('verified_departments'), 15)
             or type(plan.get('verified_chief_call_count')) is not int
             or not 5 <= plan['verified_chief_call_count'] <= 15
             or not _positive_id(plan.get('source_task_id'))
@@ -44,13 +51,14 @@ def snapshot(store, campaign_id: int) -> dict:
             or plan.get('failed_attempts_model_provenance_checked') is not True
             or plan.get('sqlite_model_call_audit_checked') is not True):
         raise ValueError('실제 총괄 5그룹·15부서 승인 원본 연결 오류')
-    if (progress.get('campaign_id') != campaign_id
+    if (type(progress.get('campaign_id')) is not int
+            or progress['campaign_id'] != campaign_id
             or progress.get('state') != 'approved'
-            or progress.get('verified_completed_tasks') != 30
-            or progress.get('verified_distinct_departments') != 15
-            or progress.get('verified_distinct_workers') != 30
-            or progress.get('verified_genuine_prefix_tasks') != 30
-            or progress.get('verified_chief_model_call_links') != 30
+            or not _exact_count(progress.get('verified_completed_tasks'), 30)
+            or not _exact_count(progress.get('verified_distinct_departments'), 15)
+            or not _exact_count(progress.get('verified_distinct_workers'), 30)
+            or not _exact_count(progress.get('verified_genuine_prefix_tasks'), 30)
+            or not _exact_count(progress.get('verified_chief_model_call_links'), 30)
             or progress.get('all_30_tasks_evidence_verified') is not True
             or progress.get('all_30_chief_model_call_links_verified') is not True):
         raise ValueError('30업무 직원·총괄 실제 호출 및 관리자 승인 연결 오류')
@@ -65,8 +73,9 @@ def snapshot(store, campaign_id: int) -> dict:
         raise ValueError('총괄 실제 모델 최종보고·관리자 승인 연결 오류')
     if (not isinstance(dossier, dict) or dossier.get('campaign_id') != campaign_id
             or dossier.get('owner_final_approved') is not True
-            or dossier.get('verified_approved_employee_steps') != 30
-            or dossier.get('final_report_id') != report['id']
+            or not _exact_count(dossier.get('verified_approved_employee_steps'), 30)
+            or type(dossier.get('final_report_id')) is not int
+            or dossier['final_report_id'] != report['id']
             or not _positive_id(dossier.get('id'))
             or not _sha256(dossier.get('file_sha256'))
             or type(dossier.get('byte_count')) is not int
