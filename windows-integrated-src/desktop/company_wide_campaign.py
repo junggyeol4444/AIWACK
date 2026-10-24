@@ -202,6 +202,8 @@ def _parse_single_chief_completion(raw,prompt,name):
                        row.replace('｜','|').replace('¦','|')).strip() for row in lines]
     json_start=next((i for i,v in enumerate(normalized) if v.startswith('{')),None)
     if json_start is not None:
+        if json_start != 0:
+            raise ValueError('총괄 단일 부서 JSON 앞에 미확인 설명문이 섞였습니다.')
         candidate='\n'.join(normalized[json_start:]).strip()
         try:obj,end=json.JSONDecoder(object_pairs_hook=_reject_duplicate_json_keys,
                                              parse_constant=_reject_nonfinite_json_constant).raw_decode(candidate)
@@ -209,6 +211,10 @@ def _parse_single_chief_completion(raw,prompt,name):
         except ValueError as error:raise ValueError('총괄 단일 부서 JSON 생성 결과 오류') from error
         if candidate[end:].strip() or not isinstance(obj,dict):
             raise ValueError('총괄 단일 부서 JSON 생성 결과 오류')
+        allowed={'department','부서명','부서','title','업무 제목','제목',
+                 'instruction','작업 지시','지시'}
+        if set(obj)-allowed:
+            raise ValueError('총괄 단일 부서 JSON에 요청하지 않은 필드가 있습니다.')
         if _model_json_alias_value(obj, ('department','부서명','부서'))!=name:
             raise ValueError('총괄 단일 부서 지시가 요청한 부서와 다릅니다.')
         title=_model_json_alias_value(obj, ('title','업무 제목','제목'))
@@ -217,6 +223,8 @@ def _parse_single_chief_completion(raw,prompt,name):
         rows=[v.strip('|').strip() for v in normalized if '|' in v]
         if len(rows)>1:raise ValueError('총괄 단일 부서 계획에 여러 부서 지시가 섞였습니다.')
         if rows:
+            if len(rows)!=len(normalized):
+                raise ValueError('총괄 단일 부서 지시에 추가 설명문이 섞였습니다.')
             parts=[x.strip() for x in rows[0].split('|')]
             if len(parts)==3:
                 if parts[0]!=name:raise ValueError('총괄 단일 부서 지시가 요청한 부서와 다릅니다.')
@@ -524,6 +532,8 @@ def _parse_group(raw, expected, *, prompt=''):
     json_indices = [i for i, line in enumerate(lines)
                     if line.lstrip().startswith(('{', '['))]
     if json_indices:
+        if json_indices[0] != 0:
+            raise ValueError('총괄 JSON 계획 앞에 미확인 설명문이 섞였습니다.')
         data = None
         for start in json_indices[:2]:
             portion = '\n'.join(lines[start:]).strip()
@@ -546,6 +556,8 @@ def _parse_group(raw, expected, *, prompt=''):
             if len(wrappers) > 1:
                 raise ValueError('총괄 JSON 계획 목록 필드 별칭 충돌')
             if wrappers:
+                if len(data)!=1:
+                    raise ValueError('총괄 JSON 계획에 요청하지 않은 최상위 필드가 있습니다.')
                 data = data[wrappers[0]]
             if isinstance(data, dict):
                 rows = []
@@ -561,6 +573,10 @@ def _parse_group(raw, expected, *, prompt=''):
         for row in data:
             if not isinstance(row, dict):
                 raise ValueError('총괄 JSON 계획의 항목 구조 오류')
+            allowed={'department','부서명','부서','title','업무 제목','제목',
+                     'instruction','작업 지시','지시'}
+            if set(row)-allowed:
+                raise ValueError('총괄 JSON 계획에 요청하지 않은 항목 필드가 있습니다.')
             add(_model_json_alias_value(row, ('department','부서명','부서')),
                 _model_json_alias_value(row, ('title','업무 제목','제목')),
                 _model_json_alias_value(row, ('instruction','작업 지시','지시')))
