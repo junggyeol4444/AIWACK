@@ -58,7 +58,16 @@ def snapshot(store, campaign_id: int, *, require_genuine_provenance: bool = True
                 'verified_genuine_prefix_tasks': prefix,
                 'executed': False, 'automatically_retried': False,
                 'read_only': True}
+    # 완료된 30업무는 반드시 연속 접두 구간이어야 한다. 첫 미완료 이후의
+    # 완료/진행 표시 또는 기존 실행 기록이 있으면 관리자 확인 없이 재개 불가.
     ordinal = first_pending['ordinal']
+    future_anomalies = []
+    for later in steps[ordinal:]:
+        later_id = later['task_id']
+        if later.get('task_status') != 'todo':
+            future_anomalies.append(later['ordinal'])
+        elif _task_audit(store, later_id)['has_prior_execution']:
+            future_anomalies.append(later['ordinal'])
     task_id = first_pending.get('task_id')
     if type(task_id) is not int or task_id <= 0:
         raise ValueError('실제 직원 업무 번호가 올바르지 않습니다.')
@@ -67,6 +76,9 @@ def snapshot(store, campaign_id: int, *, require_genuine_provenance: bool = True
     reasons = []
     if status != 'todo':
         reasons.append('현재 업무 상태가 미실행(todo)이 아닙니다: ' + str(status))
+    if future_anomalies:
+        reasons.append('후속 업무의 선행 실행·완료 흔적이 있어 순서 재개를 차단합니다: '
+                       + ','.join(map(str, future_anomalies)))
     if audit['has_prior_execution']:
         reasons.append('기존 실행·결과물이 존재하여 자동 재실행을 금지합니다.')
     if count != ordinal - 1:
@@ -87,6 +99,8 @@ def snapshot(store, campaign_id: int, *, require_genuine_provenance: bool = True
 def require_next(store, campaign_id: int, expected_task_id: int, *,
                  require_genuine_provenance: bool = True) -> dict:
     """실행 직전 기존 감사 상태를 재조회. 원본/프로세스 우회 불가."""
+    if type(expected_task_id) is not int or expected_task_id <= 0:
+        raise ValueError('실행 대상 업무 번호는 양의 정수여야 합니다.')
     result = snapshot(store, campaign_id,
                       require_genuine_provenance=require_genuine_provenance)
     if result['state'] != 'ready' or result['next_task_id'] != expected_task_id:
