@@ -25,12 +25,17 @@ def is_append_only_handoff_path(path: str) -> bool:
     return ('인수인계' in pure.name or pure.name == 'automation_full_handoff.md')
 
 
+def _normalize_heading(title: str) -> str:
+    """동일 제목의 대소문자·공백 차이로 기록 충돌을 숨기지 않는다."""
+    return ' '.join(title.split()).casefold()
+
+
 def _sections(suffix: str) -> set[str] | None:
     if not suffix.strip():
         return None
     if not suffix.lstrip('\r\n').startswith('## '):
         return None
-    headings = [m.group(1).strip() for m in _SECTION.finditer(suffix)]
+    headings = [_normalize_heading(m.group(1)) for m in _SECTION.finditer(suffix)]
     if not headings or len(headings) != len(set(headings)):
         return None
     return set(headings)
@@ -50,12 +55,18 @@ def merge_append_only_handoffs(path: str, base: bytes, main: bytes,
     if not left or not right:
         return None
     try:
-        base.decode('utf-8')
+        base_text = base.decode('utf-8')
         left_text, right_text = left.decode('utf-8'), right.decode('utf-8')
     except UnicodeDecodeError:
         return None
     left_titles, right_titles = _sections(left_text), _sections(right_text)
     if left_titles is None or right_titles is None:
+        return None
+    # 이미 존재하던 제목을 새 회차로 다시 붙이는 것은 append-only가 아니다.
+    # 원본 제목이 반복된 오래된 문서는 보존하되, 새 제목의 재사용은 차단한다.
+    base_titles = {_normalize_heading(match.group(1))
+                   for match in _SECTION.finditer(base_text)}
+    if (left_titles | right_titles) & base_titles:
         return None
     if left == right:
         merged = main
