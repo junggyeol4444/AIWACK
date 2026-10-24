@@ -124,6 +124,20 @@ def _bounded_verified_final_prompt(source_excerpts: str, evidence_sha256: str) -
                             for _ in range(2)]
     if [row['department'] for row in source_rows] != expected_departments:
         raise ValueError('15부서 30업무 승인 인용 원본의 부서·순서가 일치하지 않습니다.')
+    # Production excerpts carry immutable artifact identifiers and both
+    # source digests. If proof metadata is supplied, reject partial, malformed
+    # or reused records instead of silently dropping evidence.
+    proof_keys = ('artifact_id', 'artifact_sha256', 'chief_report_sha256')
+    if any(any(key in row for key in proof_keys) for row in source_rows):
+        if any(not all(key in row for key in proof_keys) for row in source_rows):
+            raise ValueError('30업무 승인 인용 원본의 증빙 필드가 누락됐습니다.')
+        if (any(type(row['artifact_id']) is not int or row['artifact_id'] <= 0
+                or any(type(row[key]) is not str or len(row[key]) != 64
+                       or any(ch not in '0123456789abcdef' for ch in row[key])
+                       for key in proof_keys[1:])
+                for row in source_rows)
+                or len({row['artifact_id'] for row in source_rows}) != 30):
+            raise ValueError('30업무 승인 인용 원본의 증빙 식별자·SHA256 충돌 또는 형식 오류')
     header = (
         '당신은 Windows 로컬 회사의 총괄 AI입니다. 관리자 검수된 15부서 30업무의 '
         '한국어 최종 보고서를 작성하세요. 완료 내용, 품질·위험, 관리자 후속 승인 사항을 설명하세요. '
