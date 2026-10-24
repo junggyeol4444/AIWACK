@@ -90,8 +90,9 @@ def compare_zip_archives_to_github(archive_paths: list[Path], tree: dict,
             state = 'historical_conflict'
         elif entry is None:
             # Git tree에서 파일/폴더가 겹치면 해당 원본을 누락으로 복원할 수 없다.
-            if any(other.startswith(path + '/') or path.startswith(other + '/')
-                   for other in remote):
+            if any((other.startswith(path + '/') or path.startswith(other + '/'))
+                   and entry_data.get('type') == 'blob'
+                   for other, entry_data in remote.items()):
                 state = 'remote_type_conflict'
             else:
                 state = 'missing'
