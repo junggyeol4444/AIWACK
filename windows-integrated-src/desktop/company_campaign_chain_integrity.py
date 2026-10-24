@@ -130,3 +130,37 @@ def verify_receipt(store, campaign_id: int, receipt: dict) -> dict:
             'independent_gguf_binary_verified': False,
             'physical_windows_10_11_gui_verified': False,
             'final_T01_T20_acceptance_passed': False}
+
+def export_receipt_json(store, campaign_id: int) -> str:
+    """Export a read-only canonical receipt; no model or owner action."""
+    receipt = snapshot(store, campaign_id)
+    return json.dumps(receipt, ensure_ascii=False, sort_keys=True,
+                      separators=(',', ':'), allow_nan=False) + '\n'
+
+
+def verify_receipt_json(store, campaign_id: int, raw: str) -> dict:
+    """Strictly verify a previously exported local receipt against live sources.
+
+    Duplicate JSON keys, NaN/Infinity, extra fields and cross-campaign
+    substitution are rejected. This is not a signature or GGUF binary test.
+    """
+    if not isinstance(raw, str) or not 0 < len(raw.encode('utf-8')) <= 65536:
+        raise ValueError('최종 인계 JSON의 형식 또는 크기가 올바르지 않습니다.')
+
+    def unique_pairs(pairs):
+        result = {}
+        for key, value in pairs:
+            if key in result:
+                raise ValueError('최종 인계 JSON에 중복된 필드가 있습니다.')
+            result[key] = value
+        return result
+
+    def invalid_constant(value):
+        raise ValueError('최종 인계 JSON에 비표준 숫자가 있습니다: ' + value)
+
+    try:
+        receipt = json.loads(raw, object_pairs_hook=unique_pairs,
+                             parse_constant=invalid_constant)
+    except (TypeError, UnicodeError, json.JSONDecodeError) as exc:
+        raise ValueError('최종 인계 JSON을 해석할 수 없습니다.') from exc
+    return verify_receipt(store, campaign_id, receipt)
