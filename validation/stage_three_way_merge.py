@@ -23,6 +23,13 @@ except ImportError:
     from merge_disjoint_json_changes import merge_disjoint_json
 
 try:
+    from validation.merge_append_only_handoffs import (
+        merge_append_only_handoffs, is_append_only_handoff_path)
+except ImportError:
+    from merge_append_only_handoffs import (
+        merge_append_only_handoffs, is_append_only_handoff_path)
+
+try:
     from validation.merge_preservation_policy import is_preserved_in_main
 except ImportError:
     from merge_preservation_policy import is_preserved_in_main
@@ -145,6 +152,9 @@ def stage_merge(audit: dict, main_root: Path, test_root: Path, destination: Path
             # 통과할 수 있다. 엄격한 JSON 의미 병합만 허용한다.
             if path.lower().endswith('.json'):
                 merged = merge_disjoint_json(base, main_bytes, test_bytes)
+            elif is_append_only_handoff_path(path):
+                # 원문을 고친 기록이나 중복 회차는 텍스트 병합으로 우회하지 않는다.
+                merged = merge_append_only_handoffs(path, base, main_bytes, test_bytes)
             else:
                 merged = merge_disjoint_text(base, main_bytes, test_bytes)
             if merged is None:
