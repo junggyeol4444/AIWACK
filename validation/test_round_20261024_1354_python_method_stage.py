@@ -58,10 +58,11 @@ class PythonMethodStageTests(unittest.TestCase):
         self.assertIn('worker.py', result['held_for_manual_review'])
         self.assertNotIn('worker.py', result['merged_paths'])
 
-    def test_class_attribute_change_held_and_main_preserved(self):
+    def test_class_header_conflict_held_and_main_preserved(self):
         base = BASE
-        main = base.replace(b'return 1', b'return 11')
-        test = base.replace(b'class Worker:', b'class Worker(object):').replace(
+        main = base.replace(b'class Worker:', b'class Worker(object):').replace(
+            b'return 1', b'return 11')
+        test = base.replace(b'class Worker:', b'class Worker(Exception):').replace(
             b'return 2', b'return 22')
         result, staged = self._stage(main, test)
         self.assertEqual(staged, main)
