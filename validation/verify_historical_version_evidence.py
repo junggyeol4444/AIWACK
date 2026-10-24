@@ -71,6 +71,8 @@ def verify_evidence(root: Path) -> dict:
             raise ValueError('역사 버전 SHA 목록 불일치: ' + name)
         if bool(row.get('historical_conflict')) != (len(expected) > 1):
             raise ValueError('역사 버전 충돌 증빙 불일치: ' + name)
+        if {version.get('sha256') for version in versions if isinstance(version, dict)} != set(found):
+            raise ValueError('역사 증빙 버전 누락·중복: ' + name)
         for version in versions:
             if not isinstance(version, dict):
                 raise ValueError('역사 버전 항목 형식 오류')
