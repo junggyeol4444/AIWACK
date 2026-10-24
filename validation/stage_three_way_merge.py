@@ -35,6 +35,11 @@ except ImportError:
     from merge_disjoint_python_methods import merge_disjoint_python_methods
 
 try:
+    from validation.merge_disjoint_python_blocks import merge_disjoint_python_blocks
+except ImportError:
+    from merge_disjoint_python_blocks import merge_disjoint_python_blocks
+
+try:
     from validation.merge_append_only_handoffs import (
         merge_append_only_handoffs, is_append_only_handoff_path)
 except ImportError:
@@ -174,6 +179,9 @@ def stage_merge(audit: dict, main_root: Path, test_root: Path, destination: Path
                 if merged is None:
                     # 클래스 메서드와 최상위 함수의 독립 변경도 원본 바이트를 보존한다.
                     merged = merge_disjoint_python_methods(base, main_bytes, test_bytes)
+                if merged is None:
+                    # 클래스 전체·최상위 함수의 서로 다른 변경을 원본 보존 병합.
+                    merged = merge_disjoint_python_blocks(base, main_bytes, test_bytes)
                 if merged is None:
                     merged = merge_disjoint_text(base, main_bytes, test_bytes)
                     if merged is not None and not valid_python_bytes(merged['content']):
