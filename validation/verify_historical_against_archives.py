@@ -54,6 +54,9 @@ def verify_against_archives(evidence_root: Path) -> dict:
     seen_sources = set()
     seen_archives = set()
     checked_entries = 0
+    unmatched_entries_total = 0
+    unmatched_entries_sample = []
+    _MAX_UNMATCHED_SAMPLE = 100
     for record in archives:
         if not isinstance(record, dict) or not isinstance(record.get('archive'), str):
             raise ValueError('원본 ZIP 출처 기록 오류')
@@ -87,6 +90,11 @@ def verify_against_archives(evidence_root: Path) -> dict:
                 key = (record['archive'], name_in_zip)
                 if key not in expected_sources:
                     unmatched += 1
+                    unmatched_entries_total += 1
+                    if len(unmatched_entries_sample) < _MAX_UNMATCHED_SAMPLE:
+                        unmatched_entries_sample.append({
+                            'archive': record['archive'], 'zip_entry': name_in_zip,
+                            'bytes': item.file_size, 'zip_crc32': f'{item.CRC:08x}'})
                     continue
                 if item.file_size > _MAX_ENTRY_BYTES:
                     raise ValueError('원본 ZIP 항목 크기 제한 초과: ' + name_in_zip)
@@ -116,6 +124,10 @@ def verify_against_archives(evidence_root: Path) -> dict:
             'verified_versions': local['verified_versions'],
             'missing_versions': local['missing_versions'],
             'independent_archive_comparison': True,
+            'unmatched_archive_entries_total': unmatched_entries_total,
+            'unmatched_archive_entries_sample': unmatched_entries_sample,
+            'unmatched_archive_entries_sample_truncated': (
+                unmatched_entries_total > len(unmatched_entries_sample)),
             'full_1099_originals_verified': False,
             'github_main_updated': False}
 
