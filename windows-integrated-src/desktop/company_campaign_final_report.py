@@ -118,6 +118,12 @@ def _bounded_verified_final_prompt(source_excerpts: str, evidence_sha256: str) -
                    or not isinstance(row.get('chief_review_excerpt'), str)
                    for row in source_rows)):
         raise ValueError('15부서 30업무 승인 인용 원본의 순서·형식 오류')
+    # Preserve the exact blueprint's two approved steps per department.
+    # A duplicated or reordered department must never be presented as 30 valid jobs.
+    expected_departments = [name for name, _ in wide.BLUEPRINT_DEPARTMENTS
+                            for _ in range(2)]
+    if [row['department'] for row in source_rows] != expected_departments:
+        raise ValueError('15부서 30업무 승인 인용 원본의 부서·순서가 일치하지 않습니다.')
     header = (
         '당신은 Windows 로컬 회사의 총괄 AI입니다. 관리자 검수된 15부서 30업무의 '
         '한국어 최종 보고서를 작성하세요. 완료 내용, 품질·위험, 관리자 후속 승인 사항을 설명하세요. '
