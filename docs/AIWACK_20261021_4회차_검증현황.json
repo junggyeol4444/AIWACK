@@ -1,0 +1,40 @@
+{
+  "round": 4,
+  "project": "AIWACK",
+  "basis": "3회차 로컬 누적 소스",
+  "remote_main_at_review": "4efe352cb4ad565fb513b30ab5b4ca45d3d19d57",
+  "ci_baseline_run": 39563017706,
+  "ci_baseline": "success; 본 회차 변경 코드는 포함하지 않음",
+  "failed_gguf_run": 39552378512,
+  "failure_2022": "실제 GGUF 총괄 3개 부서 계획 형식 미충족 (예전 main)",
+  "failure_2025": "pygetwindow Windows 1400 / GUI 대화상자 실종, 스크린샷 당시 회사 EXE 창이 보이지 않음",
+  "changed_existing_paths": [
+    "windows-integrated-src/tests/test_company_wide_campaign.py",
+    "docs/AIWACK_20261020_1730_KST_전체개발_최종인수인계.md",
+    "validation/windows_packaged_real_gguf_queue_e2e.py",
+    "docs/automation_full_handoff.md",
+    "windows-integrated-src/desktop/company_wide_campaign.py"
+  ],
+  "new_paths": [
+    "windows-integrated-src/tests/test_packaged_gui_modal_safety.py"
+  ],
+  "source_original_files_missing": [],
+  "tests_passed": {
+    "root_python": 138,
+    "wide_campaign_native": 20,
+    "staff_metrics_department_progress_staff_reallocation_native": 21,
+    "targeted_modal_close_safety": 2,
+    "distinct_tests_total": 181
+  },
+  "tests_incomplete": "네이티브 대규모 일괄 실행은 제한 시간 내 완료되지 않음; Windows/real GGUF 30단계 신규 코드 실측 미실행",
+  "remote_write": "미실행: 기존 main에 1~3회차 로컬 누적 수정이 아직 반영되지 않아서 무리한 부분 원격 갱신 금지",
+  "real_external_transactions": "미실행, 사용자 권한 없는 실계정 결제 금지",
+  "user_constraints": [
+    "기존 Python Tk 한글 GUI/EXE 보존",
+    "SQLite /실 GGUF /31역할 /15부서 /30업무",
+    "T01~T20 원본 보존",
+    "웹UI 교체 금지",
+    "원본 파일 삭제·덮어쓰기 금지",
+    "다른 프로젝트·예약 변경 금지"
+  ]
+}

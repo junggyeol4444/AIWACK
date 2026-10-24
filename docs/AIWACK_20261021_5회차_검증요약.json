@@ -1,0 +1,11 @@
+{
+  "root_tests_pass": 138,
+  "company_campaign_new_features_tests_pass": 4,
+  "department_collaboration_tests_pass": 3,
+  "department_progress_tests_pass": 14,
+  "native_full_suite": "timed_out_unverified",
+  "real_windows_gguf_30_steps": "not_run",
+  "physical_windows_exe": "not_run",
+  "actual_bank_payment": "not_run",
+  "github_main": "not_updated_at_file_generation"
+}

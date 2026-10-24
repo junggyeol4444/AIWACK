@@ -116,6 +116,86 @@ def wait_sql(sql, expected, params=(), timeout=70):
 _WINDOW_IDENTITY = {}
 _TARGET_EXE_PID = None
 
+def _windows_process_tree(root_pid):
+    """Win32 Toolhelp32: only the launched, live AIWACK.exe and its child AIWACK.exe.
+
+    PyInstaller one-file has a bootstrap parent and a GUI child. Never trust
+    a same-title window or a process merely because it is named AIWACK.exe.
+    """
+    if os.name != 'nt' or type(root_pid) is not int or root_pid <= 0:
+        raise AssertionError('Windows EXE bootstrap PID is invalid')
+    import ctypes
+    from ctypes import wintypes
+    class PROCESSENTRY32W(ctypes.Structure):
+        _fields_ = [('dwSize', wintypes.DWORD), ('cntUsage', wintypes.DWORD),
+                    ('th32ProcessID', wintypes.DWORD),
+                    ('th32DefaultHeapID', ctypes.c_void_p),
+                    ('th32ModuleID', wintypes.DWORD), ('cntThreads', wintypes.DWORD),
+                    ('th32ParentProcessID', wintypes.DWORD),
+                    ('pcPriClassBase', wintypes.LONG), ('dwFlags', wintypes.DWORD),
+                    ('szExeFile', ctypes.c_wchar * 260)]
+    kernel = ctypes.windll.kernel32
+    kernel.CreateToolhelp32Snapshot.argtypes = (wintypes.DWORD, wintypes.DWORD)
+    kernel.CreateToolhelp32Snapshot.restype = wintypes.HANDLE
+    kernel.Process32FirstW.argtypes = (wintypes.HANDLE, ctypes.POINTER(PROCESSENTRY32W))
+    kernel.Process32FirstW.restype = wintypes.BOOL
+    kernel.Process32NextW.argtypes = (wintypes.HANDLE, ctypes.POINTER(PROCESSENTRY32W))
+    kernel.Process32NextW.restype = wintypes.BOOL
+    kernel.CloseHandle.argtypes = (wintypes.HANDLE,)
+    kernel.CloseHandle.restype = wintypes.BOOL
+    snapshot = kernel.CreateToolhelp32Snapshot(0x00000002, 0)
+    if snapshot in (None, ctypes.c_void_p(-1).value):
+        raise AssertionError('Windows process snapshot cannot be verified')
+    processes = {}
+    try:
+        entry = PROCESSENTRY32W()
+        entry.dwSize = ctypes.sizeof(entry)
+        if not kernel.Process32FirstW(snapshot, ctypes.byref(entry)):
+            raise AssertionError('Windows process snapshot has no entries')
+        while True:
+            processes[int(entry.th32ProcessID)] = (
+                int(entry.th32ParentProcessID), str(entry.szExeFile).lower())
+            if not kernel.Process32NextW(snapshot, ctypes.byref(entry)):
+                break
+    finally:
+        kernel.CloseHandle(snapshot)
+    if root_pid not in processes:
+        raise AssertionError('Packaged EXE bootstrap PID is no longer present')
+    if processes[root_pid][1] != 'aiwack.exe':
+        raise AssertionError('Packaged EXE bootstrap executable name mismatch')
+    trusted = {root_pid}
+    for _ in range(10):
+        children = {pid for pid,(parent,name) in processes.items()
+                    if parent in trusted and name == 'aiwack.exe'}
+        updated = trusted | children
+        if updated == trusted:
+            break
+        trusted = updated
+    return trusted
+
+
+def _bind_new_exe_process(process, window):
+    """Bind one physical HWND to the actual owned process tree, never by title alone."""
+    global _TARGET_EXE_PID
+    bootstrap = getattr(process, 'pid', None)
+    if type(bootstrap) is not int or bootstrap <= 0 or process.poll() is not None:
+        raise AssertionError('The packaged AIWACK.exe bootstrap is not running')
+    hwnd = int(window._hWnd)
+    if not _is_window(hwnd) or window.title != gui.TITLE:
+        raise AssertionError('Expected real AIWACK native GUI title/HWND')
+    actual = _native_window_pid(hwnd)
+    if actual not in _windows_process_tree(bootstrap):
+        raise AssertionError('GUI owner PID is not an AIWACK.exe bootstrap descendant')
+    _WINDOW_IDENTITY.clear()
+    WINDOW_TITLES.clear()
+    WINDOW_PIDS.clear()
+    _TARGET_EXE_PID = actual
+    WINDOW_TITLES[hwnd] = window.title
+    WINDOW_PIDS[window.title] = actual
+    _WINDOW_IDENTITY[hwnd] = (window.title, actual)
+    return actual
+
+
 
 def _owner_pid(hwnd):
     actual = _native_window_pid(hwnd)
@@ -222,9 +302,14 @@ def _visible_window(w):
         matched=[]
         for candidate in windows:
             try:
-                if (candidate.title==name and candidate.width>300
-                        and candidate.height>250):
-                    candidate_pid=_owner_pid(candidate._hWnd)
+                if (candidate.title==name and (
+                        (candidate.width>300 and candidate.height>250) or
+                        (name=='총괄 AI → 직원 업무 지휘'
+                         and candidate.width>=300 and candidate.height>=100))):
+                    candidate_pid=_native_window_pid(candidate._hWnd)
+                    if (globals().get('_TARGET_EXE_PID') is not None
+                            and candidate_pid != globals()['_TARGET_EXE_PID']):
+                        raise AssertionError('The candidate HWND does not belong to the verified AIWACK process')
                     if pid is None or candidate_pid==pid:
                         matched.append(candidate)
             except Exception:
@@ -327,7 +412,15 @@ def find_dialog(fragment, timeout=65):
     deadline = time.monotonic() + timeout
     while time.monotonic() < deadline:
         found = []
-        for win in pygetwindow.getAllWindows():
+        try:
+            windows = pygetwindow.getAllWindows()
+        except (RuntimeError, OSError) as exc:
+            # Win32 1400 indicates a destroyed Tk HWND: retry, never blind-click.
+            if '1400' not in str(exc):
+                raise
+            time.sleep(.3)
+            continue
+        for win in windows:
             try:
                 if (fragment in win.title and win.width >= 300
                         and _is_window(win._hWnd) and _owner_pid(win._hWnd)>0):
@@ -523,8 +616,8 @@ def perform(exe, model_cli, gguf):
     p = None
     try:
         p = gui.start(exe, DATA)
-        _TARGET_EXE_PID = p.pid
         w = gui.find_window()
+        _bind_new_exe_process(p, w)
         evidence("actual-aiwack-exe-launched")
         write(w, 175, 320, OWNER)
         write(w, 175, 401, PASSWORD)
@@ -647,6 +740,7 @@ def perform(exe, model_cli, gguf):
         # written by the driver. Owner approvals remain separate actions.
         p = gui.start(exe, DATA)
         w = gui.find_window()
+        _bind_new_exe_process(p, w)
         write(w, 175, 395, OWNER)
         write(w, 175, 437, PASSWORD)
         click(w, 175, 480)
@@ -754,6 +848,7 @@ def perform(exe, model_cli, gguf):
         evidence("exe-closed-cleanly")
         p = gui.start(exe, DATA)
         w = gui.find_window()
+        _bind_new_exe_process(p, w)
         write(w, 175, 395, OWNER)
         write(w, 175, 437, PASSWORD)
         click(w, 175, 480)
@@ -847,6 +942,7 @@ def perform(exe, model_cli, gguf):
         evidence("all-models-and-emergency-stop-exe-closed")
         p = gui.start(exe, DATA)
         w = gui.find_window()
+        _bind_new_exe_process(p, w)
         write(w, 175, 395, OWNER)
         write(w, 175, 437, PASSWORD)
         click(w, 175, 480)

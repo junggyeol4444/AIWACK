@@ -122,10 +122,10 @@ def _record_genuine_chief_plan_rejection(store, source_task_id, chief, call_id,
     completion=raw if isinstance(raw,str) else repr(raw)
     with store._connect() as con:
         initialize(con)
-        call=con.execute('''SELECT employee_id,status FROM ai_model_call_history
+        call=con.execute('''SELECT employee_id,status,output_chars FROM ai_model_call_history
                             WHERE id=?''',(int(call_id),)).fetchone()
-        if call!=(chief,'success'):
-            raise ValueError('총괄 모델 실패 감사의 호출 출처가 불일치합니다.')
+        if call!=(chief,'success',len(completion)):
+            raise ValueError('총괄 모델 실패 감사의 호출 출처·응답 길이가 불일치합니다.')
         con.execute('''INSERT INTO aiwack_wide_chief_rejected_attempts
             (source_task_id,chief_employee_id,model_call_id,attempt_kind,
              requested_departments,output_sha256,output_chars,error_reason)
@@ -145,8 +145,12 @@ def _generated_chief_lines(raw,prompt=''):
     clean=re.sub(r'\x1b\[[0-9;]*m','',raw).replace('\r','')
     if prompt and prompt in clean:
         clean=clean.rsplit(prompt,1)[-1]
+    # Multiple completion delimiters can hide an earlier contradictory
+    # model answer. Do not select only the last answer for approval.
+    if clean.count('RESPONSE:')>1:
+        raise ValueError('총괄 모델 응답에 중복된 RESPONSE 구분자가 있습니다.')
     if 'RESPONSE:' in clean:
-        clean=clean.rsplit('RESPONSE:',1)[-1]
+        clean=clean.split('RESPONSE:',1)[-1]
     lines=[]
     for line in clean.splitlines():
         line=line.strip().strip('\x00').strip()
@@ -163,6 +167,37 @@ def _generated_chief_lines(raw,prompt=''):
     return lines
 
 
+class DuplicateModelJSONKeyError(ValueError):
+    """A model emitted duplicate JSON keys; keep failure provenance explicit."""
+
+
+def _reject_duplicate_json_keys(pairs):
+    """Reject conflicting JSON keys in genuine model output, never guess a winner."""
+    obj = {}
+    for key, value in pairs:
+        if key in obj:
+            raise DuplicateModelJSONKeyError('실제 총괄 모델 JSON 중복 키')
+        obj[key] = value
+    return obj
+
+
+class NonFiniteModelJSONError(ValueError):
+    """The model emitted a non-JSON numeric constant."""
+
+
+def _reject_nonfinite_json_constant(value):
+    """Non-standard NaN/Infinity is not valid auditable GGUF JSON."""
+    raise NonFiniteModelJSONError('실제 총괄 모델 JSON 비표준 숫자: ' + value)
+
+
+def _model_json_alias_value(row, names):
+    """Never prefer a contradictory field alias in genuine model JSON."""
+    found = [(key, row[key]) for key in names if key in row]
+    if len(found) > 1 and any(value != found[0][1] for _, value in found[1:]):
+        raise ValueError('실제 총괄 모델 JSON 필드 별칭 충돌')
+    return found[0][1] if found else None
+
+
 def _parse_single_chief_completion(raw,prompt,name):
     """Strict parse of a genuine single department call, including small GGUF text."""
     lines=_generated_chief_lines(raw,prompt)
@@ -171,19 +206,29 @@ def _parse_single_chief_completion(raw,prompt,name):
                        row.replace('｜','|').replace('¦','|')).strip() for row in lines]
     json_start=next((i for i,v in enumerate(normalized) if v.startswith('{')),None)
     if json_start is not None:
+        if json_start != 0:
+            raise ValueError('총괄 단일 부서 JSON 앞에 미확인 설명문이 섞였습니다.')
         candidate='\n'.join(normalized[json_start:]).strip()
-        try:obj,end=json.JSONDecoder().raw_decode(candidate)
+        try:obj,end=json.JSONDecoder(object_pairs_hook=_reject_duplicate_json_keys,
+                                             parse_constant=_reject_nonfinite_json_constant).raw_decode(candidate)
+        except (DuplicateModelJSONKeyError, NonFiniteModelJSONError):raise
         except ValueError as error:raise ValueError('총괄 단일 부서 JSON 생성 결과 오류') from error
         if candidate[end:].strip() or not isinstance(obj,dict):
             raise ValueError('총괄 단일 부서 JSON 생성 결과 오류')
-        if obj.get('department',obj.get('부서명'))!=name:
+        allowed={'department','부서명','부서','title','업무 제목','제목',
+                 'instruction','작업 지시','지시'}
+        if set(obj)-allowed:
+            raise ValueError('총괄 단일 부서 JSON에 요청하지 않은 필드가 있습니다.')
+        if _model_json_alias_value(obj, ('department','부서명','부서'))!=name:
             raise ValueError('총괄 단일 부서 지시가 요청한 부서와 다릅니다.')
-        title=obj.get('title',obj.get('업무 제목',obj.get('제목')))
-        instruction=obj.get('instruction',obj.get('작업 지시',obj.get('지시')))
+        title=_model_json_alias_value(obj, ('title','업무 제목','제목'))
+        instruction=_model_json_alias_value(obj, ('instruction','작업 지시','지시'))
     else:
         rows=[v.strip('|').strip() for v in normalized if '|' in v]
         if len(rows)>1:raise ValueError('총괄 단일 부서 계획에 여러 부서 지시가 섞였습니다.')
         if rows:
+            if len(rows)!=len(normalized):
+                raise ValueError('총괄 단일 부서 지시에 추가 설명문이 섞였습니다.')
             parts=[x.strip() for x in rows[0].split('|')]
             if len(parts)==3:
                 if parts[0]!=name:raise ValueError('총괄 단일 부서 지시가 요청한 부서와 다릅니다.')
@@ -194,11 +239,33 @@ def _parse_single_chief_completion(raw,prompt,name):
                 title,instruction=parts
             else:raise ValueError('총괄 단일 부서 계획 필드 오류')
         else:
-            combined=' '.join(normalized).strip()
-            if any(re.match('^'+re.escape(d)+r'\s*[:：\-]',combined)
-                   for d,_ in BLUEPRINT_DEPARTMENTS if d!=name):
-                raise ValueError('총괄 단일 부서 지시가 요청한 부서와 다릅니다.')
-            title,instruction=combined[:65],combined
+            # 한국어 키:값 형식의 실제 모델 응답을 엄격하게 확인한다.
+            # 필드 누락/중복/부서 불일치는 추정으로 보충하지 않는다.
+            aliases={'부서':'department','부서명':'department','department':'department',
+                     '제목':'title','업무 제목':'title','title':'title',
+                     '지시':'instruction','작업 지시':'instruction','instruction':'instruction'}
+            labelled={}
+            for item in normalized:
+                match=re.fullmatch(
+                    r'(부서명|부서|department|업무 제목|제목|title|작업 지시|지시|instruction)\s*[:：]\s*(.+)',
+                    item,re.I)
+                if match:
+                    key=aliases[match.group(1).lower()]
+                    if key in labelled:
+                        raise ValueError('총괄 단일 부서 출력에 중복된 필드가 있습니다.')
+                    labelled[key]=match.group(2).strip()
+            if labelled:
+                if (len(labelled)!=len(normalized)
+                        or not {'title','instruction'}<=set(labelled)
+                        or labelled.get('department',name)!=name):
+                    raise ValueError('총괄 단일 부서의 필드 누락·혼합 또는 부서 불일치')
+                title,instruction=labelled['title'],labelled['instruction']
+            else:
+                combined=' '.join(normalized).strip()
+                if any(re.match('^'+re.escape(d)+r'\s*[:：\-]',combined)
+                       for d,_ in BLUEPRINT_DEPARTMENTS if d!=name):
+                    raise ValueError('총괄 단일 부서 지시가 요청한 부서와 다릅니다.')
+                title,instruction=combined[:65],combined
     if not isinstance(title,str) or not isinstance(instruction,str):
         raise ValueError('총괄 단일 부서 출력 타입 오류')
     title=title.strip();instruction=instruction.strip()
@@ -210,17 +277,24 @@ def _parse_single_chief_completion(raw,prompt,name):
     return title,instruction
 
 
-def _audit_chief_plan(store,source_id,chief,call_id,names,kind,parsed,raw,error=''):
+def _audit_chief_plan(store,source_id,chief,call_id,names,kind,parsed,raw,error='',*,prompt=''):
     """Record genuine parse results; failed responses also remain immutable."""
     completion=raw if isinstance(raw,str) else repr(raw)
     digest=hashlib.sha256(completion.encode('utf-8')).hexdigest()
-    excerpt=''.join(ch if ch.isprintable() or ch==chr(10) else ' ' for ch in completion[:240])
+    # Keep the SHA256 of the original response unmodified for immutable audit.
+    # The displayed preview must contain generated completion only, never an echoed input prompt.
+    try:
+        generated='\n'.join(_generated_chief_lines(completion,prompt))
+    except ValueError:
+        generated=''
+    excerpt=''.join(ch if ch.isprintable() or ch==chr(10) else ' '
+                    for ch in generated[:240])
     with store._connect() as con:
         initialize(con)
-        actual=con.execute('SELECT employee_id,status FROM ai_model_call_history WHERE id=?',
+        actual=con.execute('SELECT employee_id,status,output_chars FROM ai_model_call_history WHERE id=?',
                            (int(call_id),)).fetchone()
-        if actual!=(chief,'success'):
-            raise ValueError('계획 감사의 실제 총괄 모델 호출 ID가 일치하지 않습니다.')
+        if actual!=(chief,'success',len(completion)):
+            raise ValueError('계획 감사의 실제 총괄 모델 호출 ID·응답 길이가 일치하지 않습니다.')
         con.execute('''INSERT INTO aiwack_wide_chief_plan_attempts
             (source_task_id,chief_employee_id,model_call_id,department_names,
              attempt_kind,parsed,error_kind,output_sha256,output_chars,completion_preview)
@@ -279,17 +353,22 @@ def _verified_staged_group(con,source_task_id,start,fingerprint,roster_sha,
         audited=con.execute('''SELECT employee_id,model_id,status,output_chars
             FROM ai_model_call_history WHERE id=?''',(call_id,)).fetchone()
         if (audited is None or int(audited[0])!=chief or int(audited[1])!=model
-              or audited[2]!='success' or int(audited[3])<=0):
+              or audited[2]!='success' or type(audited[3]) is not int
+              or audited[3]<=0):
             raise ValueError('총괄 실제 모델 호출 감사가 단계별 저장과 불일치합니다.')
         if con.execute('SELECT 1 FROM aiwack_wide_chief_rejected_attempts WHERE model_call_id=?',
                        (call_id,)).fetchone():
             raise ValueError('실패한 총괄 호출을 계획에 재사용할 수 없습니다.')
         audit=con.execute('''SELECT source_task_id,chief_employee_id,department_names,
-                 attempt_kind,parsed FROM aiwack_wide_chief_plan_attempts WHERE model_call_id=?''',
+                 attempt_kind,parsed,output_chars,output_sha256
+                 FROM aiwack_wide_chief_plan_attempts WHERE model_call_id=?''',
                  (call_id,)).fetchone()
         names=','.join(x[1] for x in part)
         if (audit is None or int(audit[0])!=source_task_id or int(audit[1])!=chief
                 or int(audit[4])!=1
+                or type(audit[5]) is not int or audit[5]!=audited[3]
+                or not isinstance(audit[6],str) or len(audit[6])!=64
+                or any(c not in '0123456789abcdef' for c in audit[6])
                 or audit[3] not in ('three_departments','single_department')
                 or (audit[3]=='three_departments' and audit[2]!=names)
                 or (audit[3]=='single_department' and audit[2]!=name)):
@@ -369,7 +448,7 @@ def _assert_campaign_plan_matches_genuine_staging(store,con,campaign_id:int)->No
         if (ordinal!=expected_ordinal or tuple(fields[:-1])!=exp
                 or not fields[-1]
                 or fields[-1]!=_step_digest(campaign_id,expected_ordinal,*exp)):
-            raise ValueError('실제 총괄 30업무 순서·원문·모델 호출 감사가 일치하지 않습니다.')
+            raise ValueError('실제 총괄 생성 원문과 30업무 순서·모델 호출 감사가 일치하지 않습니다.')
     if plan[3]=='approved':
         links=con.execute('''SELECT ordinal,task_id FROM aiwack_wide_campaign_steps
             WHERE campaign_id=? ORDER BY ordinal''',(campaign_id,)).fetchall()
@@ -462,22 +541,29 @@ def _parse_group(raw, expected, *, prompt=''):
     json_indices = [i for i, line in enumerate(lines)
                     if line.lstrip().startswith(('{', '['))]
     if json_indices:
-        data = None
-        for start in json_indices[:2]:
-            portion = '\n'.join(lines[start:]).strip()
-            try:
-                parsed, end = json.JSONDecoder().raw_decode(portion)
-            except ValueError:
-                continue
-            if portion[end:].strip():
-                continue
-            data = parsed
-            break
-        if data is None:
-            raise ValueError('총괄 JSON 계획이 손상되거나 다른 출력과 섞였습니다.')
+        if json_indices[0] != 0:
+            raise ValueError('총괄 JSON 계획 앞에 미확인 설명문이 섞였습니다.')
+        # Never skip an invalid first JSON object and accept a later object.
+        # The entire genuine completion must contain exactly one JSON value.
+        portion = '\n'.join(lines).strip()
+        try:
+            data, end = json.JSONDecoder(object_pairs_hook=_reject_duplicate_json_keys,
+                                         parse_constant=_reject_nonfinite_json_constant).raw_decode(portion)
+        except (DuplicateModelJSONKeyError, NonFiniteModelJSONError):
+            raise
+        except ValueError as exc:
+            raise ValueError('총괄 JSON 계획이 손상되거나 다른 출력과 섞였습니다.') from exc
+        if portion[end:].strip():
+            raise ValueError('총괄 JSON 계획에 추가 출력 또는 두 번째 JSON이 섞였습니다.')
         if isinstance(data, dict):
-            data = data.get('departments', data.get('부서별계획',
-                   data.get('plans', data.get('tasks', data))))
+            wrappers = [key for key in ('departments', '부서별계획', 'plans', 'tasks')
+                        if key in data]
+            if len(wrappers) > 1:
+                raise ValueError('총괄 JSON 계획 목록 필드 별칭 충돌')
+            if wrappers:
+                if len(data)!=1:
+                    raise ValueError('총괄 JSON 계획에 요청하지 않은 최상위 필드가 있습니다.')
+                data = data[wrappers[0]]
             if isinstance(data, dict):
                 rows = []
                 for name, fields in data.items():
@@ -492,16 +578,20 @@ def _parse_group(raw, expected, *, prompt=''):
         for row in data:
             if not isinstance(row, dict):
                 raise ValueError('총괄 JSON 계획의 항목 구조 오류')
-            add(row.get('department', row.get('부서명')),
-                row.get('title', row.get('업무 제목', row.get('제목'))),
-                row.get('instruction', row.get('작업 지시', row.get('지시'))))
+            allowed={'department','부서명','부서','title','업무 제목','제목',
+                     'instruction','작업 지시','지시'}
+            if set(row)-allowed:
+                raise ValueError('총괄 JSON 계획에 요청하지 않은 항목 필드가 있습니다.')
+            add(_model_json_alias_value(row, ('department','부서명','부서')),
+                _model_json_alias_value(row, ('title','업무 제목','제목')),
+                _model_json_alias_value(row, ('instruction','작업 지시','지시')))
     else:
         for line in lines:
             line = re.sub(r'^\s*(?:[-*]\s+|\d+[.)]\s+)', '', line)
             parts = [x.strip() for x in
                      line.strip().strip('|').replace('｜', '|').replace('¦', '|').split('|')]
             if len(parts) != 3:
-                continue
+                raise ValueError('총괄의 부서별 계획에 설명문 또는 잘못된 필드가 섞였습니다.')
             if (parts[0].lower() in ('department', '부서', '부서명')
                     and parts[1].lower() in ('title', '제목', '업무 제목', '작업 제목')):
                 continue
@@ -539,13 +629,20 @@ def _parse_single_real_chief(raw, requested, prompt):
     clean = '\n'.join(lines)
     if clean.startswith('{'):
         try:
-            item = json.loads(clean)
+            item = json.loads(clean, object_pairs_hook=_reject_duplicate_json_keys,
+                              parse_constant=_reject_nonfinite_json_constant)
+        except (DuplicateModelJSONKeyError, NonFiniteModelJSONError):
+            raise
         except ValueError as exc:
             raise ValueError('실제 총괄 단일 부서 JSON 출력 손상') from exc
-        if not isinstance(item, dict) or item.get('department', item.get('부서명')) != requested:
+        if not isinstance(item, dict) or _model_json_alias_value(item, ('department','부서명','부서')) != requested:
             raise ValueError('실제 총괄 단일 부서 JSON의 부서 불일치')
-        title = item.get('title', item.get('제목', item.get('업무 제목')))
-        instruction = item.get('instruction', item.get('지시', item.get('작업 지시')))
+        allowed = {'department','부서명','부서','title','제목','업무 제목',
+                   'instruction','지시','작업 지시'}
+        if set(item) - allowed:
+            raise ValueError('실제 총괄 단일 부서 JSON에 요청하지 않은 필드가 있습니다.')
+        title = _model_json_alias_value(item, ('title','제목','업무 제목'))
+        instruction = _model_json_alias_value(item, ('instruction','지시','작업 지시'))
     else:
         normalized = [re.sub(r'^\s*(?:[-*]\s+|\d+[.)]\s+)', '',
                       line.replace('｜', '|').replace('¦', '|')).strip()
@@ -554,6 +651,8 @@ def _parse_single_real_chief(raw, requested, prompt):
         if len(rows) > 1:
             raise ValueError('총괄 단일 부서 계획에 다중 행이 섞였습니다.')
         if rows:
+            if len(rows) != len(normalized):
+                raise ValueError('총괄 단일 부서 지시에 추가 설명문이 섞였습니다.')
             parts = [x.strip() for x in rows[0].split('|')]
             if len(parts) == 3:
                 if parts[0] != requested:
@@ -634,12 +733,12 @@ def propose(store,source_task_id:int,*,cancel:threading.Event|None=None):
             try:
                 parsed=_parse_group(raw,part,prompt=query)
                 _audit_chief_plan(store,source_task_id,chief,call_id,
-                                  [x[1] for x in part],'three_departments',True,raw)
+                                  [x[1] for x in part],'three_departments',True,raw,prompt=query)
                 calls={name:int(call_id) for _,name,_,_ in part}
                 break
             except ValueError as exc:
                 _audit_chief_plan(store,source_task_id,chief,call_id,
-                                  [x[1] for x in part],'three_departments',False,raw,exc)
+                                  [x[1] for x in part],'three_departments',False,raw,exc,prompt=query)
                 # These are REAL failed format attempts, not model-free fallback.
                 # A small GGUF that cannot emit three rows may emit one real
                 # department instruction per separate audited chief invocation.
@@ -660,20 +759,36 @@ def propose(store,source_task_id:int,*,cancel:threading.Event|None=None):
                     if cancel is not None and cancel.is_set():
                         raise InterruptedError('단일 부서 총괄 계획 취소')
                     assert_running_allowed(store)
+                    # 실제 GGUF 재시도마다 출력 형식만 바꿔 재질의한다.
+                    # 모델 호출 자체와 불변 실패 감사, 관리자 승인 게이트를 유지한다.
+                    if solo_attempt == 0:
+                        retry_prompt = one_prompt
+                    elif solo_attempt == 1:
+                        retry_prompt = (
+                            f'부서 {name}의 실제 업무를 한국어 한 문장으로 작성하세요. '
+                            '제목 또는 접두사 없이 14자 이상 구체적인 실행 지시만 출력하세요. '
+                            '결제·계약·외부 게시·전송 금지. '
+                            f'기준 업무: {str(task[2])[:100]} / {str(task[3])[:170]}')
+                    else:
+                        retry_prompt = (
+                            f'Department: {name}. Write ONE practical instruction in Korean, '
+                            'at least 14 characters. Output ONLY the instruction. '
+                            'Do not include other departments or unauthorized external actions. '
+                            f'Work: {str(task[2])[:100]} / {str(task[3])[:170]}')
                     answer,solo_call=invoke_employee_model(
-                        store,chief,one_prompt,timeout=90,cancel=cancel,
+                        store,chief,retry_prompt,timeout=90,cancel=cancel,
                         required_tier='ceo',include_call_id=True)
                     if cancel is not None and cancel.is_set():
                         raise InterruptedError('취소된 단일 부서 계획은 저장하지 않습니다.')
                     try:
-                        parsed[name]=_parse_single_chief_completion(answer,one_prompt,name)
+                        parsed[name]=_parse_single_chief_completion(answer,retry_prompt,name)
                         _audit_chief_plan(store,source_task_id,chief,solo_call,
-                                          [name],'single_department',True,answer)
+                                          [name],'single_department',True,answer,prompt=retry_prompt)
                         calls[name]=int(solo_call)
                         break
                     except ValueError as exc:
                         _audit_chief_plan(store,source_task_id,chief,solo_call,
-                                          [name],'single_department',False,answer,exc)
+                                          [name],'single_department',False,answer,exc,prompt=retry_prompt)
                         continue
                 else:
                     raise ValueError('실제 총괄 모델의 3부서 계획이 세 번 연속 실패하고 단일 부서 재계획도 실패했습니다.')
@@ -988,10 +1103,13 @@ def run_next(store,campaign_id:int,*,cancel:threading.Event|None=None,
     step=pending[0]
     if (progress['verified_completed_tasks']!=step['ordinal']-1
             or progress['next_task_id']!=step['task_id']):
-        raise ValueError('직전 부서 결과의 실제 증빙·승인·순서가 일치하지 않습니다.')
+        raise ValueError('직전 부서 결과의 실제 증빙 무결성·승인·순서가 일치하지 않습니다.')
     if (require_genuine_provenance and
             progress['verified_genuine_prefix_tasks']!=step['ordinal']-1):
         raise ValueError('직전 총괄 실제 모델 호출 연결이 검증되지 않았습니다.')
+    from desktop.company_campaign_resume_gate import require_next
+    require_next(store, campaign_id, int(step['task_id']),
+                 require_genuine_provenance=require_genuine_provenance)
     result=execute_approved_chief_cycle(store,step['task_id'],cancel=cancel)
     return {'step':step['ordinal'],'department':step['department'],
             'employee_id':step['employee_id'],'work':result,

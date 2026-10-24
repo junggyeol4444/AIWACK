@@ -1,0 +1,31 @@
+{
+  "round": 18,
+  "date_kst": "2026-10-22",
+  "previous_files": 1085,
+  "preserved_previous_files": 1085,
+  "root_test": {
+    "passed": 138,
+    "exit_code": 0
+  },
+  "native_integrated": {
+    "passed": 135,
+    "exit_code": 0
+  },
+  "linux_xvfb_tk_smoke": {
+    "status": "PASS",
+    "model": "fixture"
+  },
+  "desktop_self_test": {
+    "status": "PASS"
+  },
+  "compileall": "PASS",
+  "workflow_yaml_files_checked": 15,
+  "windows_real_gguf_30": "NOT_RUN",
+  "windows_exe_physical": "NOT_RUN",
+  "windows10_11_24h": "NOT_RUN",
+  "bank_api_verified": false,
+  "pg_live_transactions_executed": false,
+  "remote_source_committed": false,
+  "github_failed_run": "39552378512",
+  "scope": "original 15 chapters and T01-T20 unchanged"
+}

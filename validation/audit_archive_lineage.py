@@ -1,0 +1,168 @@
+"""과거 여러 회차 원본 ZIP과 현재 누적 소스를 바이트 단위로 대조한다.
+
+기존 복원 도구의 ZIP 경로·CRC·Windows 충돌 검사를 그대로 재사용한다.
+읽기 전용: 서로 다른 회차의 동일 경로는 버전 충돌로 남기고 합성·덮어쓰지 않는다.
+"""
+from __future__ import annotations
+
+import argparse
+import hashlib
+import json
+from pathlib import Path, PurePosixPath
+import stat
+import zipfile
+
+if __package__:
+    from validation.restore_original_source_history import _validated_members
+    from validation.windows_path_policy import collision_key
+    from validation.audit_cumulative_snapshot import _paths
+else:
+    from restore_original_source_history import _validated_members
+    from windows_path_policy import collision_key
+    from audit_cumulative_snapshot import _paths
+
+
+def _sha_file(path: Path) -> str:
+    digest = hashlib.sha256()
+    with path.open('rb') as stream:
+        for chunk in iter(lambda: stream.read(1024 * 1024), b''):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
+def audit_archives(archives: list[Path], repository: Path, *, expected_paths: int | None = None,
+                   baseline_manifest: Path | None = None) -> dict:
+    """모든 ZIP을 읽고 원본별 버전·중복·누락을 반환한다. 파일 쓰기는 없다."""
+    root = Path(repository).resolve(strict=True)
+    if not root.is_dir() or not archives:
+        raise ValueError('원본 저장소 폴더와 최소 한 개의 ZIP이 필요합니다.')
+    if expected_paths is not None and (type(expected_paths) is not int or expected_paths < 1):
+        raise ValueError('예상 원본 파일 수는 양의 정수여야 합니다.')
+    baseline = None
+    baseline_digest = None
+    if baseline_manifest is not None:
+        baseline_bytes = Path(baseline_manifest).read_bytes()
+        baseline = _paths(json.loads(baseline_bytes.decode('utf-8')))
+        baseline_digest = hashlib.sha256(baseline_bytes).hexdigest()
+        if expected_paths is not None and expected_paths != len(baseline):
+            raise ValueError('원본 매니페스트 파일 수와 예상 파일 수가 다릅니다.')
+        expected_paths = len(baseline)
+    source: dict[str, list[dict]] = {}
+    aliases: dict[str, str] = {}
+    for archive_path in archives:
+        archive_path = Path(archive_path)
+        with zipfile.ZipFile(archive_path) as archive:
+            members = _validated_members(archive)
+            for member in members:
+                path = member.filename
+                folded = collision_key(path)
+                if folded in aliases and aliases[folded] != path:
+                    raise ValueError('회차 간 Windows 경로 충돌: '+aliases[folded]+' / '+path)
+                aliases[folded] = path
+                digest = hashlib.sha256()
+                with archive.open(member) as stream:
+                    size = 0
+                    for chunk in iter(lambda: stream.read(1024 * 1024), b''):
+                        size += len(chunk)
+                        if size > member.file_size:
+                            raise ValueError('ZIP 파일 크기 불일치: '+path)
+                        digest.update(chunk)
+                if size != member.file_size:
+                    raise ValueError('ZIP 파일 크기 불일치: '+path)
+                source.setdefault(path, []).append({
+                    'archive': str(archive_path), 'sha256': digest.hexdigest(), 'bytes': size})
+    unseen = []
+    unmatched = []
+    if baseline is not None:
+        for name, expected_digest in sorted(baseline.items()):
+            versions = source.get(name)
+            if not versions:
+                unseen.append({'path': name, 'expected_sha256': expected_digest})
+            elif not any(v['sha256'] == expected_digest for v in versions):
+                unmatched.append({'path': name, 'expected_sha256': expected_digest,
+                                  'archive_sha256': sorted({v['sha256'] for v in versions})})
+    result = {'baseline_manifest': str(baseline_manifest) if baseline_manifest else None,
+              'baseline_manifest_sha256': baseline_digest,
+              'baseline_paths_unseen': unseen,
+              'baseline_paths_sha_mismatch': unmatched,
+              'baseline_exact_provenance': baseline is not None and not unseen and not unmatched,
+              'archives': [str(Path(p)) for p in archives], 'root': str(root),
+              'expected_paths': expected_paths, 'distinct_original_paths': len(source),
+              'identical': [], 'missing': [], 'changed': [], 'version_conflicts': [],
+              'unsafe': [], 'repeated_identical': []}
+    # Treat Windows case/NFC aliases in the destination as unsafe, not missing.
+    repository_aliases = {}
+    for existing in root.rglob('*'):
+        rel = existing.relative_to(root).as_posix()
+        if rel == '.git' or rel.startswith('.git/'):
+            continue
+        folded = collision_key(rel)
+        previous = repository_aliases.setdefault(folded, rel)
+        if previous != rel:
+            result['unsafe'].append({'path': rel, 'reason': 'repository_windows_collision',
+                                     'conflicts_with': previous})
+    for name, versions in sorted(source.items()):
+        unique = sorted({v['sha256'] for v in versions})
+        record = {'path': name, 'original_versions': versions}
+        if len(unique) > 1:
+            result['version_conflicts'].append({**record, 'distinct_sha256': unique})
+        elif len(versions) > 1:
+            result['repeated_identical'].append(record)
+        alias_conflict = None
+        parts = PurePosixPath(name).parts
+        for index in range(1, len(parts) + 1):
+            prefix = '/'.join(parts[:index])
+            alias = repository_aliases.get(collision_key(prefix))
+            if alias is not None and alias != prefix:
+                alias_conflict = alias
+                break
+        if alias_conflict is not None:
+            result['unsafe'].append({**record, 'reason': 'repository_windows_alias',
+                                     'conflicts_with': alias_conflict})
+            continue
+        candidate = root.joinpath(*PurePosixPath(name).parts)
+        if any(p.is_symlink() for p in (candidate, *candidate.parents) if p != root):
+            result['unsafe'].append({**record, 'reason': 'symlink'})
+            continue
+        if not candidate.exists():
+            result['missing'].append(record)
+            continue
+        if not candidate.is_file() or not stat.S_ISREG(candidate.stat().st_mode):
+            result['unsafe'].append({**record, 'reason': 'not_regular_file'})
+            continue
+        current = _sha_file(candidate)
+        matched = [v['archive'] for v in versions if v['sha256'] == current]
+        row = {**record, 'current_sha256': current, 'matched_archives': matched}
+        result['identical' if matched else 'changed'].append(row)
+    result['coverage_confirmed'] = ((expected_paths is None or len(source) == expected_paths)
+                                    and (baseline is None or result['baseline_exact_provenance']))
+    result['requires_manual_merge_review'] = bool(
+        result['missing'] or result['changed'] or result['unsafe']
+        or result['version_conflicts'] or not result['coverage_confirmed'])
+    return result
+
+
+def main(argv=None) -> int:
+    parser = argparse.ArgumentParser(description='AIWACK 여러 회차 원본 ZIP 무손실 전수 대조')
+    parser.add_argument('repository', type=Path)
+    parser.add_argument('archives', nargs='+', type=Path)
+    parser.add_argument('--expected-paths', type=int)
+    parser.add_argument('--baseline-manifest', type=Path, help='과거 원본 1099개 등 경로별 SHA256 검증')
+    parser.add_argument('--report', type=Path)
+    args = parser.parse_args(argv)
+    try:
+        result = audit_archives(args.archives, args.repository, expected_paths=args.expected_paths,
+                                baseline_manifest=args.baseline_manifest)
+    except (ValueError, OSError, zipfile.BadZipFile) as error:
+        print(json.dumps({'error': str(error), 'verified': False}, ensure_ascii=False))
+        return 3
+    output = json.dumps(result, ensure_ascii=False, indent=2)
+    if args.report:
+        args.report.parent.mkdir(parents=True, exist_ok=True)
+        args.report.write_text(output+'\n', encoding='utf-8')
+    print(output)
+    return 2 if result['requires_manual_merge_review'] else 0
+
+
+if __name__ == '__main__':
+    raise SystemExit(main())

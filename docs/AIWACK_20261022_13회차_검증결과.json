@@ -1,0 +1,35 @@
+{
+  "round": 13,
+  "date_kst": "2026-10-22 04:41 KST",
+  "base_archive": "AIWACK_20261022_12회차_전체누적_실개발_소스.zip",
+  "linux_root_pytest": {
+    "passed": 138
+  },
+  "linux_native_wide_and_prior": {
+    "passed": 42
+  },
+  "linux_native_related_including_round13": {
+    "passed": 63
+  },
+  "round13_new": {
+    "passed": 10
+  },
+  "windows_gui_structural_python": {
+    "passed": 9
+  },
+  "python_compileall": "passed",
+  "ci_yaml_parse": "passed",
+  "actual_windows_exe_clicked": false,
+  "actual_gguf_30_steps_completed": false,
+  "windows_10_11_24h_verified": false,
+  "real_pg_payment_verified": false,
+  "main_code_merged": false,
+  "original_t01_t20_accepted": false,
+  "native_self_test": "passed",
+  "source_zip_integrity": "passed",
+  "patch_replay": "passed",
+  "github_handoff_update": "blocked_by_safety_check",
+  "remote_main_tree_entries": 1220,
+  "remote_main_blobs": 1044,
+  "source_zip_contains_20261021_next_chat_handoff": false
+}

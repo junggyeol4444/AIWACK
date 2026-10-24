@@ -5719,6 +5719,8 @@ class AIWACKWindow:
             command=self._wide_execute)
         self.wide_execute_button.pack(side='left',padx=3)
         tk.Button(row,text='실제 30단계 감사·진행 상태',command=self._wide_show).pack(side='left',padx=3)
+        tk.Button(row,text='30업무 재개·중복실행 사전 점검',
+            command=self._wide_resume_gate).pack(side='left',padx=3)
         reports=tk.Frame(card,bg='#1c2a40');reports.pack(fill='x',pady=5)
         tk.Button(reports,text='30업무 완료 후 총괄 AI 실제 최종보고',
             command=self._wide_final_propose).pack(side='left',padx=3)
@@ -5844,6 +5846,17 @@ class AIWACKWindow:
             self._wide_background('직원·총괄 실제 업무',lambda cancel:
                 self.store.run_full_company_next(plan,cancel=cancel))
         except ValueError as exc:self.wide_status.set(str(exc))
+
+    def _wide_resume_gate(self):
+        """관리자 검토용 실제 승인/모델 실행 이력 조회만 수행."""
+        try:
+            plan=int(self.wide_plan.get())
+            result=self.store.inspect_full_company_resume_gate(plan)
+            self.wide_status.set('30업무 재개 점검: '+result['state']+
+                ' / '+result['reason'])
+            self._wide_write(str(result))
+        except (ValueError, PermissionError, RuntimeError) as exc:
+            self.wide_status.set('30업무 재개 점검 실패: '+str(exc))
 
     def _wide_show(self):
         try:
