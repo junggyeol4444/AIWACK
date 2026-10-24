@@ -4872,6 +4872,11 @@ class LocalStore:
         from desktop.company_campaign_chain_integrity import snapshot
         return snapshot(self, campaign_id)
 
+    def verify_campaign_owner_chain_receipt(self, campaign_id: int, receipt: dict) -> dict:
+        """현재 원본과 과거 최종 인계 지문 재대조(읽기 전용)."""
+        from desktop.company_campaign_chain_integrity import verify_receipt
+        return verify_receipt(self, campaign_id, receipt)
+
     def find_owner_approved_final_dossier_by_campaign(self, campaign_id: int) -> dict | None:
         from desktop.company_campaign_owner_dossier import find_by_campaign
         return find_by_campaign(self, campaign_id)
