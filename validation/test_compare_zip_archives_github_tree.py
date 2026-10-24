@@ -117,3 +117,9 @@ def test_cli_report_does_not_overwrite(tmp_path, capsys):
     assert json.loads(report_file.read_text())['status_counts']['unchanged'] == 1
     assert main(cmd) == 3
     assert '덮어쓸 수 없습니다' in capsys.readouterr().out
+
+
+def test_empty_original_zip_must_not_pass_as_fully_verified(tmp_path):
+    source = _archive(tmp_path, 'empty.zip', {})
+    with pytest.raises(ValueError, match='대조할 파일'):
+        compare_zip_archives_to_github([source], _tree())
