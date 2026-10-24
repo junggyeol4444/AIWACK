@@ -75,6 +75,8 @@ def compare_zip_archives_to_github(archive_paths: list[Path], tree: dict,
             raise ValueError('대조 도중 원본 ZIP이 변경되었습니다.')
         fingerprints.append({'archive': str(archive_path), 'sha256': source_sha,
                              'entries': len(entries)})
+    if not versions:
+        raise ValueError('원본 ZIP에 대조할 파일이 없습니다.')
     if expected_paths is not None and len(versions) != expected_paths:
         raise ValueError(f'독립 원본 고유 경로 수 불일치: {len(versions)} / {expected_paths}')
     groups = {'unchanged': [], 'changed': [], 'missing': [],
