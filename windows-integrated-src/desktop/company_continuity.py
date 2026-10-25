@@ -95,6 +95,11 @@ def inspect_and_close_stale(store,kind:str,run_id:int,note:str,*,owner_confirmed
                 error_kind='OwnerInspectedStaleClaim',finished_at=CURRENT_TIMESTAMP
                 WHERE id=? AND state='running'""",(run_id,))
         if change.rowcount!=1:raise RuntimeError('다른 창에서 상태를 변경했습니다.')
+        if kind=='model':
+            # The owner inspected the OTHER Windows EXE/model process. Release
+            # only this exact stale run's lease, never another live task's claim.
+            con.execute("""DELETE FROM aiwack_autopilot_model_leases
+                WHERE run_id=?""",(run_id,))
         audit=con.execute("""INSERT INTO aiwack_autopilot_recovery_audit
                 (run_kind,run_id,elapsed_seconds,owner_confirmed,operator_note)
                 VALUES(?,?,?,?,?)""",(kind,run_id,int(row[1]),1,note.strip())).lastrowid
