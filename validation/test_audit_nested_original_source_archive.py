@@ -82,3 +82,92 @@ def test_path_traversal_in_nested_source_is_rejected(tmp_path):
     checkout.mkdir()
     with pytest.raises(ValueError, match="비정상"):
         audit_archive(zip_file, checkout)
+
+
+def test_multiple_archives_exact_unique_originals(tmp_path):
+    from validation.audit_nested_original_source_archive import audit_archive_collection
+    first = _archive(tmp_path, {"desktop/a.py": b"a"})
+    second = tmp_path / "second.zip"
+    second.write_bytes(_zip({DEFAULT_PREFIX + "desktop/b.py": b"b"}))
+    checkout = tmp_path / "sources"
+    (checkout / "desktop").mkdir(parents=True)
+    (checkout / "desktop" / "a.py").write_bytes(b"a")
+    (checkout / "desktop" / "b.py").write_bytes(b"b")
+    result = audit_archive_collection([first, second], checkout, expected_count=2)
+    assert result["all_originals_match"] is True
+    assert result["unique_original_paths"] == 2
+    assert result["summary"]["match"] == 2
+    assert result["duplicate_original_paths"] == []
+
+
+def test_multiple_archives_conflicting_originals_never_auto_merge(tmp_path):
+    from validation.audit_nested_original_source_archive import audit_archive_collection
+    first = _archive(tmp_path, {"desktop/a.py": b"old"})
+    second = tmp_path / "second.zip"
+    second.write_bytes(_zip({DEFAULT_PREFIX + "desktop/a.py": b"new"}))
+    checkout = tmp_path / "sources"
+    (checkout / "desktop").mkdir(parents=True)
+    (checkout / "desktop" / "a.py").write_bytes(b"old")
+    result = audit_archive_collection([first, second], checkout, expected_count=1)
+    assert result["all_originals_match"] is False
+    assert result["unique_original_paths"] == 1
+    assert result["duplicate_original_paths"][0]["conflicting_content"] is True
+    assert (checkout / "desktop" / "a.py").read_bytes() == b"old"
+
+
+def test_multiple_archives_identical_duplicates_still_not_1099_unique(tmp_path):
+    from validation.audit_nested_original_source_archive import audit_archive_collection
+    first = _archive(tmp_path, {"desktop/a.py": b"same"})
+    second = tmp_path / "second.zip"
+    second.write_bytes(_zip({DEFAULT_PREFIX + "desktop/a.py": b"same"}))
+    checkout = tmp_path / "sources"
+    (checkout / "desktop").mkdir(parents=True)
+    (checkout / "desktop" / "a.py").write_bytes(b"same")
+    result = audit_archive_collection([first, second], checkout, expected_count=2)
+    assert result["expected_count_matches"] is False
+    assert result["duplicate_original_paths"][0]["conflicting_content"] is False
+    assert result["all_originals_match"] is False
+
+
+def test_nested_source_rejects_duplicate_zip_members(tmp_path):
+    inner = _zip({DEFAULT_PREFIX + "desktop/a.py": b"a"})
+    source = tmp_path / "duplicate.zip"
+    import warnings
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore", UserWarning)
+        with zipfile.ZipFile(source, "w") as z:
+            z.writestr(DEFAULT_PREFIX + "desktop/a.py", b"a")
+            z.writestr(DEFAULT_PREFIX + "desktop/a.py", b"b")
+    checkout = tmp_path / "sources"
+    checkout.mkdir()
+    with pytest.raises(ValueError, match="중복"):
+        audit_archive(source, checkout)
+
+
+def test_nested_source_rejects_multiple_snapshot_roots(tmp_path):
+    first = _zip({DEFAULT_PREFIX + "desktop/a.py": b"a"})
+    second = _zip({DEFAULT_PREFIX + "desktop/b.py": b"b"})
+    source = tmp_path / "two_roots.zip"
+    source.write_bytes(_zip({"one.zip": first, "two.zip": second}))
+    checkout = tmp_path / "sources"
+    checkout.mkdir()
+    with pytest.raises(ValueError, match="복수"):
+        audit_archive(source, checkout)
+
+
+def test_symlink_parent_cannot_be_audited_as_regular_original(tmp_path):
+    import os
+    source = _archive(tmp_path, {"desktop/a.py": b"a"})
+    checkout = tmp_path / "sources"
+    checkout.mkdir()
+    real = tmp_path / "actual"
+    real.mkdir()
+    (real / "a.py").write_bytes(b"a")
+    try:
+        (checkout / "desktop").symlink_to(real, target_is_directory=True)
+    except (OSError, NotImplementedError):
+        pytest.skip("이 테스트 환경에서 심볼릭 링크를 생성할 수 없습니다.")
+    # Even an in-tree alias must never be silently treated as a regular file.
+    result = audit_archive(source, checkout, expected_count=1)
+    assert result["summary"]["unsafe_path"] == 1
+    assert result["all_originals_match"] is False
