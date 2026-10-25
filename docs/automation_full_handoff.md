@@ -1837,3 +1837,12 @@ CI 마지막 확정 실패: b9a09e88 커밋의 루트 138 PASS, 네이티브 335
 - 남은 개발: 15부서31AI30업무 실제 장기 GGUF 협업·24시간 복구, 외부 결제·환불·은행·고객 전달의 승인형 실연동, 역사 소스 3-way 보존 통합. 전체 개발→통합검증→오류 일괄 수정→재검증.
 
 - 07:44 제품 코드/인수인계 실제 반영 커밋: `88478be25c9c1ba72f82af79ca038a1faa66061a` (신규 4파일·수정 3파일·인수인계 2파일). 원격 main HEAD 재조회 확인. 신규 기능 통합검증 NOT_RUN.
+
+
+## 2026-10-26 08:45 KST — 30업무 전체 관리자 운영 원본·Windows 로그인 감시 개발 (append-only)
+- 시작 main: `5affbe27a7037b9abf7e9ec89c742a58917582dc`. 원본 15장·100단계·T01~T20 및 최신 인수인계 확인.
+- 신규 `company_campaign_owner_board.py` (실제 30업무 전사 원본/대기열/승인 진행 교차 조회, 관리자가 관측한 SHA256 불변 감사); `company_native_startup_policy.py` (Windows 현재 사용자 로그인 후 감시 EXE 명시 등록·해제, 기존 다른 값 덮어쓰기/삭제 금지); `company_native_supervisor_audit.py` (실제 외부 감시 JSONL SHA256·손상/재기동 이벤트 조회).
+- 기존 `storage.py` LocalStore 7개 API, `company_owner_evidence_tabs.py` 한국어 관리자 GUI 버튼, `build_windows_exe.bat` PyInstaller 신규 모듈 3개 연결. 제품 코드 커밋: `bde58d0abbb0784fcea80d71856994e939727c7d`, `22d58ecc5f6f72a1d94ca75b5ac6aacf411ea93e`, `9f7f6948429317f8979e1c21b69c6703f8703398`, `89cbf4e65086208a098df4c0321b810d84391fe7`, `b54e021eb1d845d99b8184a673d3effa223f8fd9`, `4b5ab6f2990811c07f620861df17cbbf1cbdf937`.
+- 상세 인수인계: `docs/AIWACK_20261026_0845_30업무전사운영_Windows로그인감시_전체누적_인수인계.md` (문서 커밋 `8670995fd933b3fb80bc77d5b098e18ce2a34da3`). 기존 원본·다른 프로젝트·예약·사용자 DB 직접 변경 없음. 브랜치 main 외 4개 존재; Actions 삭제 작업 최신 상태 미확인. 원본 ZIP 정확한 바이트 미확보, 역사 3-way 통합 미완료.
+- 로그인 후 감시 등록은 사용자가 GUI에서 직접 승인해야 하며 실제 Windows 자동 실행/무인 로그인/24시간 운영 성공을 주장하지 않음. 전체 기능 개발 미완료, Windows EXE·실제 GGUF·T01~T20 전체 통합검증·오류 수정 **NOT_RUN**.
+- 잔여: 15부서31AI30업무 장기 GGUF 협업/24시간 복구, 실제 외부 거래/환불/은행/고객 전달, 역사 원본 ZIP 보존형 통합. 전체 개발→통합검증→오류 일괄 수정→전체 재검증 순서 유지.
