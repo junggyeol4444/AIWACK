@@ -6,6 +6,7 @@ No fake agent messages, auto-sales, claimed earnings, unattended execution, or p
 from __future__ import annotations
 
 import threading
+import hashlib
 import json
 import re
 from desktop.chief_runtime import invoke_chief_model
@@ -295,6 +296,66 @@ def list_approved_parallel_candidates(store) -> list[dict]:
     return candidates
 
 
+def _verified_parallel_worker_result(store, task_id: int,
+                                     expected_employee_id: int, result: dict) -> dict:
+    """Inspect REAL saved employee call and artifact before the chief can review.
+
+    Two Windows sessions must not substitute a different worker, assignment,
+    run or artifact after approval. This is read-only and never marks work done.
+    """
+    store.require_permission('company:manage')
+    if (type(task_id) is not int or type(expected_employee_id) is not int
+            or type(result) is not dict):
+        raise ValueError('병렬 직원 결과 원본 형식 오류')
+    if (type(result.get('task_id')) is not int
+            or result['task_id']!=task_id
+            or type(result.get('employee_id')) is not int
+            or result['employee_id']!=expected_employee_id):
+        raise ValueError('병렬 직원/업무 결과가 소유자 승인 원본과 다릅니다.')
+    run_id=result.get('run_id')
+    artifact_id=result.get('artifact_id')
+    if (type(run_id) is not int or run_id<=0
+            or type(artifact_id) is not int or artifact_id<=0):
+        raise ValueError('병렬 실제 모델 실행·결과물 번호 오류')
+    route=store.read_task_routing(task_id)
+    if (type(route.get('employee_id')) is not int
+            or route['employee_id']!=expected_employee_id):
+        raise ValueError('병렬 모델 실행 후 직원 배정이 변경됐습니다.')
+    # No second run is accepted; a partial run must be explicitly reviewed.
+    runs=store.list_task_runs(task_id)
+    if (len(runs)!=1 or runs[0]['id']!=run_id
+            or runs[0]['task_id']!=task_id
+            or runs[0]['employee_id']!=expected_employee_id
+            or runs[0]['status']!='success'
+            or type(runs[0].get('model_call_id')) is not int
+            or runs[0]['model_call_id']<=0
+            or type(runs[0].get('model_id')) is not int
+            or runs[0]['model_id']<=0):
+        raise ValueError('병렬 직원의 실제 모델 감사 호출이 누락·중복됐습니다.')
+    model=store.read_employee_model(expected_employee_id)
+    if model is None or model['model_id']!=runs[0]['model_id']:
+        raise ValueError('병렬 직원의 실행 모델 배정 원본이 변경됐습니다.')
+    artifacts=store.list_task_artifacts(task_id)
+    if len(artifacts)!=1 or artifacts[0]['id']!=artifact_id:
+        raise ValueError('병렬 직원 결과물의 유일성·원본 연결 오류')
+    artifact=store.read_task_artifact(artifact_id)
+    body=artifact.get('body')
+    digest=artifact.get('sha256')
+    if (artifact.get('task_id')!=task_id
+            or artifact.get('run_id')!=run_id
+            or artifact.get('review_status')!='pending'
+            or type(body) is not str or not body.strip()
+            or type(digest) is not str or len(digest)!=64
+            or hashlib.sha256(body.encode('utf-8')).hexdigest()!=digest
+            or store.find_chief_task_report(artifact_id) is not None):
+        raise ValueError('병렬 직원 결과물 원문·SHA256·중복 총괄 검토 연결 오류')
+    return {'task_id':task_id,'employee_id':expected_employee_id,
+            'model_call_id':runs[0]['model_call_id'],
+            'artifact_id':artifact_id,'artifact_sha256':digest,
+            'verified_saved_real_model_result':True,
+            'owner_approval_pending':True}
+
+
 def execute_approved_parallel_cycle(store, *, expected_task_ids: tuple[int, int],
                                     expected_employee_ids: tuple[int, int],
                                     cancel: threading.Event | None = None) -> dict:
@@ -348,8 +409,18 @@ def execute_approved_parallel_cycle(store, *, expected_task_ids: tuple[int, int]
                           f'실패 업무: {sorted(errors)} · {str(first)[:250]}')
     if shared_cancel.is_set():
         raise InterruptedError('병렬 실행 종료 후 관리자가 취소하여 총괄 검토를 시작하지 않습니다.')
-    # Both staff results were durably saved. Chief calls are intentionally
-    # serialized because the same chief model cannot serve two at once.
+    # Both saved results must still be the exact OWNER-APPROVED workers.
+    # Do not call the chief on mismatched SQL model calls, SHA digests,
+    # replaced assignments, duplicated artifacts or an already-reviewed item.
+    staff_proofs=[]
+    for task_id,employee_id in zip(expected_task_ids,expected_employee_ids):
+        assert_running_allowed(store)
+        if shared_cancel.is_set():
+            raise InterruptedError('실제 직원 원본 확인 중 취소되어 총괄 검토를 시작하지 않습니다.')
+        staff_proofs.append(_verified_parallel_worker_result(
+            store,task_id,employee_id,workers[task_id]))
+    # Chief calls are intentionally serialized: a single chief model cannot
+    # safely complete two separate owner review sessions simultaneously.
     reports = []
     for task_id in expected_task_ids:
         assert_running_allowed(store)
@@ -359,6 +430,7 @@ def execute_approved_parallel_cycle(store, *, expected_task_ids: tuple[int, int]
                                             cancel=shared_cancel))
     return {'task_ids': list(expected_task_ids),
             'staff_execution_parallel': True, 'staff_executions': 2,
+            'verified_worker_model_provenance':staff_proofs,
             'chief_reviews': 2, 'reports': reports,
             'pending_owner_review': 2, 'auto_approved': False,
             'tasks_finalized': False}
