@@ -5442,3 +5442,34 @@ class LocalStore:
     def model_queue_evidence_audit(self, limit=100):
         from desktop.company_model_queue_evidence_audit import snapshot
         return snapshot(self,limit)
+
+
+    # 원본 15부서·30업무 승인 GGUF 협업의 전사 관리자 관측·보존.
+    def campaign_owner_board(self, limit=20):
+        from desktop.company_campaign_owner_board import board
+        return board(self,limit)
+
+    def capture_campaign_owner_checkpoint(self, campaign_id, note):
+        from desktop.company_campaign_owner_board import capture
+        return capture(self,campaign_id,note)
+
+    def campaign_owner_checkpoint_history(self, campaign_id, limit=30):
+        from desktop.company_campaign_owner_board import history
+        return history(self,campaign_id,limit)
+
+    # Windows 로그인 이후 외부 감시 EXE 실행 정책: 명시적 관리자 클릭 전용.
+    def native_supervisor_startup_status(self):
+        from desktop.company_native_startup_policy import status
+        return status(self)
+
+    def enable_native_supervisor_startup(self):
+        from desktop.company_native_startup_policy import enable
+        return enable(self)
+
+    def disable_native_supervisor_startup(self):
+        from desktop.company_native_startup_policy import disable
+        return disable(self)
+
+    def native_supervisor_audit(self, limit=80):
+        from desktop.company_native_supervisor_audit import history
+        return history(self,limit)
