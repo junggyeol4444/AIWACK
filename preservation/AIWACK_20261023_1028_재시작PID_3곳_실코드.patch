@@ -1,0 +1,26 @@
+--- a/validation/windows_packaged_real_gguf_queue_e2e.py
++++ b/validation/windows_packaged_real_gguf_queue_e2e.py
+@@ -763,6 +763,7 @@
+         # written by the driver. Owner approvals remain separate actions.
+         p = gui.start(exe, DATA)
+         w = gui.find_window()
++        _bind_new_exe_process(p, w)
+         write(w, 175, 395, OWNER)
+         write(w, 175, 437, PASSWORD)
+         click(w, 175, 480)
+@@ -870,6 +871,7 @@
+         evidence("exe-closed-cleanly")
+         p = gui.start(exe, DATA)
+         w = gui.find_window()
++        _bind_new_exe_process(p, w)
+         write(w, 175, 395, OWNER)
+         write(w, 175, 437, PASSWORD)
+         click(w, 175, 480)
+@@ -963,6 +965,7 @@
+         evidence("all-models-and-emergency-stop-exe-closed")
+         p = gui.start(exe, DATA)
+         w = gui.find_window()
++        _bind_new_exe_process(p, w)
+         write(w, 175, 395, OWNER)
+         write(w, 175, 437, PASSWORD)
+         click(w, 175, 480)

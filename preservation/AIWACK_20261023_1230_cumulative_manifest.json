@@ -1,0 +1,35 @@
+{
+  "baseline_zip": "AIWACK_20261023_계속_누적개발_GGUF생성출력분리_원본보존.zip",
+  "files_before": 1159,
+  "files_after": 1161,
+  "deleted_paths": [],
+  "modified_paths": [
+    "windows-integrated-src/desktop/company_campaign_final_report.py",
+    "docs/AIWACK_20261022_다음대화_전체누적_병합인수인계.md",
+    "docs/AIWACK_20261022_24회차_누적소스_main병합_인수인계.md",
+    "docs/AIWACK_20261021_다음대화_매시간_전체누적인수인계.md",
+    "docs/AIWACK_20261020_1730_KST_전체개발_최종인수인계.md",
+    "docs/automation_full_handoff.md"
+  ],
+  "new_paths": [
+    "windows-integrated-src/tests/test_final_prompt_3000_bound.py",
+    "docs/AIWACK_20261023_1230_최종보고프롬프트_전체누적인수인계.md"
+  ],
+  "original_final_report_sha256": "6d07078773ca61b146cd954fa810060bff253fd9fdeccfedae9b8cfd4fdf873f",
+  "modified_final_report_sha256": "cd19cdc314f0dd0c2f7f417467bc3c8fcdcfcc63e92f08518817db91b4f0957d",
+  "new_test_sha256": "ac71d0edd2ad08b37040d57c96b63fd430b0da9026f549a597a250017f3c3031",
+  "verified_tests": {
+    "final_report_and_prompt": {
+      "passed": 9,
+      "failed": 0
+    },
+    "combined_wide_and_final": {
+      "passed": 17,
+      "failed": 0
+    }
+  },
+  "CI_after_latest_commit": "unconfirmed at creation",
+  "Windows10_11_physical": "not run",
+  "main_merge": "pending",
+  "source_origins": "Previously mounted 2026-10-23 10:28 cumulative ZIP plus changes in this turn"
+}
