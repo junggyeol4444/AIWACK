@@ -5,6 +5,8 @@ Windows GUI, 외부 거래나 24시간 운영 성공을 증명하지 않는다.
 """
 from __future__ import annotations
 
+import hashlib
+import json
 import os
 import re
 import sqlite3
@@ -34,13 +36,23 @@ def inspect_full(store, *, folder: Path, table: str, filename_pattern: str,
     partial_rows = total > len(rows)
     registered_names = {name for _, name in rows if isinstance(name, str)}
     verified, failed = [], []
+    seen_names = set()
     for ident, name in rows:
         try:
             if (type(ident) is not int or ident <= 0
                     or not isinstance(name, str)
                     or not re.fullmatch(filename_pattern, name)):
                 raise ValueError('등록된 감사 원본의 번호 또는 파일 이름 오류')
+            if name in seen_names:
+                raise ValueError('서로 다른 등록 번호가 동일한 감사 파일을 참조합니다.')
+            seen_names.add(name)
             proof = verify(store, ident)
+            if not isinstance(proof, dict) or type(proof.get('id')) is not int or proof['id'] != ident:
+                raise ValueError('감사 검증 결과가 등록 번호와 일치하지 않습니다.')
+            proof_path = (proof.get('filename') if table == 'aiwack_campaign_evidence_exports'
+                          else proof.get('path'))
+            if not isinstance(proof_path, str) or Path(proof_path).name != name:
+                raise ValueError('감사 검증 결과의 파일 이름이 등록 원본과 일치하지 않습니다.')
             digest = proof.get('sha256', proof.get('file_sha256'))
             if (not isinstance(digest, str) or
                     re.fullmatch(r'[0-9a-f]{64}', digest) is None):
@@ -74,9 +86,22 @@ def inspect_full(store, *, folder: Path, table: str, filename_pattern: str,
 
     complete = not partial_rows and not partial_files
     review = bool(failed or orphans or unsafe or unknown or not complete)
+    # 조회 결과의 결정적 지문일 뿐, 전자서명이나 외부 모델 실행 증명이 아니다.
+    inventory = {
+        'table': table, 'registered_rows_total': total,
+        'registered_rows_scanned': len(rows), 'candidate_files_scanned': candidates,
+        'verified': verified, 'failed': failed,
+        'orphaned': sorted(orphans), 'unsafe': sorted(unsafe),
+        'unclassified': sorted(unknown), 'scan_complete': complete,
+    }
+    inventory_sha256 = hashlib.sha256(json.dumps(
+        inventory, ensure_ascii=False, sort_keys=True, separators=(',', ':')
+    ).encode('utf-8')).hexdigest()
     return {
         'format': 'AIWACK_LOCAL_FULL_DISK_INVENTORY_V1',
         'audit_table': table,
+        'inventory_snapshot_sha256': inventory_sha256,
+        'inventory_snapshot_is_signature': False,
         'registered_rows_total': total,
         'registered_rows_scanned': len(rows),
         'candidate_files_scanned': candidates,
