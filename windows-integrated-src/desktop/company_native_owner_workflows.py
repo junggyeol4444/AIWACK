@@ -472,6 +472,9 @@ class CompanyOwnerWorkflows:
                 '원본 업무별 실제 총괄 호출·실패 감사·중단 재개',
                 lambda:self.store.staged_full_company_progress(
                     self._id('summary_source_task')))),
+            ('5그룹·15부서 GGUF 누적 재시도 잔여 횟수',lambda:self._perform(
+                'Windows 중단·재시작 포함 실제 총괄 모델 형식 오류 감사 (읽기 전용)',
+                self._read_chief_plan_retry_budget)),
             ('실제 총괄 30업무 초안 원본 조회',lambda:self._perform(
                 '승인 전 15부서 30업무 배정·원본',
                 lambda:self.store.read_full_company_campaign(
@@ -525,6 +528,11 @@ class CompanyOwnerWorkflows:
             '실제 Windows10/11·24시간·GGUF 바이너리·PG 실거래·T01~T20 최종 합격은 '
             '조회만으로 주장하지 않습니다.'),wraplength=850).pack(
                 anchor='w',padx=12,pady=12)
+
+    def _read_chief_plan_retry_budget(self):
+        from desktop.company_wide_campaign import genuine_chief_retry_progress
+        return genuine_chief_retry_progress(
+            self.store, self._id('summary_source_task'))
 
     def _final_model_attempt_budget(self):
         from desktop.company_campaign_final_report import (
