@@ -152,3 +152,69 @@ def test_inventory_fingerprint_is_repeatable_and_changes_with_candidate_set(loca
     third = module.inspect_disk_consistency_full(local)
     assert third['inventory_snapshot_sha256'] != first['inventory_snapshot_sha256']
     assert third['requires_owner_review'] is True
+
+
+@pytest.mark.parametrize('kind', ['call', 'dossier'])
+def test_same_basename_in_other_directory_cannot_validate_registered_archive(
+        local, monkeypatch, kind):
+    module = evidence if kind == 'call' else dossier
+    table = ('aiwack_campaign_evidence_exports' if kind == 'call'
+             else 'aiwack_campaign_owner_dossiers')
+    folder = module._folder(local)
+    folder.mkdir()
+    name = _name(kind, 1)
+    (folder / name).write_text('original', encoding='utf-8')
+    with local._connect() as con:
+        con.execute('INSERT INTO ' + table + ' VALUES(1,?)', (name,))
+    outside = folder.parent / 'other_archive' / name
+    outside.parent.mkdir()
+    outside.write_text('different', encoding='utf-8')
+    proof = {'id': 1,
+             ('filename' if kind == 'call' else 'path'): str(outside),
+             ('sha256' if kind == 'call' else 'file_sha256'): 'a' * 64}
+    monkeypatch.setattr(module, 'read', lambda store, ident: proof)
+    result = module.inspect_disk_consistency_full(local)
+    assert result['registered_files_verified'] == []
+    assert len(result['registered_files_failed']) == 1
+    assert result['requires_owner_review'] is True
+    assert (folder / name).read_text(encoding='utf-8') == 'original'
+
+
+@pytest.mark.parametrize('kind', ['call', 'dossier'])
+def test_missing_registered_archive_never_passes_even_if_verifier_returns_success(
+        local, kind):
+    module = evidence if kind == 'call' else dossier
+    table = ('aiwack_campaign_evidence_exports' if kind == 'call'
+             else 'aiwack_campaign_owner_dossiers')
+    folder = module._folder(local)
+    folder.mkdir()
+    name = _name(kind, 1)
+    with local._connect() as con:
+        con.execute('INSERT INTO ' + table + ' VALUES(1,?)', (name,))
+    result = module.inspect_disk_consistency_full(local)
+    assert result['registered_files_verified'] == []
+    assert len(result['registered_files_failed']) == 1
+    assert result['all_registered_files_verified'] is False
+
+
+@pytest.mark.parametrize('kind', ['call', 'dossier'])
+@pytest.mark.parametrize('exception', [TypeError('broken payload'), KeyError('missing field')])
+def test_malformed_verifier_failure_is_classified_without_stopping_whole_audit(
+        local, monkeypatch, kind, exception):
+    module = evidence if kind == 'call' else dossier
+    table = ('aiwack_campaign_evidence_exports' if kind == 'call'
+             else 'aiwack_campaign_owner_dossiers')
+    folder = module._folder(local)
+    folder.mkdir()
+    name = _name(kind, 1)
+    (folder / name).write_text('original', encoding='utf-8')
+    with local._connect() as con:
+        con.execute('INSERT INTO ' + table + ' VALUES(1,?)', (name,))
+    def malformed(store, ident):
+        raise exception
+    monkeypatch.setattr(module, 'read', malformed)
+    result = module.inspect_disk_consistency_full(local)
+    assert result['registered_files_verified'] == []
+    assert len(result['registered_files_failed']) == 1
+    assert result['registered_files_failed'][0]['error_type'] == type(exception).__name__
+    assert result['requires_owner_review'] is True
