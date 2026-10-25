@@ -191,3 +191,90 @@ def history(store, limit: int=100) -> list[dict]:
           "input_sha256","output_sha256","diagnosis","improvement",
           "risk","error_kind","created_at")
     return [dict(zip(keys,row)) for row in rows]
+
+
+def audit_history(store, limit: int = 100) -> dict:
+    """실패 업무·후속 제안·총괄 호출 감사의 현재 SQLite 출처를 읽기 전용 대조.
+
+    저장되지 않은 원본 모델 출력 자체를 검증했다고 주장하지 않는다.
+    불일치·중단 상태를 별도로 표시하고 원본 기록은 변경하지 않는다.
+    """
+    store.require_permission("company:manage")
+    store.require_permission("agents:manage")
+    if type(limit) is not int or not 1 <= limit <= 200:
+        raise ValueError("실패 분석 출처 감사 조회는 1~200건입니다.")
+    from desktop.company_failure_followups import initialize as init_followups
+    with store._connect() as con:
+        init_followups(con)
+        initialize(con)
+        records = con.execute("""SELECT
+            c.id,c.followup_id,c.source_run_id,c.input_sha256,
+            f.source_run_id,f.task_id,f.employee_id,f.failure_status,
+            r.task_id,r.employee_id,r.status,r.model_call_id,
+            o.result_kind,o.model_call_id,o.output_sha256,
+            o.diagnosis,o.improvement,o.risk,o.error_kind,
+            h.status,h.employee_id,h.output_chars,h.prompt_chars
+            FROM aiwack_failure_chief_claims c
+            LEFT JOIN aiwack_failed_work_followups f ON f.id=c.followup_id
+            LEFT JOIN company_task_runs r ON r.id=c.source_run_id
+            LEFT JOIN aiwack_failure_chief_outcomes o ON o.claim_id=c.id
+            LEFT JOIN ai_model_call_history h ON h.id=o.model_call_id
+            ORDER BY c.id DESC LIMIT ?""", (limit,)).fetchall()
+    results = []
+    counts = {"METADATA_CONSISTENT": 0, "UNFINISHED": 0, "MISMATCH": 0}
+    for row in records:
+        (claim, followup, source, input_sha, linked_source, linked_task,
+         linked_employee, linked_status, task, employee, run_status, source_call,
+         result_kind, chief_call, output_sha, diagnosis, improvement, risk,
+         error_kind, call_status, chief_employee, output_chars, prompt_chars) = row
+        issues = []
+        if linked_source is None or linked_source != source:
+            issues.append("실패 제안과 실행 원본 연결 불일치")
+        if task is None or (task, employee, run_status) != (
+                linked_task, linked_employee, linked_status):
+            issues.append("실패 실행의 업무·직원·상태 원본 불일치")
+        if run_status not in ("failure", "timeout", "interrupted"):
+            issues.append("실제 실패 상태가 아닌 실행 원본")
+        if type(input_sha) is not str or len(input_sha) != 64:
+            issues.append("총괄 입력 SHA 감사 원본 손상")
+        if result_kind is not None:
+            if result_kind == "success":
+                if (chief_call is None or call_status != "success"
+                        or not output_chars or not prompt_chars
+                        or chief_employee is None):
+                    issues.append("총괄 실제 모델 성공 호출 감사 부재")
+                if not output_sha or any(
+                        not isinstance(x, str) or not x.strip()
+                        for x in (diagnosis, improvement, risk)):
+                    issues.append("성공 분석 결과·출력 SHA 누락")
+                if error_kind:
+                    issues.append("성공 결과에 오류 종류 기록")
+            elif result_kind == "invalid_output":
+                if chief_call is not None and call_status != "success":
+                    issues.append("형식 실패와 실제 모델 호출 상태 불일치")
+            elif result_kind not in ("failed", "cancelled"):
+                issues.append("알 수 없는 모델 분석 결과 종류")
+            if chief_call is not None and chief_call == source_call:
+                issues.append("실패 직원 호출과 총괄 분석 호출이 동일함")
+            if chief_call is not None and call_status is None:
+                issues.append("총괄 모델 호출 원본 누락")
+        verdict = ("MISMATCH" if issues else
+                   "UNFINISHED" if result_kind is None else
+                   "METADATA_CONSISTENT")
+        counts[verdict] += 1
+        results.append({
+            "claim_id": claim, "followup_id": followup, "source_run_id": source,
+            "result_kind": result_kind or "unfinished",
+            "chief_model_call_id": chief_call,
+            "chief_call_status": call_status,
+            "source_metadata_verdict": verdict,
+            "issues": issues,
+            "raw_model_output_independently_verified": False,
+            "automatic_retry": False,
+        })
+    return {
+        "counts": counts, "records": results,
+        "scope": "현재 SQLite 출처·실제 모델 호출 메타데이터 대조만 수행",
+        "raw_model_output_independently_verified": False,
+        "model_invoked": False, "external_actions": False,
+    }
