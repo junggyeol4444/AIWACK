@@ -343,6 +343,83 @@ def _audit_chief_plan(store,source_id,chief,call_id,names,kind,parsed,raw,error=
                  digest,len(completion),str(error)[:250]))
 
 
+
+def _genuine_chief_format_retry_budget(store, source_id, chief, model,
+                                       names, kind):
+    """Count immutable REAL GGUF parse failures across process restarts.
+
+    A prior successful parse without its durable staging record must not
+    trigger another model call. A broken/missing failure mirror fails closed.
+    """
+    if (type(source_id) is not int or source_id <= 0
+            or type(chief) is not int or chief <= 0
+            or type(model) is not int or model <= 0
+            or kind not in ('three_departments', 'single_department')
+            or not isinstance(names, (tuple, list)) or not names
+            or any(type(name) is not str or not name for name in names)
+            or len(set(names)) != len(names)
+            or (kind == 'three_departments' and len(names) != 3)
+            or (kind == 'single_department' and len(names) != 1)):
+        raise ValueError('총괄 실제 모델 누적 재시도 감사 요청이 잘못됐습니다.')
+    requested = ','.join(names)
+    with store._connect() as con:
+        initialize(con)
+        rows = con.execute('''SELECT a.model_call_id,a.parsed,a.error_kind,
+               a.output_sha256,a.output_chars,
+               h.employee_id,h.model_id,h.status,h.output_chars,
+               r.attempt_kind,r.requested_departments,r.output_sha256,
+               r.output_chars,r.error_reason
+            FROM aiwack_wide_chief_plan_attempts a
+            LEFT JOIN ai_model_call_history h ON h.id=a.model_call_id
+            LEFT JOIN aiwack_wide_chief_rejected_attempts r
+                   ON r.model_call_id=a.model_call_id
+            WHERE a.source_task_id=? AND a.chief_employee_id=?
+              AND a.attempt_kind=? AND a.department_names=?
+            ORDER BY a.id''',(source_id,chief,kind,requested)).fetchall()
+        # Reject attempts with a different chief or model for the same source
+        # and department group. They must not reset the model retry budget.
+        conflicting = con.execute('''SELECT COUNT(*) FROM
+            aiwack_wide_chief_plan_attempts
+            WHERE source_task_id=? AND attempt_kind=? AND department_names=?
+              AND chief_employee_id!=?''',
+            (source_id,kind,requested,chief)).fetchone()[0]
+        if conflicting:
+            raise ValueError('총괄 실제 모델 누적 감사의 담당 총괄 AI가 변경됐습니다.')
+    failures = 0
+    for row in rows:
+        (call_id,parsed,error,digest,chars,employee,model_id,status,actual_chars,
+         mirror_kind,mirror_names,mirror_sha,mirror_chars,mirror_error) = row
+        if (type(call_id) is not int or call_id <= 0
+                or type(parsed) is not int or parsed not in (0,1)
+                or type(chars) is not int or chars < 0
+                or type(actual_chars) is not int or actual_chars != chars
+                or employee != chief or model_id != model or status != 'success'
+                or type(digest) is not str or len(digest) != 64
+                or any(c not in '0123456789abcdef' for c in digest)
+                or type(error) is not str):
+            raise ValueError('총괄 실제 모델 호출 감사 출처 또는 SHA가 손상됐습니다.')
+        if parsed == 1:
+            if error or mirror_kind is not None:
+                raise ValueError('총괄 성공 모델 감사와 실패 원본이 충돌합니다.')
+            raise ValueError('성공한 총괄 모델 호출의 단계별 저장 확인 전 재호출 금지')
+        failures += 1
+        if (not error or mirror_kind != kind
+                or mirror_names != json.dumps(list(names),ensure_ascii=False,
+                                              separators=(',',':'))
+                or mirror_sha != digest or mirror_chars != chars
+                or type(mirror_error) is not str
+                or mirror_error[:100] != error):
+            raise ValueError('총괄 실제 모델 실패 이중 감사가 누락되거나 손상됐습니다.')
+    if failures > 3:
+        raise ValueError('총괄 실제 모델 형식 실패 기록이 누적 상한을 초과했습니다.')
+    return {'source_task_id':source_id, 'chief_employee_id':chief,
+            'requested_departments':list(names),'attempt_kind':kind,
+            'failed_format_count':failures,
+            'remaining_real_model_format_attempts':3-failures,
+            'read_only':True,'actual_gguf_binary_verified':False}
+
+
+
 def _step_digest(campaign_id,ordinal,dept,employee,role,title,instruction,call_id):
     canonical=json.dumps([campaign_id,ordinal,dept,employee,role,title,instruction,call_id],
                          ensure_ascii=False,separators=(',',':'))
@@ -880,9 +957,17 @@ def propose(store,source_task_id:int,*,cancel:threading.Event|None=None):
                 '관리자 승인 전에는 실행되지 않습니다.\n'
                 f'원본 업무: {str(task[2])[:120]} / {str(task[3])[:400]}\n'
                 '담당 부서: '+', '.join(name for _,name,_,_ in part))
-        # Strictly bounded, auditable real-model retries for invalid output format.
-        # Do not synthesize, guess or auto-approve a malformed department plan.
-        for attempt in range(3 if recovered is None and not partial else 0):
+        # The immutable REAL-call audit survives Windows restart. Never reset
+        # the three-attempt format budget when a group has no durable staging.
+        group_budget = None
+        if recovered is None and not partial:
+            group_budget = _genuine_chief_format_retry_budget(
+                store,source_task_id,chief,chief_model,
+                [name for _,name,_,_ in part],'three_departments')
+        group_first = (group_budget['failed_format_count']
+                       if group_budget is not None else 3)
+        # Only actual malformed GGUF completions consume the format budget.
+        for attempt in range(group_first,3):
             if cancel is not None and cancel.is_set():
                 raise InterruptedError('취소된 총괄 재호출은 실행하지 않습니다.')
             assert_running_allowed(store)
@@ -925,7 +1010,15 @@ def propose(store,source_task_id:int,*,cancel:threading.Event|None=None):
                             f'부서: {name}\n원본 업무: {str(task[2])[:120]} / '
                             f'{str(task[3])[:250]}\n'
                             f'출력 형식: {name}|작업 제목|구체적인 실행 지시')
-                for solo_attempt in range(3):
+                # Each single-department retry has its own persistent
+                # budget, not a fresh three calls on every GUI restart.
+                solo_budget = _genuine_chief_format_retry_budget(
+                    store,source_task_id,chief,chief_model,
+                    [name],'single_department')
+                if solo_budget['remaining_real_model_format_attempts'] == 0:
+                    raise ValueError(
+                        '실제 총괄 단일 부서 모델 형식 실패 누적 3회: 관리자 검토 필요')
+                for solo_attempt in range(solo_budget['failed_format_count'],3):
                     if cancel is not None and cancel.is_set():
                         raise InterruptedError('단일 부서 총괄 계획 취소')
                     assert_running_allowed(store)
