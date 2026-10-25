@@ -375,6 +375,40 @@ def verify(cli:Path,gguf:Path,evidence:Path,*,resume=False):
         report['final_chief_report_id']=final['id']
         report['test_fixture_final_report_accepted']=True
         report['human_owner_reviewed']=False
+        # After the genuine final report, preserve the original 5-group,
+        # 30-step, worker/chief and owner-decision chain in a LOCAL-only file.
+        # This is a disposable test-owner action, never a human GUI click.
+        existing_dossier=store.find_owner_approved_final_dossier_by_campaign(cid)
+        if existing_dossier is None:
+            dossier=store.export_owner_approved_final_dossier(final['id'])
+        else:
+            if existing_dossier['final_report_id']!=final['id']:
+                raise AssertionError('이미 저장된 관리자 인계 파일의 총괄 보고 ID 불일치')
+            dossier=store.read_owner_approved_final_dossier(existing_dossier['id'])
+        if (dossier['campaign_id']!=cid
+                or dossier['final_report_id']!=final['id']
+                or dossier['owner_final_approved'] is not True
+                or dossier['verified_approved_employee_steps']!=30
+                or dossier['verified_chief_plan_groups']!=5):
+            raise AssertionError('총괄 실제 모델 최종보고와 관리자 인계 원본 연결 실패')
+        receipt=store.verified_campaign_owner_chain(cid)
+        if (receipt['campaign_id']!=cid
+                or receipt['owner_approved_dossier_id']!=dossier['id']
+                or receipt['owner_approved_dossier_sha256']!=dossier['file_sha256']
+                or receipt['chief_final_report_id']!=final['id']
+                or receipt['verified_approved_tasks']!=30):
+            raise AssertionError('5그룹 총괄 → 30업무 → 관리자 인계 증빙 연결 실패')
+        verified=store.verify_campaign_owner_chain_receipt(cid,receipt)
+        if verified['verified'] is not True:
+            raise AssertionError('원본 인계 지문 재조회 실패')
+        report['owner_dossier_id']=dossier['id']
+        report['owner_dossier_sha256']=dossier['file_sha256']
+        report['owner_dossier_bytes']=dossier['byte_count']
+        report['verified_chain_receipt_sha256']=receipt['receipt_sha256']
+        report['test_fixture_owner_dossier_exported']=True
+        report['independent_gguf_binary_verified_by_dossier']=False
+        report['physical_windows_10_11_gui_verified_by_dossier']=False
+        report['external_transactions_executed']=False
         report['tested_roles']=31;report['success']=True;checkpoint_audit();return report
     except BaseException as exc:
         report['failed_step']=report['completed_tasks']+1
