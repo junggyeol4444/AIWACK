@@ -7,6 +7,7 @@ generating the same proposals, scheduled tasks, or local event tasks.
 from __future__ import annotations
 import time
 import threading
+from uuid import uuid4
 from desktop.stage87_90_management import stopped
 
 
@@ -39,6 +40,12 @@ def initialize(store):
            error_kind TEXT NOT NULL DEFAULT '',
            created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
            finished_at TEXT)""")
+        con.execute("""CREATE TABLE IF NOT EXISTS aiwack_autopilot_model_leases(
+           task_id INTEGER PRIMARY KEY REFERENCES company_tasks(id),
+           run_id INTEGER NOT NULL UNIQUE REFERENCES aiwack_autopilot_model_runs(id),
+           owner_token TEXT NOT NULL CHECK(length(owner_token)=32),
+           started_epoch INTEGER NOT NULL CHECK(started_epoch>0),
+           created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP)""")
 
 
 def settings(store):
@@ -162,14 +169,29 @@ def run_one_approved_model(store, task_ids: tuple[int, ...], *, cancel=None) -> 
     if not approved_models_enabled(store):
         raise PermissionError('별도 승인된 AI 자동 실행 정책이 비활성화됐습니다.')
     tid=task_ids[0]
+    owner_token=uuid4().hex
     with store._connect() as con:
         con.execute('BEGIN IMMEDIATE')
         state=con.execute("""SELECT m.enabled,p.enabled FROM aiwack_autopilot_settings m
             CROSS JOIN aiwack_autopilot_model_policy p WHERE m.id=1 AND p.id=1""").fetchone()
         if state is None or not state[0] or not state[1] or stopped(con):
             raise PermissionError('실제 AI 작업 시작 전 소유자 자동 실행 허용이 해제됐습니다.')
+        # Historical failures/successes remain immutable evidence. Automatic
+        # model execution never retries the same task, including after crashes.
+        previous=con.execute("""SELECT id,state FROM aiwack_autopilot_model_runs
+            WHERE task_id=? ORDER BY id DESC LIMIT 1""",(tid,)).fetchone()
+        if previous is not None:
+            raise PermissionError(
+                f'업무 #{tid} 자동 모델 시도 #{previous[0]}({previous[1]}) 존재. '
+                '자동 중복 호출 금지; 기존 감사와 결과물을 관리자가 직접 검토하세요.')
+        if con.execute("""SELECT 1 FROM aiwack_autopilot_model_leases
+            WHERE task_id=?""",(tid,)).fetchone():
+            raise PermissionError(f'업무 #{tid}는 다른 Windows 창이 실행 중입니다.')
         audit_id=int(con.execute("""INSERT INTO aiwack_autopilot_model_runs(task_id,state)
-                               VALUES(?,'running')""",(tid,)).lastrowid)
+            VALUES(?,'running')""",(tid,)).lastrowid)
+        con.execute("""INSERT INTO aiwack_autopilot_model_leases
+            (task_id,run_id,owner_token,started_epoch) VALUES(?,?,?,?)""",
+            (tid,audit_id,owner_token,int(time.time())))
     # Another EXE window may revoke the owner's separate model permission.
     # Poll persisted policy so the running GGUF subprocess also receives
     # cancellation, not only future ticks.
@@ -195,6 +217,12 @@ def run_one_approved_model(store, task_ids: tuple[int, ...], *, cancel=None) -> 
             raise InterruptedError('소유자가 실제 AI 자동 실행 정책을 해제했습니다.')
         if result['completed_cycles']!=1 or result['auto_approved']:
             raise RuntimeError('승인 업무의 실제 직원·총괄 검토 기록이 불완전합니다.')
+        with store._connect() as con:
+            con.execute('BEGIN IMMEDIATE')
+            if con.execute("""UPDATE aiwack_autopilot_model_runs
+                SET state='success',finished_at=CURRENT_TIMESTAMP
+                WHERE id=? AND state='running'""",(audit_id,)).rowcount!=1:
+                raise RuntimeError('실행 중 감사가 변경돼 모델 성공을 기록하지 못했습니다.')
     except Exception as exc:
         with store._connect() as con:
             con.execute("""UPDATE aiwack_autopilot_model_runs
@@ -204,12 +232,30 @@ def run_one_approved_model(store, task_ids: tuple[int, ...], *, cancel=None) -> 
     finally:
         watcher_stop.set()
         watcher.join(timeout=2)
-    with store._connect() as con:
-        con.execute("""UPDATE aiwack_autopilot_model_runs
-            SET state='success',finished_at=CURRENT_TIMESTAMP
-            WHERE id=? AND state='running'""",(audit_id,))
+        # A failed call is never auto-retried; keep its audit row. Release
+        # ONLY the lease owned by this run. Crashes retain the lease for review.
+        with store._connect() as con:
+            con.execute('BEGIN IMMEDIATE')
+            con.execute("""DELETE FROM aiwack_autopilot_model_leases
+                WHERE task_id=? AND run_id=? AND owner_token=?""",
+                (tid,audit_id,owner_token))
     return {**result,'autopilot_model_audit_id':audit_id,
             'automatic_result_approval':False}
+
+
+def running_model_leases(store, limit: int=100) -> list[dict]:
+    """Persisted model claims across Windows EXE windows; never assume stale means stopped."""
+    initialize(store)
+    if type(limit) is not int or not 1<=limit<=100:
+        raise ValueError('자동 모델 잠금 조회는 1~100건입니다.')
+    with store._connect() as con:
+        rows=con.execute("""SELECT l.task_id,l.run_id,l.started_epoch,r.state
+            FROM aiwack_autopilot_model_leases l
+            JOIN aiwack_autopilot_model_runs r ON r.id=l.run_id
+            ORDER BY l.started_epoch,l.task_id LIMIT ?""",(limit,)).fetchall()
+    return [{'task_id':int(task),'run_id':int(run),'started_epoch':int(epoch),
+             'audit_state':state,'actual_process_running_verified':False}
+            for task,run,epoch,state in rows]
 
 
 def approved_model_history(store, limit: int=30) -> list[dict]:
