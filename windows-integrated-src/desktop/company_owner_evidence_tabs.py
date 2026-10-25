@@ -62,6 +62,25 @@ def attach(owner, tabs):
         "Windows GUI 종료가 확인돼도 모델 하위 프로세스 생존은 미확정이므로 "
         "잠금은 유지하고 자동 재호출하지 않습니다. 24시간 검증 결과가 아닙니다."),
         wraplength=800).pack(anchor="w",padx=12,pady=10)
+    owner._buttons(queue, [
+        ("실제 GGUF 대기열·결과물 교차 대조", lambda: owner._perform(
+            "30업무 모델 호출/관리자 승인 근거",
+            lambda: owner.store.model_queue_evidence_audit(100))),
+    ])
+    finance = ttk.Frame(tabs)
+    tabs.add(finance, text="서명 거래·은행 CSV 근거")
+    owner._field(finance, "finance_board_business", "사업 번호 (선택)")
+    owner._buttons(finance, [
+        ("실제 서명 거래·은행 대사 원본 조회", lambda: owner._perform(
+            "서명 거래·은행 CSV 근거 대조",
+            lambda: owner.store.finance_evidence_board(
+                int(owner._get("finance_board_business"))
+                if owner._get("finance_board_business").strip() else None,100))),
+    ])
+    ttk.Label(finance, text=(
+        "서명 확인과 소유자 선택 은행 CSV 대사는 독립적인 PG/은행 확인이 아닙니다. "
+        "실제 매출·결제·환불 성공을 확정하지 않으며 외부 호출이 없습니다."),
+        wraplength=800).pack(anchor="w",padx=12,pady=10)
     recovery = ttk.Frame(tabs)
     tabs.add(recovery, text="중단 복구 후속 업무")
     owner._field(recovery, "recovery_audit_id", "기존 중단 확인 감사 번호")

@@ -5432,3 +5432,13 @@ class LocalStore:
     def enqueue_campaign_model_step(self, campaign_id, note):
         from desktop.company_campaign_queue_bridge import enqueue_next
         return enqueue_next(self,campaign_id,note)
+
+    # 실제 로컬 서명 거래·은행 CSV 증빙만 조회한다.
+    def finance_evidence_board(self, business_id=None, limit=100):
+        from desktop.company_finance_evidence_board import snapshot
+        return snapshot(self,business_id,limit)
+
+    # 실제 GGUF 대기열·호출·관리자 검수 감사 교차 대조.
+    def model_queue_evidence_audit(self, limit=100):
+        from desktop.company_model_queue_evidence_audit import snapshot
+        return snapshot(self,limit)
