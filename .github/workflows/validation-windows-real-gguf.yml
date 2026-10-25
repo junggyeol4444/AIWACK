@@ -47,7 +47,7 @@ jobs:
         shell: pwsh
         run: |
           Set-Location (Join-Path $env:RUNNER_TEMP 'aiwack-real-gguf-source/AIWACK-Stage54')
-          python -m PyInstaller --noconfirm --clean --onefile --windowed --name AIWACK --paths . --hidden-import desktop.company_operations --hidden-import desktop.company_office_gui --hidden-import desktop.company_bank_reconciliation --hidden-import desktop.company_campaign_evidence --hidden-import desktop.company_campaign_final_report --hidden-import desktop.company_financial_close --hidden-import desktop.company_business_ideas_model --hidden-import desktop.company_business_idea_pipeline --add-data 'docs/roadmap_100.csv;docs' desktop/entry.py
+          python -m PyInstaller --noconfirm --clean --onefile --windowed --name AIWACK --paths . --hidden-import desktop.company_operations --hidden-import desktop.company_office_gui --hidden-import desktop.company_bank_reconciliation --hidden-import desktop.company_campaign_evidence --hidden-import desktop.company_campaign_final_report --hidden-import desktop.company_financial_close --hidden-import desktop.company_business_ideas_model --hidden-import desktop.company_business_idea_pipeline --hidden-import desktop.company_business_idea_delivery --add-data 'docs/roadmap_100.csv;docs' desktop/entry.py
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           if (-not (Test-Path 'dist/AIWACK.exe')) { throw 'Actual packaged EXE missing' }
       - name: Download VERIFIED Windows llama.cpp CPU runner and a REAL small GGUF
