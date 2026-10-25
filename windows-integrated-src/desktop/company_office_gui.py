@@ -1116,6 +1116,15 @@ class CompanyOffice:
             detail=[f"#{r['id']} {r['state']}: 제안 {r['proposal_created']}, "
                     f"일정 {r['schedule_created']}, 이벤트 {r['event_created']}, 오류 {r['error_kind'] or '-'}"
                     for r in rows]
+            for run in rows[:10]:
+                steps=company_autopilot.step_history(self.store,int(run['id']))
+                names={'proposals':'로컬 제안','schedules':'반복 일정',
+                       'events':'로컬 이벤트','failed_followups':'실패 개선 제안'}
+                detail.append(
+                    f"운영 실행 #{run['id']} 단계별 실제 SQLite 생성 기록: " +
+                    (', '.join(f"{names.get(item['step'],item['step'])} "
+                               f"{item['created_count']}건" for item in steps)
+                     if steps else '완료된 단계 없음 (중단 가능)'))
             models=company_autopilot.approved_model_history(self.store,limit=20)
             leases=company_autopilot.running_model_leases(self.store,limit=100)
             if leases:
