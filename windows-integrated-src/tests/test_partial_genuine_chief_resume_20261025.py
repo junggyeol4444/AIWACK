@@ -105,5 +105,5 @@ def test_single_department_checkpoint_is_immutable_and_original_bound(tmp_path, 
             con.execute('DELETE FROM aiwack_wide_single_department_staging')
         con.execute('UPDATE company_tasks SET description=? WHERE id=?',
                     ('기준 업무 내용이 변경됨', source))
-    with pytest.raises(ValueError, match='원본 업무'):
+    with pytest.raises(ValueError, match='원본 불일치'):
         wide.staged_plan_progress(store, source)
