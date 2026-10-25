@@ -154,7 +154,7 @@ def step_history(store, run_id: int) -> list[dict]:
     return result
 
 
-def run_once(store, *, now=None):
+def run_once(store, *, now=None, session_token=None):
     store.require_permission('company:manage')
     stamp=int(time.time()) if now is None else now
     if type(stamp) is not int or stamp<0:
@@ -173,6 +173,9 @@ def run_once(store, *, now=None):
         con.execute("UPDATE aiwack_autopilot_settings SET next_due=? WHERE id=1",(stamp+interval,))
         run_id=int(con.execute("INSERT INTO aiwack_autopilot_runs(planned_at,state) VALUES(?,'running')",
             (stamp,)).lastrowid)
+        if session_token is not None:
+            from desktop.company_native_process_watch import bind
+            bind(con,run_id,session_token)
         # Execute only the current bounded tick. Persist the exact missed
         # slots; do NOT fabricate historical successful work or replay purchases.
         missed=(stamp-int(due))//int(interval) if int(due)>0 else 0

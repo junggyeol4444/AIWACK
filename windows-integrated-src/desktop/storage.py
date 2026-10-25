@@ -5381,3 +5381,20 @@ class LocalStore:
     def employee_evidence_review_history(self, limit=50):
         from desktop.company_employee_evidence_reviews import history
         return history(self, limit)
+
+    # 기존 고객지원부 실제 GGUF 승인 업무.
+    def customer_ai_readiness(self,case_id):
+        from desktop.company_customer_case_ai import readiness
+        return readiness(self,case_id)
+
+    def assign_customer_ai(self,case_id):
+        from desktop.company_customer_case_ai import assign
+        return assign(self,case_id)
+
+    def approve_customer_ai_order(self,case_id,instruction):
+        from desktop.company_customer_case_ai import approve
+        return approve(self,case_id,instruction)
+
+    def run_customer_ai(self,case_id,*,cancel=None):
+        from desktop.company_customer_case_ai import execute
+        return execute(self,case_id,cancel=cancel)

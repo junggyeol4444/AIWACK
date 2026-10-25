@@ -153,6 +153,14 @@ class CompanyOwnerWorkflows:
                     raise ValueError('사업 고객 범위와 해결할 문제를 입력하세요.')
                 campaign_id = None
                 source_id = None
+            elif action == 'customer_case':
+                self.store.require_permission('agents:manage')
+                customer_case_id=self._id('case')
+                from desktop.company_customer_case_ai import readiness
+                if not readiness(self.store,customer_case_id)['ready']:
+                    raise ValueError('고객지원 승인·직원 모델·미실행 상태를 확인하세요.')
+                campaign_id=None
+                source_id=None
             elif action == 'failure_analysis':
                 self.store.require_permission('agents:manage')
                 failure_proposal_id = self._id('failure_model_followup_id')
@@ -227,6 +235,10 @@ class CompanyOwnerWorkflows:
                     if action == 'business':
                         result = self.store.propose_chief_business_idea(
                             audience, problem, cancel=self._campaign_cancel)
+                    elif action == 'customer_case':
+                        from desktop.company_customer_case_ai import execute
+                        result=execute(self.store,customer_case_id,
+                                       cancel=self._campaign_cancel)
                     elif action == 'failure_analysis':
                         from desktop.company_failure_ai_analysis import analyze
                         result = analyze(self.store,failure_proposal_id,
@@ -1277,6 +1289,25 @@ class CompanyOwnerWorkflows:
             ('문의 접수·직원 업무 생성',self._create_case),
             ('기존 문의 확인',lambda:self._perform('고객 문의 현황',
                 lambda:self.store.read_customer_case(self._id('case'))))])
+        self._field(panel,'case_chief_instruction','총괄 지시 (5~600자)')
+        self._buttons(panel,[
+            ('고객지원 실제 AI 준비 조회',lambda:self._perform(
+                '고객지원 모델·업무 승인 준비',
+                lambda:self.store.customer_ai_readiness(self._id('case')))),
+            ('고객지원부 직원 배정',lambda:self._perform(
+                '고객지원 기존 직원 배정',
+                lambda:self.store.assign_customer_ai(self._id('case')),
+                '고객지원부 기존 직원에게 업무를 배정합니다. 모델 호출은 없습니다.')),
+            ('관리자 총괄 지시 승인',lambda:self._perform(
+                '고객지원 실제 총괄 지시 승인',
+                lambda:self.store.approve_customer_ai_order(
+                    self._id('case'),self._get('case_chief_instruction')),
+                '실제 고객 문의에 대한 총괄 지시를 확정합니다. 모델 호출은 없습니다.')),
+            ('고객지원 실제 GGUF 실행',lambda:self._start_real_model_action(
+                '고객지원 실제 직원·총괄 GGUF 실행','customer_case',
+                '기존 승인 고객지원 업무의 실제 직원·총괄 GGUF를 1회 호출합니다. '
+                '관리자 결과 검수 전 고객 발송·결제·자동 완료는 없습니다.')),
+        ])
         self._buttons(panel,[
             ('실제 승인 답변 연결',lambda:self._perform('직원·총괄 승인 답변 연결',
                 lambda:self.store.approve_customer_reply(self._id('case'),self._id('artifact')),

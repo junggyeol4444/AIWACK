@@ -1004,7 +1004,14 @@ class CompanyOffice:
             return
         from desktop import company_autopilot
         try:
-            result=company_autopilot.run_once(self.store)
+            from desktop import company_native_process_watch as native_watch
+            tracked=native_watch.register(self.store,self._continuity_session_id)
+            if tracked:
+                recovered=native_watch.recover(self.store)
+                if recovered:
+                    self._say('Windows 종료 확인된 중단 로컬 운영: '+str(recovered))
+            result=company_autopilot.run_once(
+                self.store,session_token=self._continuity_session_id if tracked else None)
             if result.get('executed'):
                 self.refresh()
                 self._say(f"자율 운영 제안 {result['proposal_created']}·일정 "
@@ -1161,6 +1168,12 @@ class CompanyOffice:
             from desktop import company_continuity
             gui=company_continuity.observed_gui_continuity(self.store)
             recovery=company_continuity.read_recovery_audit(self.store,limit=20)
+            from desktop.company_native_process_watch import history as native_history
+            native_recovery=native_history(self.store,limit=20)
+            if native_recovery:
+                detail.append('--- Windows 커널 종료 확인된 로컬 자동운영 중단 감사 ---')
+                detail.extend(f"운영 #{r['run_id']} / PID {r['pid']} / 종료 확인 {r['observed_epoch']}"
+                              for r in native_recovery)
             skipped=company_autopilot.skipped_tick_windows(self.store,limit=100)
             if skipped:
                 detail.append('--- 실제 자동 운영 실행에서 빠진 예약 주기 ---')
