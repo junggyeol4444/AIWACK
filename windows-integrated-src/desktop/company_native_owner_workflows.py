@@ -7,6 +7,8 @@ an authenticated owner's deliberate click and the existing LocalStore guards.
 from __future__ import annotations
 
 import json
+import queue
+import threading
 from pathlib import Path
 import tkinter as tk
 from tkinter import ttk, messagebox, filedialog
@@ -21,6 +23,10 @@ class CompanyOwnerWorkflows:
         self.window.geometry('950x730')
         self.window.minsize(750, 590)
         self.values = {}
+        self._campaign_running = False
+        self._campaign_cancel = threading.Event()
+        self._campaign_results = queue.Queue()
+        self.window.protocol('WM_DELETE_WINDOW', self._close)
         self.notice = tk.StringVar(value='외부 결제·송금·게시·고객 발송은 실행하지 않습니다.')
         ttk.Label(self.window, textvariable=self.notice, wraplength=900).pack(fill='x', padx=12, pady=8)
         tabs = ttk.Notebook(self.window)
@@ -95,6 +101,92 @@ class CompanyOwnerWorkflows:
             self.notice.set(title+' 거부: '+str(exc))
             messagebox.showerror('AIWACK | 실행 거부', str(exc), parent=self.window)
 
+    def _close(self):
+        """Closing a window requests cancellation; it never approves work."""
+        self._campaign_cancel.set()
+        self.window.destroy()
+
+    def _start_real_model_action(self, title, action, approval):
+        """Run one approved existing SQLite/GGUF action without freezing Tk.
+
+        The worker never touches Tk. Only the main thread reads its result.
+        """
+        try:
+            self.store.require_permission('company:manage')
+            if self._campaign_running:
+                raise ValueError('이미 실제 모델 업무가 진행 중입니다. 중복 실행을 차단합니다.')
+            campaign_id = self._id('summary_campaign')
+            gate = self.store.inspect_full_company_resume_gate(campaign_id)
+            if action == 'next':
+                if gate.get('state') != 'ready':
+                    raise ValueError('30업무 재개 원본 검사 거부: ' + str(gate.get('reason')))
+            elif action == 'final':
+                if gate.get('state') != 'completed':
+                    raise ValueError('30업무 완료 증빙 확인 전 최종 보고 생성 금지: ' +
+                                     str(gate.get('reason')))
+                if self.store.find_campaign_final_report(campaign_id) is not None:
+                    raise ValueError('이미 존재하는 최종 보고를 중복 생성하지 않습니다.')
+            else:
+                raise ValueError('지원하지 않는 실제 모델 실행 요청')
+            if not messagebox.askyesno('AIWACK | 관리자 직접 실행', approval, parent=self.window):
+                return
+            self._campaign_cancel.clear()
+            self._campaign_running = True
+            self.notice.set(title + ' — 실제 GGUF 모델 실행 중 (자동 승인 없음)')
+            def work():
+                try:
+                    # Recheck the source after confirmation, before real execution.
+                    fresh = self.store.inspect_full_company_resume_gate(campaign_id)
+                    required = 'ready' if action == 'next' else 'completed'
+                    if fresh.get('state') != required:
+                        raise ValueError('실행 직전 30업무 원본이 변경됐습니다: ' +
+                                         str(fresh.get('reason')))
+                    if self._campaign_cancel.is_set():
+                        raise InterruptedError('관리자가 실행을 취소했습니다.')
+                    if action == 'next':
+                        result = self.store.run_full_company_next(
+                            campaign_id, cancel=self._campaign_cancel)
+                    else:
+                        result = self.store.propose_campaign_final_report(
+                            campaign_id, cancel=self._campaign_cancel)
+                    self._campaign_results.put(('ok', title, result))
+                except Exception as exc:
+                    self._campaign_results.put(('error', title, str(exc)))
+            threading.Thread(target=work, daemon=True,
+                             name='AIWACK-Owner-Real-GGUF').start()
+            self.window.after(150, self._poll_real_model_action)
+        except (ValueError, PermissionError, RuntimeError, OSError) as exc:
+            self.notice.set(title + ' 거부: ' + str(exc))
+            messagebox.showerror('AIWACK | 실행 거부', str(exc), parent=self.window)
+
+    def _poll_real_model_action(self):
+        try:
+            status, title, payload = self._campaign_results.get_nowait()
+        except queue.Empty:
+            if self._campaign_running:
+                self.window.after(150, self._poll_real_model_action)
+            return
+        self._campaign_running = False
+        if status == 'ok':
+            self._display(title + ' — SQLite 결과 (실기 전체 검증과 별개)', payload)
+        else:
+            self.notice.set(title + ' 실패: ' + payload)
+            messagebox.showerror('AIWACK | 실제 모델 실행 실패', payload, parent=self.window)
+
+    def _cancel_real_model_action(self):
+        if self._campaign_running:
+            self._campaign_cancel.set()
+            self.notice.set('실제 GGUF 작업 취소 요청됨 — 실행 기록은 삭제하지 않습니다.')
+
+    def _decide_final_report(self, decision):
+        def work():
+            return self.store.decide_campaign_final_report(
+                self._id('summary_final_report'), decision,
+                self._get('summary_final_reason'))
+        self._perform('관리자 최종 보고 ' + ('승인' if decision == 'accepted' else '거절'),
+                      work, '기존 실제 GGUF 최종 보고와 30업무 승인 원본을 다시 검사한 뒤 '
+                      '관리자 결정을 불변 기록합니다. 외부 거래·게시 없음. 진행합니까?')
+
     def _choose_csv(self):
         path = filedialog.askopenfilename(parent=self.window,
             title='소유자가 직접 준비한 은행 CSV',
@@ -106,6 +198,8 @@ class CompanyOwnerWorkflows:
         """기존 실제 총괄/직원/관리자/금융 원본의 읽기 전용 연결."""
         self._field(panel,'summary_campaign','30업무 협업 번호')
         self._field(panel,'summary_business','사업 번호 (선택)')
+        self._field(panel,'summary_final_report','총괄 최종보고 번호')
+        self._field(panel,'summary_final_reason','관리자 최종 검토 사유 (5~200자)')
         self._buttons(panel,[
             ('전체 실제 운영 원본 재조회',lambda:self._perform(
                 '총괄 5그룹·30업무·최종 승인·결제/은행/조직 원본',
@@ -136,6 +230,27 @@ class CompanyOwnerWorkflows:
                     self._id('summary_campaign')))),
             ('5그룹 총괄 호출 불변 출처',lambda:self._perform(
                 '실제 총괄 5그룹 호출 원본·SHA256',self._read_plan_provenance))])
+        self._buttons(panel,[
+            ('실제 30업무 승인·진행 현황',lambda:self._perform(
+                '15부서 30업무 직원·총괄·관리자 승인 진행 원본',
+                lambda:self.store.verified_full_company_progress(
+                    self._id('summary_campaign')))),
+            ('관리자 승인 다음 1업무 실제 GGUF 실행',lambda:self._start_real_model_action(
+                '30업무 다음 한 단계 실제 실행', 'next',
+                '30업무 원본·관리자 승인·실제 모델 호출을 검사한 뒤 다음 한 업무만 실행합니다. '
+                '실제 GGUF 모델을 호출하며 외부 결제·게시를 수행하지 않습니다. 진행합니까?')),
+            ('30업무 완료 후 총괄 실제 GGUF 최종보고 생성',lambda:self._start_real_model_action(
+                '총괄 실제 GGUF 최종보고 생성', 'final',
+                '30업무 전부의 실제 호출·승인 원본을 재검사하고 총괄 모델 보고를 생성합니다. '
+                '자동 최종 승인은 하지 않습니다. 진행합니까?'))])
+        self._buttons(panel,[
+            ('진행 중 GGUF 작업 취소 요청',self._cancel_real_model_action),
+            ('총괄 최종보고 원본 조회',lambda:self._perform(
+                '총괄 최종보고 및 모델 호출 증빙',
+                lambda:self.store.read_campaign_final_report(
+                    self._id('summary_final_report')))),
+            ('관리자 최종보고 승인',lambda:self._decide_final_report('accepted')),
+            ('관리자 최종보고 거절',lambda:self._decide_final_report('rejected'))])
         ttk.Label(panel,text=('현재 SQLite와 로컬 승인 파일의 원본만 조회합니다. '
             '실제 Windows10/11·24시간·GGUF 바이너리·PG 실거래·T01~T20 최종 합격은 '
             '조회만으로 주장하지 않습니다.'),wraplength=850).pack(
