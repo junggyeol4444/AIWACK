@@ -3991,6 +3991,22 @@ class LocalStore:
         from desktop.company_business_idea_delivery import history
         return history(self, limit=limit)
 
+    def export_chief_idea_local_product(self, idea_id: int) -> dict:
+        """관리자 승인형 실제 직원 조사·제작 결과 로컬 파일만 생성."""
+        self.require_permission('company:manage')
+        from desktop.company_business_idea_artifact_export import export
+        return export(self, idea_id)
+
+    def read_chief_idea_local_product(self, export_id: int) -> dict:
+        self.require_permission('company:manage')
+        from desktop.company_business_idea_artifact_export import read
+        return read(self, export_id)
+
+    def inspect_chief_idea_local_products(self, limit: int=100) -> list[dict]:
+        self.require_permission('company:manage')
+        from desktop.company_business_idea_artifact_export import inspect
+        return inspect(self, limit=limit)
+
     # Stage62: offline candidate hypotheses from administrator-provided assumptions.
     def generate_business_candidates(self, audience: str, problem: str,
                                      max_candidates: int = 8) -> dict:
