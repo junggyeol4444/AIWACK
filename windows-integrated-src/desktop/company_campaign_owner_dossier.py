@@ -311,3 +311,14 @@ def inspect_disk_consistency(store, limit: int = 100) -> dict:
         'physical_windows_10_11_recovery_verified': False,
         'uninterrupted_24h_operation_verified': False,
     }
+
+
+def inspect_disk_consistency_full(store, max_records: int = 10000) -> dict:
+    """관리자 최종 인계 등록/디스크를 제한 범위 안에서 전체 재검사."""
+    from desktop.company_disk_audit_full import inspect_full
+    with store._connect() as con:
+        initialize(con)
+    return inspect_full(
+        store, folder=_folder(store), table='aiwack_campaign_owner_dossiers',
+        filename_pattern=r'owner_final_[0-9a-f]{32}\.json',
+        candidate_prefix='owner_final_', verify=read, max_records=max_records)

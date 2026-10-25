@@ -4777,6 +4777,12 @@ class LocalStore:
         from desktop.company_campaign_evidence import inspect_disk_consistency
         return inspect_disk_consistency(self, limit)
 
+
+    def inspect_campaign_evidence_disk_consistency_full(self, max_records: int = 10000) -> dict:
+        """기존 100건 조회를 유지하며 전체 등록/디스크 원본을 별도 점검."""
+        from desktop.company_campaign_evidence import inspect_disk_consistency_full
+        return inspect_disk_consistency_full(self, max_records)
+
     def find_campaign_final_report(self, campaign_id: int):
         from desktop.company_campaign_final_report import find_by_campaign
         return find_by_campaign(self, campaign_id)
@@ -4872,6 +4878,12 @@ class LocalStore:
     def inspect_owner_dossier_disk_consistency(self, limit: int = 100) -> dict:
         from desktop.company_campaign_owner_dossier import inspect_disk_consistency
         return inspect_disk_consistency(self, limit)
+
+
+    def inspect_owner_dossier_disk_consistency_full(self, max_records: int = 10000) -> dict:
+        """관리자 최종 승인 인계 전체 파일/SQLite 읽기 전용 감사."""
+        from desktop.company_campaign_owner_dossier import inspect_disk_consistency_full
+        return inspect_disk_consistency_full(self, max_records)
 
     def verified_campaign_owner_chain(self, campaign_id: int) -> dict:
         from desktop.company_campaign_chain_integrity import snapshot

@@ -279,3 +279,14 @@ def inspect_disk_consistency(store, limit: int = 100) -> dict:
         'physical_windows_10_11_recovery_verified': False,
         'uninterrupted_24h_operation_verified': False,
     }
+
+
+def inspect_disk_consistency_full(store, max_records: int = 10000) -> dict:
+    """기존 100건 빠른 점검과 별개로 최대 1만 건 등록/파일 전체 점검."""
+    from desktop.company_disk_audit_full import inspect_full
+    with store._connect() as con:
+        initialize(con)
+    return inspect_full(
+        store, folder=_folder(store), table='aiwack_campaign_evidence_exports',
+        filename_pattern=r'campaign_[1-9][0-9]*_(?:[1-9]|[12][0-9]|30)_[0-9a-f]{20}\.json',
+        candidate_prefix='campaign_', verify=read, max_records=max_records)
