@@ -1082,6 +1082,25 @@ class CompanyOffice:
         except (ValueError,PermissionError) as exc:
             self._say('실제 AI 자동 실행 해제 실패: '+str(exc))
 
+    def inspect_selected_auto_model(self):
+        from desktop.company_autopilot import approved_model_attempts_for_task
+        try:
+            task_id=self.selected_task()
+            rows=approved_model_attempts_for_task(self.store,task_id)
+            if rows:
+                content='\n'.join(
+                    f"시도 #{item['id']} / 상태 {item['state']} / 오류 {item['error_kind'] or '-'}"
+                    f" / 시작 {item['created_at']} / 종료 {item['finished_at'] or '실행 기록 미종료'}"
+                    f" / 잠금 {'남음' if item['lease_active'] else '없음'}"
+                    for item in rows)
+            else:
+                content='해당 업무의 자동 GGUF 호출 시도 기록이 없습니다.'
+            self._text_dialog(
+                f'업무 #{task_id} 자동 GGUF 실제 호출 감사 (수동 확인 필요)',
+                content+'\n\n기록된 작업을 자동으로 다시 실행하지 않습니다.')
+        except (ValueError,PermissionError,RuntimeError,OSError) as exc:
+            self._say('선택 업무 자동 GGUF 호출 감사: '+str(exc)[:170])
+
     def recover_stale_autopilot(self):
         """Explicit owner review of stale audit, never automatic model restart."""
         from desktop import company_continuity
