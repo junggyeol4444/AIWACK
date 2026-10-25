@@ -52,12 +52,12 @@ class FakeStore:
         return {'id': 8} if self.existing else None
 
     def run_full_company_next(self, campaign_id, *, cancel=None):
-        assert campaign_id == 7 and isinstance(cancel, threading.Event)
+        assert campaign_id == 7 and cancel is not None and hasattr(cancel, 'is_set')
         self.calls.append('next')
         return {'step': 1, 'owner_review_required': True}
 
     def propose_campaign_final_report(self, campaign_id, *, cancel=None):
-        assert campaign_id == 7 and isinstance(cancel, threading.Event)
+        assert campaign_id == 7 and cancel is not None and hasattr(cancel, 'is_set')
         self.calls.append('final')
         return {'id': 8, 'decision': 'pending'}
 
