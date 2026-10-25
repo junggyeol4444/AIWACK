@@ -205,6 +205,32 @@ def _bounded_verified_final_prompt(source_excerpts: str, evidence_sha256: str) -
     raise ValueError('30업무 승인 원본의 부서 정보가 너무 길어 안전한 최종 보고 질문을 구성할 수 없습니다.')
 
 
+def _verify_final_attempt_link(con: sqlite3.Connection, campaign_id: int,
+                               chief: int, call_id: int, evidence_sha: str,
+                               report_sha: str, call_chars: int) -> None:
+    """Reject a final report detached from its immutable real-model attempt.
+
+    This verifies the persisted audit *link*, not an independent GGUF binary.
+    Never reconstruct missing model responses or backfill absent audit entries.
+    """
+    rows = con.execute('''SELECT campaign_id,chief_employee_id,evidence_sha256,
+                                completion_sha256,completion_chars,parsed,
+                                report_sha256,error_reason
+                         FROM aiwack_campaign_final_model_attempts
+                         WHERE model_call_id=?''', (call_id,)).fetchall()
+    valid_sha = lambda v: (type(v) is str and len(v) == 64 and
+                           all(c in '0123456789abcdef' for c in v))
+    if len(rows) != 1:
+        raise ValueError('총괄 최종 보고 실제 모델 호출의 불변 감사 연결 누락·중복')
+    cid, employee, seal, completion_sha, chars, parsed, digest, error = rows[0]
+    if (type(cid) is not int or cid != campaign_id
+            or type(employee) is not int or employee != chief
+            or seal != evidence_sha or not valid_sha(completion_sha)
+            or type(chars) is not int or chars != call_chars
+            or parsed != 1 or digest != report_sha or error != ''):
+        raise ValueError('총괄 최종 보고 실제 모델 호출의 불변 감사 원본 불일치')
+
+
 def _checked_row(store,con,report_id:int):
     row=con.execute('''SELECT r.id,r.campaign_id,r.chief_employee_id,
            r.chief_model_call_id,r.evidence_sha256,r.report_body,r.report_sha256,
@@ -227,6 +253,7 @@ def _checked_row(store,con,report_id:int):
                        WHERE id=?''',(cid,)).fetchone()
     if not campaign or campaign!=(chief,'approved'):
         raise ValueError('원본 30업무 계획 승인 기록이 변경됐습니다.')
+    _verify_final_attempt_link(con, cid, chief, call_id, seal, body_seal, chars)
     # The full manifest is recomputed from the exact 30 reviewed artifacts,
     # worker calls and chief report calls, not from user-supplied text.
     _,current_seal=_complete_evidence(store,cid)
@@ -290,30 +317,43 @@ def propose(store,campaign_id:int,*,cancel:threading.Event|None=None):
         raise InterruptedError('총괄 최종 보고 실행 취소')
     from desktop.company_operations import assert_running_allowed
     assert_running_allowed(store)
-    raw,call_id=invoke_employee_model(store,chief,prompt,timeout=120,cancel=cancel,
-                                       required_tier='ceo',include_call_id=True)
-    if cancel is not None and cancel.is_set():
-        raise InterruptedError('취소된 총괄 최종 보고 저장 금지')
-    try:
-        if not isinstance(raw,str):
-            raise ValueError('실제 총괄 모델 최종 보고 내용이 문자열이 아닙니다.')
-        if raw.strip()==prompt.strip():
-            raise ValueError('실제 총괄 모델이 요청 프롬프트를 복사했습니다.')
-        body='\n'.join(wide._generated_chief_lines(raw,prompt)).strip()
-        if not 30<=len(body)<=15000:
-            raise ValueError('실제 총괄 모델 최종 보고가 비어 있거나 내용이 부족합니다.')
-        if body==prompt.strip() or source_excerpts in body:
-            raise ValueError('실제 총괄 모델이 요청 프롬프트를 복사했습니다.')
-    except ValueError as exc:
-        # Keep failed genuine model completions in an immutable local audit.
-        # No synthetic output or automatic approval is permitted.
-        if isinstance(raw,str):
+    # Retry only malformed REAL completions. Every completed attempt has a
+    # separate model-call ID, and every rejected completion is immutable-audited.
+    # Never fabricate a report, bypass permissions, or retry a failed invocation.
+    last_format_error = None
+    for _attempt in range(3):
+        if cancel is not None and cancel.is_set():
+            raise InterruptedError('총괄 최종 보고 재호출 취소')
+        assert_running_allowed(store)
+        raw,call_id=invoke_employee_model(store,chief,prompt,timeout=120,cancel=cancel,
+                                          required_tier='ceo',include_call_id=True)
+        if cancel is not None and cancel.is_set():
+            raise InterruptedError('취소된 총괄 최종 보고 저장 금지')
+        try:
+            if not isinstance(raw,str):
+                raise ValueError('실제 총괄 모델 최종 보고 내용이 문자열이 아닙니다.')
+            if raw.strip()==prompt.strip():
+                raise ValueError('실제 총괄 모델이 요청 프롬프트를 복사했습니다.')
+            body='\\n'.join(wide._generated_chief_lines(raw,prompt)).strip()
+            if not 30<=len(body)<=15000:
+                raise ValueError('실제 총괄 모델 최종 보고가 비어 있거나 내용이 부족합니다.')
+            if body==prompt.strip() or source_excerpts in body:
+                raise ValueError('실제 총괄 모델이 요청 프롬프트를 복사했습니다.')
+        except ValueError as exc:
+            # This is a genuine failure; preserve its real call and raw hash.
+            # A missing/invalid model audit is NOT treated as a retryable parse error.
+            if not isinstance(raw,str):
+                raise
             with store._connect() as audit_con:
                 initialize(audit_con)
                 _record_final_model_attempt(audit_con,campaign_id,chief,call_id,
                                             seal,raw,parsed=False,error=str(exc))
-        raise
-    digest=hashlib.sha256(body.encode('utf-8')).hexdigest()
+            last_format_error=exc
+            continue
+        digest=hashlib.sha256(body.encode('utf-8')).hexdigest()
+        break
+    else:
+        raise ValueError('실제 총괄 최종 보고 형식이 3회 연속 실패했습니다.') from last_format_error
     store.require_permission('company:manage')
     store.require_permission('agents:manage')
     with store._connect() as con:
