@@ -38,8 +38,8 @@ jobs:
             fi
             echo "Deleted merged branch $branch"
           done <<'AIWACK_BRANCHES'
-aiwack/round11-cumulative-20261022|47c67a8dcd644988ad770371d6212de60b8c29b5
-aiwack-test-20261021-r6-payment-ledger|4efe352cb4ad565fb513b30ab5b4ca45d3d19d57
-test/aiwack-20261023-0755-cumulative-resume-merge|46ed5c1886ac04a45cc674c6c5b924766b369ea1
-test/aiwack-20261023-cumulative-merge|f70dd72c74f4b6440ebea85501a66f4f5d85a391
-AIWACK_BRANCHES
+          aiwack/round11-cumulative-20261022|47c67a8dcd644988ad770371d6212de60b8c29b5
+          aiwack-test-20261021-r6-payment-ledger|4efe352cb4ad565fb513b30ab5b4ca45d3d19d57
+          test/aiwack-20261023-0755-cumulative-resume-merge|46ed5c1886ac04a45cc674c6c5b924766b369ea1
+          test/aiwack-20261023-cumulative-merge|f70dd72c74f4b6440ebea85501a66f4f5d85a391
+          AIWACK_BRANCHES
