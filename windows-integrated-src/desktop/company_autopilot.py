@@ -7,6 +7,8 @@ generating the same proposals, scheduled tasks, or local event tasks.
 from __future__ import annotations
 import time
 import threading
+import hashlib
+import json
 from uuid import uuid4
 from desktop.stage87_90_management import stopped
 
@@ -60,6 +62,21 @@ def initialize(store):
                 aiwack_autopilot_tick_gaps_immutable_{action.lower()}
                 BEFORE {action} ON aiwack_autopilot_tick_gaps
                 BEGIN SELECT RAISE(ABORT,'자율 운영 누락 주기 감사 변경 금지'); END""")
+        con.execute("""CREATE TABLE IF NOT EXISTS aiwack_autopilot_step_evidence(
+           id INTEGER PRIMARY KEY AUTOINCREMENT,
+           run_id INTEGER NOT NULL REFERENCES aiwack_autopilot_runs(id),
+           step_kind TEXT NOT NULL CHECK(step_kind IN
+             ('proposals','schedules','events','failed_followups')),
+           created_count INTEGER NOT NULL CHECK(created_count BETWEEN 0 AND 100),
+           result_ids_sha256 TEXT NOT NULL CHECK(length(result_ids_sha256)=64),
+           result_ids_json TEXT NOT NULL,
+           recorded_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+           UNIQUE(run_id,step_kind))""")
+        for action in ('UPDATE','DELETE'):
+            con.execute(f"""CREATE TRIGGER IF NOT EXISTS
+               aiwack_autopilot_step_evidence_immutable_{action.lower()}
+               BEFORE {action} ON aiwack_autopilot_step_evidence
+               BEGIN SELECT RAISE(ABORT,'자동 운영 단계 원본 감사 수정 금지'); END""")
 
 
 def settings(store):
@@ -86,6 +103,44 @@ def configure(store, enabled: bool, *, interval_minutes: int=5, now=None):
         if not enabled:
             con.execute("UPDATE aiwack_autopilot_model_policy SET enabled=0 WHERE id=1")
     return settings(store)
+
+
+def _record_step(store, run_id: int, step_kind: str, ids: list[int]) -> None:
+    """Persist a completed local step, independent of the final tick outcome.
+
+    No automatic AI, payment, network or external action; IDs are real SQLite
+    rows produced by the existing owner-authorized local code paths.
+    """
+    if step_kind not in ('proposals','schedules','events','failed_followups'):
+        raise ValueError('사내 운영 단계 이름이 올바르지 않습니다.')
+    if (type(run_id) is not int or run_id<=0 or not isinstance(ids,list)
+            or len(ids)>100 or any(type(x) is not int or x<=0 for x in ids)):
+        raise ValueError('실제 SQLite 생성 번호 목록만 감사할 수 있습니다.')
+    serial=json.dumps(ids,ensure_ascii=False,separators=(',',':'))
+    digest=hashlib.sha256(serial.encode('utf-8')).hexdigest()
+    with store._connect() as con:
+        con.execute('BEGIN IMMEDIATE')
+        if not con.execute("""SELECT 1 FROM aiwack_autopilot_runs
+            WHERE id=? AND state='running'""",(run_id,)).fetchone():
+            raise RuntimeError('실행 중인 실제 자동 운영 감사가 없어 원본을 연결할 수 없습니다.')
+        con.execute("""INSERT INTO aiwack_autopilot_step_evidence
+            (run_id,step_kind,created_count,result_ids_sha256,result_ids_json)
+            VALUES(?,?,?,?,?)""",(run_id,step_kind,len(ids),digest,serial))
+
+
+def step_history(store, run_id: int) -> list[dict]:
+    """Immutable per-stage completed rows; a crash never fabricates later stages."""
+    initialize(store)
+    if type(run_id) is not int or run_id<=0:
+        raise ValueError('자동 운영 감사 실행 번호 오류')
+    with store._connect() as con:
+        rows=con.execute("""SELECT step_kind,created_count,
+           result_ids_sha256,result_ids_json,recorded_at
+           FROM aiwack_autopilot_step_evidence WHERE run_id=?
+           ORDER BY id""",(run_id,)).fetchall()
+    return [{'step':kind,'created_count':int(count),
+             'result_ids_sha256':digest,'result_ids':json.loads(ids),
+             'recorded_at':recorded} for kind,count,digest,ids,recorded in rows]
 
 
 def run_once(store, *, now=None):
@@ -119,13 +174,21 @@ def run_once(store, *, now=None):
     counts={'proposal_created':0,'schedule_created':0,'event_created':0}
     try:
         if _paused(store): raise InterruptedError('소유자가 실행을 중지했습니다.')
-        counts['proposal_created']=len(store.scan_autonomous_task_proposals(limit=10)['created_ids'])
+        proposed=store.scan_autonomous_task_proposals(limit=10)['created_ids']
+        counts['proposal_created']=len(proposed)
+        _record_step(store,run_id,'proposals',proposed)
         if _paused(store): raise InterruptedError('소유자가 실행을 중지했습니다.')
-        counts['schedule_created']=len(store.run_due_recurring_schedules(now=stamp))
+        scheduled=store.run_due_recurring_schedules(now=stamp)
+        counts['schedule_created']=len(scheduled)
+        _record_step(store,run_id,'schedules',scheduled)
         if _paused(store): raise InterruptedError('소유자가 실행을 중지했습니다.')
-        counts['event_created']=len(store.dispatch_local_events(limit=10))
+        events=store.dispatch_local_events(limit=10)
+        counts['event_created']=len(events)
+        _record_step(store,run_id,'events',events)
         if _paused(store): raise InterruptedError('소유자가 실행을 중지했습니다.')
-        failure_followups_created=len(store.scan_failed_employee_work(limit=31)['created'])
+        followups=store.scan_failed_employee_work(limit=31)['created']
+        failure_followups_created=len(followups)
+        _record_step(store,run_id,'failed_followups',followups)
     except Exception as exc:
         _finish(store,run_id,'failed',counts,type(exc).__name__)
         raise
