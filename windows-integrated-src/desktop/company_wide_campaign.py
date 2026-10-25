@@ -862,18 +862,19 @@ def propose(store,source_task_id:int,*,cancel:threading.Event|None=None):
             if cancel is not None and cancel.is_set():
                 raise InterruptedError('총괄 모델 호출 후 취소된 초안은 저장하지 않습니다.')
             try:
-                parsed=_parse_group(raw,part,prompt=query)
-                _audit_chief_plan(store,source_task_id,chief,call_id,
-                                  [x[1] for x in part],'three_departments',True,raw,prompt=query)
-                calls={name:int(call_id) for _,name,_,_ in part}
-                break
+                candidate=_parse_group(raw,part,prompt=query)
             except ValueError as exc:
+                # Only a malformed REAL completion is retryable. A failing
+                # SQLite/model-call audit must never be mislabeled as an
+                # invalid model response or invoke the model again.
                 _audit_chief_plan(store,source_task_id,chief,call_id,
                                   [x[1] for x in part],'three_departments',False,raw,exc,prompt=query)
-                # These are REAL failed format attempts, not model-free fallback.
-                # A small GGUF that cannot emit three rows may emit one real
-                # department instruction per separate audited chief invocation.
                 continue
+            _audit_chief_plan(store,source_task_id,chief,call_id,
+                              [x[1] for x in part],'three_departments',True,raw,prompt=query)
+            parsed=candidate
+            calls={name:int(call_id) for _,name,_,_ in part}
+            break
         if parsed is None:
             parsed={}
             calls={}
