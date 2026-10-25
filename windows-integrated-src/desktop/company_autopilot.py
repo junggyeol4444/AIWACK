@@ -340,6 +340,24 @@ def run_one_approved_model(store, task_ids: tuple[int, ...], *, cancel=None) -> 
             'automatic_result_approval':False}
 
 
+def approved_model_attempts_for_task(store, task_id: int) -> list[dict]:
+    """Owner-only full attempt history when auto-run blocked a selected task."""
+    initialize(store)
+    if type(task_id) is not int or task_id<=0:
+        raise ValueError('자동 모델 업무 번호 오류')
+    with store._connect() as con:
+        rows=con.execute("""SELECT r.id,r.state,r.error_kind,
+            r.created_at,r.finished_at,
+            CASE WHEN l.run_id IS NULL THEN 0 ELSE 1 END AS lease_active
+            FROM aiwack_autopilot_model_runs AS r
+            LEFT JOIN aiwack_autopilot_model_leases AS l ON l.run_id=r.id
+            WHERE r.task_id=? ORDER BY r.id""",(task_id,)).fetchall()
+    return [dict(id=int(id),state=state,error_kind=error,
+                 created_at=created,finished_at=finished,
+                 lease_active=bool(leased),automatic_retry_allowed=False)
+            for id,state,error,created,finished,leased in rows]
+
+
 def running_model_leases(store, limit: int=100) -> list[dict]:
     """Persisted model claims across Windows EXE windows; never assume stale means stopped."""
     initialize(store)
