@@ -24,6 +24,16 @@ def initialize(con):
         observed_epoch INTEGER NOT NULL,
         subprocess_verified_stopped INTEGER NOT NULL DEFAULT 0
           CHECK(subprocess_verified_stopped=0))""")
+    con.execute("""CREATE TABLE IF NOT EXISTS aiwack_native_model_lease_release (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        run_id INTEGER NOT NULL UNIQUE REFERENCES aiwack_autopilot_model_runs(id),
+        owner_note TEXT NOT NULL CHECK(length(owner_note) BETWEEN 5 AND 200),
+        owner_attested_subprocess_inspected INTEGER NOT NULL CHECK(owner_attested_subprocess_inspected=1),
+        released_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP)""")
+    for action in ("UPDATE","DELETE"):
+        con.execute(f"""CREATE TRIGGER IF NOT EXISTS aiwack_native_model_release_no_{action.lower()}
+            BEFORE {action} ON aiwack_native_model_lease_release
+            BEGIN SELECT RAISE(ABORT,'모델 잠금 해제 확인 감사 수정·삭제 금지'); END""")
     for action in ("UPDATE","DELETE"):
         con.execute(f"""CREATE TRIGGER IF NOT EXISTS aiwack_native_model_exit_no_{action.lower()}
             BEFORE {action} ON aiwack_native_model_exit_audit
@@ -112,3 +122,38 @@ def history(store,limit=30):
     return [{"run_id":int(a),"task_id":int(b),"pid":int(c),
              "observed_epoch":int(d),"model_subprocess_confirmed_dead":False,
              "lease_released":False} for a,b,c,d in rows]
+
+
+def release_after_owner_inspection(store,run_id,owner_note,*,owner_confirmed=False):
+    """관리자가 모델 하위 프로세스를 직접 확인한 후에만 기존 실패 lease를 해제."""
+    store.require_permission("company:manage")
+    if type(run_id) is not int or run_id<=0:
+        raise ValueError("실제 모델 실행 번호 오류")
+    if owner_confirmed is not True:
+        raise PermissionError("관리자의 하위 GGUF 프로세스 직접 확인이 필요합니다.")
+    if not isinstance(owner_note,str) or not 5<=len(owner_note.strip())<=200:
+        raise ValueError("모델 프로세스 확인 사유는 5~200자")
+    if os.name!="nt":
+        raise OSError("Windows 커널 확인 기능만 지원합니다.")
+    from desktop.company_native_process_watch import _probe
+    with store._connect() as con:
+        con.execute("BEGIN IMMEDIATE")
+        initialize(con)
+        row=con.execute("""SELECT a.pid,a.birth,r.state,r.error_kind,l.task_id
+            FROM aiwack_native_model_exit_audit a
+            JOIN aiwack_autopilot_model_runs r ON r.id=a.run_id
+            JOIN aiwack_autopilot_model_leases l ON l.run_id=a.run_id
+            WHERE a.run_id=?""",(run_id,)).fetchone()
+        if not row or row[2]!="failed" or row[3]!="WindowsOwnerProcessExited":
+            raise PermissionError("Windows 종료 확인된 실패 모델 감사 및 해당 잠금이 없습니다.")
+        if _probe(int(row[0]),int(row[1]))[0]!="dead":
+            raise PermissionError("원래 Windows 소유 프로세스 종료를 재확인하지 못했습니다.")
+        if con.execute("DELETE FROM aiwack_autopilot_model_leases WHERE run_id=?",
+                       (run_id,)).rowcount!=1:
+            raise RuntimeError("잠금 소유권이 변경됐습니다.")
+        con.execute("""INSERT INTO aiwack_native_model_lease_release
+            (run_id,owner_note,owner_attested_subprocess_inspected)
+            VALUES(?,?,1)""",(run_id,owner_note.strip()))
+    return {"run_id":run_id,"lease_released":True,"model_retried":False,
+            "subprocess_inspected_by_owner":True,
+            "subprocess_stopped_independently_verified":False}

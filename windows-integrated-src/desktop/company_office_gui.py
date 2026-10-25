@@ -1028,7 +1028,7 @@ class CompanyOffice:
                     pending=model_queue.next_pending(self.store)
                     if pending:
                         self._start(lambda:model_queue.run_next(
-                            self.store,session_token=self._continuity_session_id,
+                            self.store,session_token=self._continuity_session_id if tracked else None,
                             cancel=self.cancel),after='chief_queue_auto')
                     else:
                         selection=ops.list_approved_chief_queue_candidates(self.store,limit=1)
@@ -1036,7 +1036,7 @@ class CompanyOffice:
                             pinned=(int(selection[0]['task_id']),)
                             self._start(lambda:company_autopilot.run_one_approved_model(
                                 self.store,pinned,cancel=self.cancel,
-                                session_token=self._continuity_session_id),after='chief_queue_auto')
+                                session_token=self._continuity_session_id if tracked else None),after='chief_queue_auto')
             state=company_autopilot.settings(self.store)
             self.monitor_status.set(f"사내 자율 운영 {'켜짐' if state['enabled'] else '꺼짐'} · "
                                     f"{state['interval_seconds']//60}분 주기 · 실행 감사 {state['runs']}건")

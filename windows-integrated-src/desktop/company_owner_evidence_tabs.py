@@ -14,6 +14,7 @@ def attach(owner, tabs):
     owner._field(queue, "owner_queue_task", "기존 승인된 업무 번호")
     owner._field(queue, "owner_queue_id", "대기열 항목 번호")
     owner._field(queue, "owner_queue_note", "관리자 사유 (5~200자)")
+    owner._field(queue, "owner_model_run_id", "Windows 종료 모델 실행 번호")
     owner._buttons(queue, [
         ("승인 업무를 영속 대기열에 등록", lambda: owner._perform(
             "기존 총괄 지시 승인 업무 등록",
@@ -33,6 +34,13 @@ def attach(owner, tabs):
             "GGUF 영속 대기열",lambda: owner.store.list_owner_model_queue(50))),
         ("Windows 종료 확인 모델 감사", lambda: owner._perform(
             "GUI 소유 프로세스 종료 기록",lambda: owner.store.native_model_exit_history(50))),
+        ("하위 모델 확인 후 실패 잠금 해제", lambda: owner._perform(
+            "모델 종료 감사의 잠금 관리자 해제",
+            lambda: owner.store.release_owner_confirmed_model_lease(
+                owner._id("owner_model_run_id"),owner._get("owner_queue_note")),
+            "기존 Windows GUI 소유 프로세스가 종료됐음을 확인한 기록만 대상입니다. "
+            "하위 GGUF 실행 프로세스도 관리자가 직접 확인했고 종료됐습니까? "
+            "이 버튼은 잠금만 해제하며 해당 업무의 자동 재실행은 영구 차단됩니다. 진행합니까?")),
     ])
     ttk.Label(queue, text=(
         "기존 자율운영 + 실제 모델 실행 별도 동의가 모두 있어야 실행됩니다. "

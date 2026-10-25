@@ -5415,3 +5415,7 @@ class LocalStore:
     def native_model_exit_history(self, limit=30):
         from desktop.company_native_model_watch import history
         return history(self,limit)
+
+    def release_owner_confirmed_model_lease(self, run_id, note):
+        from desktop.company_native_model_watch import release_after_owner_inspection
+        return release_after_owner_inspection(self,run_id,note,owner_confirmed=True)
