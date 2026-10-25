@@ -3924,6 +3924,25 @@ class LocalStore:
         with self._connect() as con:
             return events(con, business_id, limit)
 
+    # Actual chief-GGUF business hypotheses are separate from rule templates.
+    # No business, sale, external request, or owner approval is automatic.
+    def propose_chief_business_idea(self, audience: str, problem: str, *, cancel=None) -> dict:
+        self.require_permission('company:manage')
+        self.require_permission('agents:manage')
+        from desktop.company_business_ideas_model import propose
+        return propose(self,audience,problem,cancel=cancel)
+
+    def list_chief_business_ideas(self, *, limit: int=50) -> list[dict]:
+        self.require_permission('company:manage')
+        from desktop.company_business_ideas_model import list_ideas
+        return list_ideas(self,limit=limit)
+
+    def review_chief_business_idea(self, idea_id: int, decision: str,
+                                   reason: str) -> dict:
+        self.require_permission('company:manage')
+        from desktop.company_business_ideas_model import decide
+        return decide(self,idea_id,decision,reason)
+
     # Stage62: offline candidate hypotheses from administrator-provided assumptions.
     def generate_business_candidates(self, audience: str, problem: str,
                                      max_candidates: int = 8) -> dict:
