@@ -35,6 +35,8 @@ jobs:
         run: python -m pytest -q validation/test_windows_native_window_handles.py validation/test_packaged_process_owner_binding.py
       - name: Real-model chief plan rejection audit regressions (metadata only)
         run: python -m pytest -q validation/test_chief_plan_failure_audit_round23.py
+      - name: Verify nested historical ZIP and cross-archive source preservation
+        run: python -m pytest -q validation/test_audit_nested_original_source_archive.py
       - name: Native app data self-test
         run: python -m desktop.entry --self-test
       - name: Start and click actual GUI under Xvfb
