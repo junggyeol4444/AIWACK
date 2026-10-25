@@ -171,3 +171,33 @@ def test_symlink_parent_cannot_be_audited_as_regular_original(tmp_path):
     result = audit_archive(source, checkout, expected_count=1)
     assert result["summary"]["unsafe_path"] == 1
     assert result["all_originals_match"] is False
+
+
+def test_nested_archive_rejects_unix_symlink_member(tmp_path):
+    source = tmp_path / "symlink.zip"
+    with zipfile.ZipFile(source, "w") as z:
+        item = zipfile.ZipInfo(DEFAULT_PREFIX + "desktop/alias.py")
+        item.create_system = 3
+        item.external_attr = (0o120777 << 16)
+        z.writestr(item, b"desktop/actual.py")
+    checkout = tmp_path / "sources"
+    checkout.mkdir()
+    with pytest.raises(ValueError, match="심볼릭 링크"):
+        audit_archive(source, checkout)
+
+
+def test_nested_archive_rejects_duplicate_archive_input(tmp_path):
+    from validation.audit_nested_original_source_archive import audit_archive_collection
+    source = _archive(tmp_path, {"desktop/a.py": b"a"})
+    checkout = tmp_path / "sources"
+    checkout.mkdir()
+    with pytest.raises(ValueError, match="중복 입력"):
+        audit_archive_collection([source, source], checkout)
+
+
+def test_nested_archive_rejects_invalid_source_prefix(tmp_path):
+    source = _archive(tmp_path, {"desktop/a.py": b"a"})
+    checkout = tmp_path / "sources"
+    checkout.mkdir()
+    with pytest.raises(ValueError, match="접두사"):
+        audit_archive(source, checkout, prefix="../")
