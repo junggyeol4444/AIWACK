@@ -4034,6 +4034,18 @@ class LocalStore:
         from desktop.company_business_market_ai import history
         return history(self,idea_id,limit)
 
+    # Stage65: real local GGUF over owner-authored Stage64 financial scenarios.
+    def analyze_real_chief_financial_brief(self, brief_id: int, *, cancel=None) -> dict:
+        self.require_permission('company:manage')
+        self.require_permission('agents:manage')
+        from desktop.company_real_chief_financial_brief import analyze
+        return analyze(self,brief_id,cancel=cancel)
+
+    def real_chief_financial_brief_history(self, *, limit: int=100) -> list[dict]:
+        self.require_permission('company:manage')
+        from desktop.company_real_chief_financial_brief import history
+        return history(self,limit=limit)
+
     # Stage62: offline candidate hypotheses from administrator-provided assumptions.
     def generate_business_candidates(self, audience: str, problem: str,
                                      max_candidates: int = 8) -> dict:

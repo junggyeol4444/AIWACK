@@ -144,6 +144,11 @@ class CompanyOwnerWorkflows:
                 failure_proposal_id = self._id('failure_model_followup_id')
                 campaign_id = None
                 source_id = None
+            elif action == 'financial_brief_ai':
+                self.store.require_permission('agents:manage')
+                financial_brief_id=self._id('model_financial_brief_id')
+                source_id=None
+                campaign_id=None
             elif action == 'market_ai':
                 self.store.require_permission('agents:manage')
                 idea_id=self._id('model_business_idea_id')
@@ -207,6 +212,9 @@ class CompanyOwnerWorkflows:
                         from desktop.company_failure_ai_analysis import analyze
                         result = analyze(self.store,failure_proposal_id,
                                          cancel=self._campaign_cancel)
+                    elif action == 'financial_brief_ai':
+                        result=self.store.analyze_real_chief_financial_brief(
+                            financial_brief_id,cancel=self._campaign_cancel)
                     elif action == 'market_ai':
                         result=self.store.analyze_chief_business_market(
                             idea_id,cancel=self._campaign_cancel)
@@ -1048,6 +1056,7 @@ class CompanyOwnerWorkflows:
             ('model_market_url','조사할 공개 HTTPS 원문 URL'),
             ('model_market_hostname','승인할 공개 호스트명(소문자)'),
             ('model_market_title','실제 조사 출처 제목'),
+            ('model_financial_brief_id','관리자 미검증 손익 비교 보고 번호'),
             ('model_project_title','관리자 프로젝트 초안 이름'),
             ('model_project_note','프로젝트 검토 사유 (5~300자)'),
             ('model_product_kind','상품 유형 (product/service)'),
@@ -1091,6 +1100,14 @@ class CompanyOwnerWorkflows:
                 '실제 총괄 GGUF 시장 원문 분석 기록',
                 lambda:self.store.chief_business_market_analysis_history(
                     self._id('model_business_idea_id'),limit=100)))])
+        self._buttons(panel,[
+            ('기존 비교 보고 → 실제 총괄 GGUF 가정 판단',lambda:self._start_real_model_action(
+                '실제 총괄 GGUF 손익 가정 판단','financial_brief_ai',
+                '관리자가 이미 작성한 미검증 손익 가정 보고를 실제 총괄 로컬 GGUF로 1회 분석합니다. '
+                '자동 사업 결정·투자·결제·판매·실제 매출 검증은 하지 않습니다. 실행할까요?')),
+            ('총괄 GGUF 금융 판단·호출 원본 감사',lambda:self._perform(
+                '실제 총괄 손익 분석 원본',
+                lambda:self.store.real_chief_financial_brief_history(limit=100)))])
         self._buttons(panel,[
             ('관리자 프로젝트 초안 연결',self._create_model_project_draft),
             ('관리자 첫 상품 초안 연결',self._create_model_product_draft)])
