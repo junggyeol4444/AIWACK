@@ -3971,6 +3971,26 @@ class LocalStore:
         from desktop.company_business_idea_pipeline import history
         return history(self,limit=limit)
 
+    def create_chief_idea_delivery_tasks(self, idea_id: int, research_title: str,
+                                         product_title: str, owner_note: str) -> dict:
+        self.require_permission('company:manage')
+        from desktop.company_business_idea_delivery import create_owner_work_tasks
+        return create_owner_work_tasks(self, idea_id, research_title, product_title, owner_note)
+
+    def review_chief_idea_local_product(self, idea_id: int,
+                                        research_artifact_id: int,
+                                        product_artifact_id: int,
+                                        owner_note: str) -> dict:
+        self.require_permission('company:manage')
+        from desktop.company_business_idea_delivery import review_local_product
+        return review_local_product(self, idea_id, research_artifact_id,
+                                    product_artifact_id, owner_note)
+
+    def chief_idea_delivery_history(self, *, limit: int = 100) -> list[dict]:
+        self.require_permission('company:manage')
+        from desktop.company_business_idea_delivery import history
+        return history(self, limit=limit)
+
     # Stage62: offline candidate hypotheses from administrator-provided assumptions.
     def generate_business_candidates(self, audience: str, problem: str,
                                      max_candidates: int = 8) -> dict:
