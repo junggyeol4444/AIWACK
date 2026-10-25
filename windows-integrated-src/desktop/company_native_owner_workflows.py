@@ -987,7 +987,8 @@ class CompanyOwnerWorkflows:
             ('model_business_audience','사업 대상 고객 (1~120자)'),
             ('model_business_problem','고객 문제 (1~240자)'),
             ('model_business_idea_id','검토할 사업 가설 번호'),
-            ('model_business_reason','관리자 검토 사유 (5~200자)')]:
+            ('model_business_reason','관리자 검토 사유 (5~200자)'),
+            ('model_business_name','관리자 등록 사업 초안 이름')]:
             self._field(panel,key,label)
         self._buttons(panel,[
             ('실제 총괄 GGUF 사업 가설 1건 생성',lambda:self._start_real_model_action(
@@ -1001,6 +1002,20 @@ class CompanyOwnerWorkflows:
         self._buttons(panel,[
             ('관리자가 사업 후보로 선정',lambda:self._review_business_idea('shortlisted')),
             ('관리자가 사업 가설 기각',lambda:self._review_business_idea('rejected'))])
+        self._buttons(panel,[
+            ('관리자 선정 후보 → 사업 초안 등록',self._create_business_draft),
+            ('실제 모델·사업 초안 출처 확인',lambda:self._perform(
+                '총괄 GGUF 실제 호출 및 사업 초안 연결 불변 감사',
+                lambda:self.store.list_chief_business_draft_links(limit=100)))])
+
+    def _create_business_draft(self):
+        self._perform('실제 GGUF 사업 후보 → 예산 0원 로컬 사업 초안',
+            lambda:self.store.create_chief_business_draft(
+                self._id('model_business_idea_id'),
+                self._get('model_business_name')),
+            '관리자가 실제 모델 출처와 위험을 검토해 이미 후보로 선정한 가설만 '
+            '기존 로컬 사업 포트폴리오에 예산 0원의 초안으로 연결합니다. '
+            '실제 거래·자금 사용·판매·자동 실행은 하지 않습니다. 진행합니까?')
 
     def _review_business_idea(self, decision):
         idea_id=self._id('model_business_idea_id')
