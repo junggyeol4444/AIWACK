@@ -44,6 +44,8 @@ class CompanyOwnerWorkflows:
         tabs.add(product, text='30업무 · 상품 결과물')
         business = ttk.Frame(tabs)
         tabs.add(business, text='실제 AI 신규 사업 가설')
+        delivery = ttk.Frame(tabs)
+        tabs.add(delivery, text='사업 조사·제작 업무')
         continuity = ttk.Frame(tabs)
         tabs.add(continuity, text='운영 기록 · 중단 복구')
         staff = ttk.Frame(tabs)
@@ -55,6 +57,7 @@ class CompanyOwnerWorkflows:
         self._customer(customer)
         self._product(product)
         self._business_ideas(business)
+        self._business_delivery(delivery)
         self._continuity(continuity)
         summary = ttk.Frame(tabs)
         tabs.add(summary, text='전체 운영 원본 통합 조회')
@@ -1040,6 +1043,55 @@ class CompanyOwnerWorkflows:
             '관리자가 별도로 검토한 실제 GGUF 사업 가설과 계획 프로젝트에 '
             '가정 가격 0원의 첫 상품·서비스 초안만 연결합니다. '
             '실제 상품 완성·게시·결제·매출은 발생하지 않습니다. 진행합니까?')
+
+    def _business_delivery(self, panel):
+        ttk.Label(panel,
+            text='실제 총괄 GGUF 가설→사업/프로젝트/상품 초안이 연결된 경우에만 '
+                 '관리자 클릭으로 조사·제작 업무 2개를 등록합니다. '
+                 '모델 호출·외부 판매·결제·발송은 별도이며 자동 실행하지 않습니다.',
+            wraplength=870).pack(anchor='w', padx=12, pady=8)
+        for key, label in [
+            ('delivery_idea_id', '실제 모델 사업 가설 번호'),
+            ('delivery_research_title', '시장 조사 업무명'),
+            ('delivery_product_title', '첫 상품 제작 업무명'),
+            ('delivery_owner_note', '업무 인계 관리자 사유'),
+            ('delivery_research_artifact', '승인된 조사 결과물 번호'),
+            ('delivery_product_artifact', '승인된 제작 결과물 번호'),
+            ('delivery_review_note', '상품 내부 검토 관리자 사유')]:
+            self._field(panel, key, label)
+        self._buttons(panel, [
+            ('조사 → 제작 업무 2건 등록', self._create_business_delivery_tasks),
+            ('기존 실제 모델·2업무·결과물 감사', lambda: self._perform(
+                '총괄 모델 사업·프로젝트·상품·직원 업무 원본 감사',
+                lambda: self.store.chief_idea_delivery_history(limit=100)))])
+        self._buttons(panel, [
+            ('승인된 직원 결과 2건 → 상품 내부 검토', self._review_business_delivery)])
+        ttk.Label(panel,
+            text='업무 실행은 기존 담당 직원 배정/실제 모델 호출/관리자 결과물 승인 '
+                 '화면에서 수행합니다. 내부 검토는 출시 승인·매출 검증이 아닙니다.',
+            wraplength=870).pack(anchor='w', padx=12, pady=8)
+
+    def _create_business_delivery_tasks(self):
+        self._perform('실제 GGUF 사업 가설의 조사·제작 업무 원본 연결',
+            lambda: self.store.create_chief_idea_delivery_tasks(
+                self._id('delivery_idea_id'),
+                self._get('delivery_research_title'),
+                self._get('delivery_product_title'),
+                self._get('delivery_owner_note')),
+            '이미 관리자가 승인한 실제 GGUF 가설·사업·프로젝트·0원 상품 초안에 '
+            '기존 미배정 업무 2건을 연결합니다. 조사 완료를 제작의 선행 조건으로 '
+            '설정하며 실제 모델 실행·외부 발송·결제는 하지 않습니다. 진행합니까?')
+
+    def _review_business_delivery(self):
+        self._perform('실제 직원 승인 결과 2건의 로컬 상품 내부 검토',
+            lambda: self.store.review_chief_idea_local_product(
+                self._id('delivery_idea_id'),
+                self._id('delivery_research_artifact'),
+                self._id('delivery_product_artifact'),
+                self._get('delivery_review_note')),
+            '조사·제작 업무가 각각 실제 로컬 직원 모델 실행 성공, '
+            '관리자 결과물 승인 및 업무 완료된 경우에만 상품을 내부 검토중으로 '
+            '전환합니다. 상품 출시·판매·외부 게시·실제 매출은 아닙니다. 진행합니까?')
 
     def _create_business_draft(self):
         self._perform('실제 GGUF 사업 후보 → 예산 0원 로컬 사업 초안',
