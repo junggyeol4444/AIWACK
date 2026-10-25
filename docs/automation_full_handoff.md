@@ -1809,3 +1809,5 @@ CI 마지막 확정 실패: b9a09e88 커밋의 루트 138 PASS, 네이티브 335
 - Windows 소유 GUI 종료가 커널에서 확인된 모델 실패 기록에 한해, 하위 GGUF 프로세스를 관리자가 직접 확인했다고 별도 승인한 경우에만 기존 lease를 해제하는 `company_native_model_watch.release_after_owner_inspection`과 불변 감사 테이블 추가. 모델 자동 재실행은 여전히 금지.
 - 한국어 Tk 관리자 탭에 모델 실행 번호·직접 확인 잠금 해제 버튼, LocalStore API 추가. GUI 프로세스 추적이 불가능하면 모델 실행에 미등록 소유 세션을 강제하지 않도록 처리. 전체 통합 검증 NOT_RUN, 24시간 합격 주장 없음.
 - 이 보강 커밋의 최종 원격 SHA는 다음 GitHub HEAD 재조회 결과를 기준으로 한다.
+
+- 2026-10-26 05:44 KST GitHub 실제 반영 확인: 최초 제품 코드 `2817f9b5dbfa1fd79d8c63f4baf2a1b441c39df9`, 모델 잠금 관리자 수동 정리 보강 `60a2fab3947a7e089062ebddcac93e04f753cf9f`. 두 커밋 모두 기존 `main`에 `expected_sha`/비강제 fast-forward로 반영 후 원격 HEAD 재조회 확인. 전체 통합검증 **NOT_RUN**. 다음 회차 최신 HEAD 다시 확인.

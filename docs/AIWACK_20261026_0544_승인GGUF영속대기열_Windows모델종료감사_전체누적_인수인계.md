@@ -10,3 +10,5 @@
 - GitHub 제품 코드 커밋 및 최종 HEAD는 원격 조회한 값만 사실로 보고한다.
 
 - 후속 제품 코드 보강: Windows 종료 모델 잠금은 관리자 직접 하위 프로세스 확인 이후에만 수동 해제. 별도 SQLite 불변 해제 감사 및 한국어 Tk 버튼 추가. 최초 제품 코드 SHA `2817f9b5dbfa1fd79d8c63f4baf2a1b441c39df9`. 후속 최종 HEAD는 GitHub 재조회로 확정. 전체 통합검증 NOT_RUN.
+
+- 2026-10-26 05:44 KST GitHub 실제 반영 확인: 최초 제품 코드 `2817f9b5dbfa1fd79d8c63f4baf2a1b441c39df9`, 모델 잠금 관리자 수동 정리 보강 `60a2fab3947a7e089062ebddcac93e04f753cf9f`. 두 커밋 모두 기존 `main`에 `expected_sha`/비강제 fast-forward로 반영 후 원격 HEAD 재조회 확인. 전체 통합검증 **NOT_RUN**. 다음 회차 최신 HEAD 다시 확인.
