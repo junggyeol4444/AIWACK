@@ -453,6 +453,9 @@ class CompanyOwnerWorkflows:
                 '30업무 승인 증빙과 실제 총괄 GGUF 호출·실패·최종 보고 연결 (읽기 전용)',
                 lambda:self.store.inspect_campaign_final_model_attempt_chain(
                     self._id('summary_campaign')))),
+            ('최종보고 GGUF 재시도 남은 횟수 확인',lambda:self._perform(
+                '중단·재시작을 포함한 실제 총괄 모델 형식 오류 누적 재시도 (읽기 전용)',
+                self._final_model_attempt_budget)),
             ('최종보고 GGUF 동시 실행 잠금 조회',lambda:self._perform(
                 '다른 Windows 창 최종보고 실행/중단 잠금 (읽기 전용)',
                 self._final_report_leases)),
@@ -522,6 +525,12 @@ class CompanyOwnerWorkflows:
             '실제 Windows10/11·24시간·GGUF 바이너리·PG 실거래·T01~T20 최종 합격은 '
             '조회만으로 주장하지 않습니다.'),wraplength=850).pack(
                 anchor='w',padx=12,pady=12)
+
+    def _final_model_attempt_budget(self):
+        from desktop.company_campaign_final_report import (
+            remaining_final_report_model_attempts)
+        return remaining_final_report_model_attempts(
+            self.store, self._id('summary_campaign'))
 
     def _final_report_leases(self):
         from desktop import company_campaign_final_leases as leases
