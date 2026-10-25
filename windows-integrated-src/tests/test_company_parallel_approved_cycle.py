@@ -149,3 +149,36 @@ def test_parallel_preview_skips_unfinished_dependencies_before_owner_confirmatio
     assert [row['task_id'] for row in preview] == [ids[0], third_id]
     assert [row['employee_id'] for row in preview] == [staff[0], third_employee]
     assert all(store.list_task_runs(tid) == [] for tid in (*ids, third_id))
+
+
+def test_parallel_staff_evidence_must_match_saved_model_and_owner_approval(
+        parallel_office, monkeypatch):
+    """Mock output only; real SQLite model-call and artifact linkage is checked."""
+    store, ids, staff = parallel_office
+    monkeypatch.setattr('desktop.task_runtime.run_local_model',
+                        lambda *a, **k: 'SYNTHETIC STAFF DRAFT FOR LOCAL AUDIT')
+    result = ops.execute_task(store, ids[0])
+    proof = ops._verified_parallel_worker_result(store, ids[0], staff[0], result)
+    assert proof['verified_saved_real_model_result'] is True
+    assert proof['owner_approval_pending'] is True
+    assert proof['artifact_id'] == result['artifact_id']
+    with pytest.raises(ValueError, match='승인 원본'):
+        ops._verified_parallel_worker_result(store, ids[0], staff[1], result)
+    with store._connect() as con:
+        con.execute('UPDATE company_task_artifacts SET body=? WHERE id=?',
+                    ('LOCAL ARTIFACT CORRUPTION', result['artifact_id']))
+    with pytest.raises(ValueError, match='SHA256'):
+        ops._verified_parallel_worker_result(store, ids[0], staff[0], result)
+
+
+def test_parallel_staff_model_binding_changed_before_chief_is_rejected(
+        parallel_office, monkeypatch):
+    store, ids, staff = parallel_office
+    monkeypatch.setattr('desktop.task_runtime.run_local_model',
+                        lambda *a, **k: 'SYNTHETIC STAFF OUTPUT FOR LOCAL AUDIT')
+    output = ops.execute_task(store, ids[0])
+    alternate = store.add_local_model(ModelConfig(
+        'DIFFERENT-SYNTHETIC-MODEL', 'llamafile', sys.executable, '', 32))
+    store.set_employee_model(staff[0], alternate)
+    with pytest.raises(ValueError, match='모델 배정 원본'):
+        ops._verified_parallel_worker_result(store, ids[0], staff[0], output)
