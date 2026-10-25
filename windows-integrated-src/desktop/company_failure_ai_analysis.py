@@ -323,7 +323,7 @@ def decide_from_analysis(store, claim_id: int, decision: str, note: str) -> dict
         row = con.execute("""SELECT c.followup_id,c.source_run_id,
             o.result_kind,o.model_call_id,o.output_sha256,
             o.diagnosis,o.improvement,o.risk,
-            f.task_id,f.employee_id,f.failure_status,f.state,t.title,
+            f.source_run_id,f.task_id,f.employee_id,f.failure_status,f.state,t.title,
             r.task_id,r.employee_id,r.status,
             h.status,h.output_chars
             FROM aiwack_failure_chief_claims c
@@ -336,10 +336,12 @@ def decide_from_analysis(store, claim_id: int, decision: str, note: str) -> dict
         if row is None:
             raise ValueError("실제 총괄 모델 실패 분석 성공 원본이 없습니다.")
         (followup, source_run, result, model_call, output_sha,
-         diagnosis, improvement, risk, task, employee, failure, state,
+         diagnosis, improvement, risk, followup_source, task, employee, failure, state,
          title, run_task, run_employee, run_status, call_status, output_chars) = row
         if state != "pending":
             raise PermissionError("이미 처리된 실패 후속 제안은 다시 결정할 수 없습니다.")
+        if followup_source != source_run:
+            raise ValueError("실패 분석과 후속 제안의 실행 출처가 다릅니다.")
         if (task, employee, failure) != (run_task, run_employee, run_status):
             raise ValueError("실제 실패 업무·직원·상태 원본 연결이 다릅니다.")
         if failure not in ("failure", "timeout", "interrupted"):
