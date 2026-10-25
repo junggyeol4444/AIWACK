@@ -5398,3 +5398,20 @@ class LocalStore:
     def run_customer_ai(self,case_id,*,cancel=None):
         from desktop.company_customer_case_ai import execute
         return execute(self,case_id,cancel=cancel)
+
+    # 관리자 승인된 GGUF 업무의 재시도 없는 영속 대기열/Windows 소유 프로세스 감사.
+    def enqueue_owner_model_task(self, task_id, note):
+        from desktop.company_owner_model_queue import enqueue
+        return enqueue(self,task_id,note)
+
+    def list_owner_model_queue(self, limit=50):
+        from desktop.company_owner_model_queue import list_entries
+        return list_entries(self,limit)
+
+    def cancel_owner_model_queue(self, queue_id, note):
+        from desktop.company_owner_model_queue import cancel_pending
+        return cancel_pending(self,queue_id,note)
+
+    def native_model_exit_history(self, limit=30):
+        from desktop.company_native_model_watch import history
+        return history(self,limit)

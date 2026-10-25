@@ -1793,3 +1793,13 @@ CI 마지막 확정 실패: b9a09e88 커밋의 루트 138 PASS, 네이티브 335
 - 남은 전체 개발: 15부서31AI30업무 장기 자율 GGUF, 안전한 모델 장애 복구, 실제 PG/은행/환불/고객 전달, 역사 원본 보존형 통합. 개발 전부 → 전체 통합검증 → 오류 일괄 수정 → 재검증.
 
 - 실제 제품 코드 및 인수인계 반영 커밋: `6c860665f6be11fc87e86e273d2413433c103f60` (비강제 fast-forward, expected_sha). 이 커밋에서 신규 제품 모듈 2개, 기존 제품/EXE 파일 5개, 인수인계 2개 파일이 반영됨. 전체 기능 완료/실행 검증 아님.
+
+
+## 2026-10-26 05:44 KST — 승인 GGUF 영속 대기열·Windows 모델 소유 프로세스 종료 감사 (append-only)
+- 기존 main 시작 HEAD: `63f018b7e09ac9d1f7a762066d5d24ea812ac458`. 원본 15장/T01~T20, 100단계, 기존 전체 인수인계와 기존 Tk/SQLite/실 GGUF 자율운영 소스 확인.
+- 신규 `windows-integrated-src/desktop/company_owner_model_queue.py`: 기존 관리자 총괄 지시가 승인되고 담당 직원 실제 로컬 모델이 연결된 todo 업무만 SQLite 영속 대기열 등록. 별도 관리자 클릭, 중복·과거 모델 시도/결과물 차단, 비상정지·이중 정책 재확인, 한 번에 하나의 실제 직원→총괄 GGUF 호출을 기존 엔진에 위임. 불변 상태 이벤트 감사, 실패 자동 재시도 금지, 결과물 관리자 검수 대기.
+- 신규 `windows-integrated-src/desktop/company_native_model_watch.py`: Windows PID+커널 생성시각으로 실제 GUI 소유 프로세스 종료가 확인된 모델 실행만 실패 감사 기록. GGUF 하위 프로세스는 종료 보증 불가하므로 기존 실행 lease 보존, 자동 모델 재호출/결제/발송 없음. 대기열 실행도 종료 확인 시 실패로 연결.
+- 기존 `company_autopilot.py`에 GUI 소유 세션 바인딩, `company_office_gui.py`에 모델 종료 확인/영속 대기열 우선 실행 연결. 기존 승인 자동 선택 fallback 보존. `company_owner_evidence_tabs.py`에 한국어 Tk 관리자 등록/취소/조회/감사 탭. `storage.py` API 4개, `build_windows_exe.bat` PyInstaller hidden-import 2개 추가.
+- 신규 제품 코드 작성과 GitHub main 반영은 본 기록과 동일한 제품 코드 커밋에서 수행. 정확한 최종 SHA는 반영 후 원격 재조회 결과를 따를 것. Windows EXE/실 GGUF/T01~T20 전체 통합검증: **NOT_RUN**. 24시간 연속 자동 복구, 실제 외부 매출/결제/환불/전송 검증 주장 금지.
+- 과거 1,099개·1,171개 원본 ZIP 정확한 바이트는 이번 Library 파일명 검색에서 미확보. 과거 ZIP 상호 비교 문서(1,046 동일·52 변경·73 추가·개발 DB 1개 별도)는 확인했지만 현 원격 main과의 3-way 보존형 전체 통합은 미완료. 기존 4개 브랜치 존재, 삭제 Actions #40190196239 queued. 신규 브랜치 생성·삭제 없음.
+- 남은 원본 개발: 15부서/31AI/30업무 장기 협업 전체 실행, 24시간 실제 장애 복구, 독립 PG·은행 실거래 확인·환불/고객 전달, 원본 역사 3-way 통합. 전체 개발 → 통합검증 → 오류 일괄 수정 → 전체 재검증 순서 유지.

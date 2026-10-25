@@ -9,6 +9,37 @@ from tkinter import ttk
 
 
 def attach(owner, tabs):
+    queue = ttk.Frame(tabs)
+    tabs.add(queue, text="관리자 승인 GGUF 영속 대기열")
+    owner._field(queue, "owner_queue_task", "기존 승인된 업무 번호")
+    owner._field(queue, "owner_queue_id", "대기열 항목 번호")
+    owner._field(queue, "owner_queue_note", "관리자 사유 (5~200자)")
+    owner._buttons(queue, [
+        ("승인 업무를 영속 대기열에 등록", lambda: owner._perform(
+            "기존 총괄 지시 승인 업무 등록",
+            lambda: owner.store.enqueue_owner_model_task(
+                owner._id("owner_queue_task"), owner._get("owner_queue_note")),
+            "기존 총괄 지시 승인·직원 모델 연결을 다시 확인합니다. "
+            "별도 자동 운영/모델 정책이 켜진 경우에만 실제 GGUF를 한 번 실행하며 "
+            "실패 자동 재시도·결과 자동 승인·외부 전송은 없습니다. 등록합니까?")),
+        ("대기 중인 항목 취소", lambda: owner._perform(
+            "실행 전 대기열 취소",
+            lambda: owner.store.cancel_owner_model_queue(
+                owner._id("owner_queue_id"),owner._get("owner_queue_note")),
+            "실행 중인 모델은 이 버튼으로 취소하지 않습니다. 대기 항목만 취소합니까?")),
+    ])
+    owner._buttons(queue, [
+        ("실제 대기열·실행 상태 조회", lambda: owner._perform(
+            "GGUF 영속 대기열",lambda: owner.store.list_owner_model_queue(50))),
+        ("Windows 종료 확인 모델 감사", lambda: owner._perform(
+            "GUI 소유 프로세스 종료 기록",lambda: owner.store.native_model_exit_history(50))),
+    ])
+    ttk.Label(queue, text=(
+        "기존 자율운영 + 실제 모델 실행 별도 동의가 모두 있어야 실행됩니다. "
+        "소유자 Windows GUI가 살아있는 동안 기존 5분 tick당 최대 1건 실행합니다. "
+        "Windows GUI 종료가 확인돼도 모델 하위 프로세스 생존은 미확정이므로 "
+        "잠금은 유지하고 자동 재호출하지 않습니다. 24시간 검증 결과가 아닙니다."),
+        wraplength=800).pack(anchor="w",padx=12,pady=10)
     recovery = ttk.Frame(tabs)
     tabs.add(recovery, text="중단 복구 후속 업무")
     owner._field(recovery, "recovery_audit_id", "기존 중단 확인 감사 번호")

@@ -257,7 +257,7 @@ def approved_models_enabled(store) -> bool:
     return _policy_active_read_only(store)
 
 
-def run_one_approved_model(store, task_ids: tuple[int, ...], *, cancel=None) -> dict:
+def run_one_approved_model(store, task_ids: tuple[int, ...], *, cancel=None, session_token=None) -> dict:
     """One already owner-approved staff inference + real chief review per tick.
 
     Never auto-approves an unapproved order or retries a previous failed call.
@@ -292,6 +292,9 @@ def run_one_approved_model(store, task_ids: tuple[int, ...], *, cancel=None) -> 
         con.execute("""INSERT INTO aiwack_autopilot_model_leases
             (task_id,run_id,owner_token,started_epoch) VALUES(?,?,?,?)""",
             (tid,audit_id,owner_token,int(time.time())))
+        if session_token is not None:
+            from desktop.company_native_model_watch import bind as bind_model_process
+            bind_model_process(con,audit_id,session_token)
     # Another EXE window may revoke the owner's separate model permission.
     # Poll persisted policy so the running GGUF subprocess also receives
     # cancellation, not only future ticks.

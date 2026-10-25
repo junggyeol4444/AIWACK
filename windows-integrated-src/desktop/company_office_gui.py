@@ -1010,6 +1010,10 @@ class CompanyOffice:
                 recovered=native_watch.recover(self.store)
                 if recovered:
                     self._say('Windows 종료 확인된 중단 로컬 운영: '+str(recovered))
+            from desktop import company_native_model_watch as model_watch
+            model_recovered=model_watch.recover(self.store)
+            if model_recovered:
+                self._say('Windows GUI 종료 확인된 모델 실행 감사: '+str(model_recovered))
             result=company_autopilot.run_once(
                 self.store,session_token=self._continuity_session_id if tracked else None)
             if result.get('executed'):
@@ -1020,11 +1024,19 @@ class CompanyOffice:
                 # The existing safe worker thread prevents Tk freezing.
                 if (company_autopilot.approved_models_enabled(self.store)
                         and not (self.worker and self.worker.is_alive())):
-                    selection=ops.list_approved_chief_queue_candidates(self.store,limit=1)
-                    if selection:
-                        pinned=(int(selection[0]['task_id']),)
-                        self._start(lambda:company_autopilot.run_one_approved_model(
-                            self.store,pinned,cancel=self.cancel),after='chief_queue_auto')
+                    from desktop import company_owner_model_queue as model_queue
+                    pending=model_queue.next_pending(self.store)
+                    if pending:
+                        self._start(lambda:model_queue.run_next(
+                            self.store,session_token=self._continuity_session_id,
+                            cancel=self.cancel),after='chief_queue_auto')
+                    else:
+                        selection=ops.list_approved_chief_queue_candidates(self.store,limit=1)
+                        if selection:
+                            pinned=(int(selection[0]['task_id']),)
+                            self._start(lambda:company_autopilot.run_one_approved_model(
+                                self.store,pinned,cancel=self.cancel,
+                                session_token=self._continuity_session_id),after='chief_queue_auto')
             state=company_autopilot.settings(self.store)
             self.monitor_status.set(f"사내 자율 운영 {'켜짐' if state['enabled'] else '꺼짐'} · "
                                     f"{state['interval_seconds']//60}분 주기 · 실행 감사 {state['runs']}건")
