@@ -513,11 +513,33 @@ def staged_plan_progress(store,source_task_id:int)->dict:
         initialize(con);fingerprint,_=_source(store,con,source_task_id)
         chief,model,groups=_staff_roster(con)
         roster_sha=_roster_sha256(chief,model,groups)
-        complete=[start//3+1 for start in range(0,15,3)
+        complete=[]
+        partial=[]
+        for start in range(0,15,3):
+            part=groups[start:start+3]
             if _verified_staged_group(con,source_task_id,start,fingerprint,roster_sha,
-                                      chief,model,groups[start:start+3]) is not None]
+                                      chief,model,part) is not None:
+                complete.append(start//3+1)
+                continue
+            verified_names=[]
+            for department in part:
+                saved=_verified_staged_single(con,source_task_id,start,
+                                               fingerprint,roster_sha,
+                                               chief,model,department)
+                if saved is not None:
+                    verified_names.append(department[1])
+            if verified_names:
+                partial.append({'group_number':start//3+1,
+                                'verified_single_departments':verified_names})
     return {'completed_groups':len(complete),'total_groups':5,
-            'completed_group_numbers':complete,'requires_owner_approval':True}
+            'completed_group_numbers':complete,
+            'partially_completed_groups':partial,
+            'verified_partial_department_count':sum(
+                len(item['verified_single_departments']) for item in partial),
+            'requires_owner_approval':True,
+            'generated_real_model_plan_only':True,
+            'automatic_approval':False,
+            'external_actions_executed':False}
 
 
 def _assert_campaign_plan_matches_genuine_staging(store,con,campaign_id:int)->None:
