@@ -417,7 +417,7 @@ def inspect_final_model_attempt_chain(store, campaign_id: int) -> dict:
             raise ValueError('총괄 최종 보고 감사 대상 협업이 없습니다.')
         chief = campaign[0]
         reports = con.execute('''SELECT id,chief_employee_id,chief_model_call_id,
-                                         evidence_sha256,report_sha256
+                                         evidence_sha256,report_sha256,report_body
                                   FROM aiwack_campaign_final_reports
                                   WHERE campaign_id=?''', (campaign_id,)).fetchall()
         if len(reports) > 1:
@@ -468,9 +468,11 @@ def inspect_final_model_attempt_chain(store, campaign_id: int) -> dict:
     if len(success) > 1:
         raise ValueError('총괄 최종 보고 성공 시도가 중복됐습니다.')
     if reports:
-        report_id,report_chief,report_call,report_seal,report_sha = reports[0]
+        report_id,report_chief,report_call,report_seal,report_sha,report_body = reports[0]
         if (type(report_id) is not int or report_chief != chief
-                or report_seal != seal or success != [(report_call,report_sha)]):
+                or report_seal != seal or not isinstance(report_body,str)
+                or hashlib.sha256(report_body.encode('utf-8')).hexdigest() != report_sha
+                or success != [(report_call,report_sha)]):
             raise ValueError('총괄 최종 보고와 실제 모델 성공 감사 연결 불일치')
         state = 'report_saved'
     elif success:
