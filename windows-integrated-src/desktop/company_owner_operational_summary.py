@@ -146,6 +146,12 @@ def snapshot(store, campaign_id: int, business_id: int | None = None) -> dict:
     sections['approved_local_tools'] = _read_section(tools)
     sections['native_gui_continuity'] = _read_section(
         lambda: continuity.observed_gui_continuity(store))
+    sections['actual_operational_incident_audits'] = _read_section(
+        lambda: store.operational_incident_history(100))
+    sections['department_real_workload'] = _read_section(
+        store.department_workload_snapshot)
+    sections['department_workload_owner_reviews'] = _read_section(
+        lambda: store.department_workload_review_history(100))
 
     sections['customer_case_global_reconciliation'] = _read_section(
         lambda: store.list_customer_cases(100))

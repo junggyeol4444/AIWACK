@@ -52,6 +52,8 @@ class CompanyOwnerWorkflows:
         tabs.add(delivery, text='사업 조사·제작 업무')
         continuity = ttk.Frame(tabs)
         tabs.add(continuity, text='운영 기록 · 중단 복구')
+        operational = ttk.Frame(tabs)
+        tabs.add(operational, text='운영 이상 · 부서 업무량')
         failure_ai = ttk.Frame(tabs)
         tabs.add(failure_ai, text='실패 업무 총괄 AI 원인 분석')
         staff = ttk.Frame(tabs)
@@ -67,6 +69,7 @@ class CompanyOwnerWorkflows:
         self._business_ideas(business)
         self._business_delivery(delivery)
         self._continuity(continuity)
+        self._operational_management(operational)
         self._failure_model_review(failure_ai)
         summary = ttk.Frame(tabs)
         tabs.add(summary, text='전체 운영 원본 통합 조회')
@@ -886,6 +889,76 @@ class CompanyOwnerWorkflows:
         self._perform('관리자 확인 후 중단된 실행 감사 처리',action,
             ('실제 다른 Windows 창과 모델 프로세스가 실행 중이지 않은지 직접 확인한 경우에만 '
              '기존 running 기록을 failed로 표시합니다. 실제 프로세스 종료·모델 재호출은 하지 않습니다. 계속합니까?'))
+
+
+    def _operational_management(self, panel):
+        """SQLite 운영 이상과 부서 업무량을 소유자가 직접 검토하는 스크롤 탭."""
+        canvas = tk.Canvas(panel, highlightthickness=0)
+        scrollbar = ttk.Scrollbar(panel, orient='vertical', command=canvas.yview)
+        canvas.configure(yscrollcommand=scrollbar.set)
+        scrollbar.pack(side='right', fill='y')
+        canvas.pack(side='left', fill='both', expand=True)
+        body = ttk.Frame(canvas)
+        body_window = canvas.create_window((0, 0), window=body, anchor='nw')
+        body.bind('<Configure>', lambda _e: canvas.configure(
+            scrollregion=canvas.bbox('all')))
+        canvas.bind('<Configure>', lambda e: canvas.itemconfigure(
+            body_window, width=e.width))
+        self._field(body, 'incident_id', '운영 이상 감사 번호')
+        self._field(body, 'incident_note', '운영 이상 판단 사유 (5~200자)')
+        self._buttons(body, [
+            ('실제 운영 이상 탐지', lambda: self._perform(
+                'SQLite 운영 중단·검수 지연 근거', self.store.scan_operational_incidents)),
+            ('운영 이상 원본·결정 조회', lambda: self._perform(
+                '운영 이상 변경 불가 감사', lambda: self.store.operational_incident_history(50)))])
+        self._buttons(body, [
+            ('관리자 확인 기록', lambda: self._review_incident('acknowledged')),
+            ('관리자 후속 업무 생성', lambda: self._review_incident('followup')),
+            ('관리자 반려 기록', lambda: self._review_incident('dismissed'))])
+        self._field(body, 'workload_department', '기존 부서 번호')
+        self._field(body, 'workload_proposal', '부서 업무량 제안 번호')
+        self._field(body, 'workload_note', '부서 검토 사유 (5~200자)')
+        self._buttons(body, [
+            ('15부서 실제 업무량 조회', lambda: self._perform(
+                'SQLite 부서·직원·업무 현황', self.store.department_workload_snapshot)),
+            ('관리자 부서 검토 제안', self._propose_workload),
+            ('기존 업무량 제안 이력', lambda: self._perform(
+                '업무량 불변 감사', lambda: self.store.department_workload_review_history(50)))])
+        self._buttons(body, [
+            ('관리자 내부 검토 업무 생성', lambda: self._decide_workload('review_task')),
+            ('관리자 부서 제안 반려', lambda: self._decide_workload('rejected'))])
+        ttk.Label(body, text=(
+            '오래된 실행 기록은 프로세스 종료 증거가 아닙니다. '
+            '직원 이동·AI 재호출·외부 고객 발송·결제·게시를 자동 실행하지 않습니다. '
+            '실제 Windows 24시간 연속 운영 합격도 주장하지 않습니다.'),
+            wraplength=780).pack(anchor='w', padx=12, pady=10)
+
+    def _review_incident(self, decision):
+        label = {'acknowledged': '확인', 'followup': '후속 업무 생성',
+                 'dismissed': '반려'}[decision]
+        self._perform('운영 이상 관리자 ' + label,
+            lambda: self.store.decide_operational_incident(
+                self._id('incident_id'), decision, self._get('incident_note')),
+            '실제 프로세스 상태는 자동 판정하지 않습니다. 기존 원본은 그대로 보존하고 '
+            '관리자 ' + label + '을 기록합니다. 계속합니까?')
+
+    def _propose_workload(self):
+        def action():
+            result = self.store.propose_department_workload_review(
+                self._id('workload_department'), self._get('workload_note'))
+            self.values['workload_proposal'].set(str(result['id']))
+            return result
+        self._perform('실제 부서 업무량 검토 제안', action,
+            '현재 SQLite 배정·직원·검수 기록을 근거로 제안만 저장합니다. '
+            '실제 직원 이동이나 AI 호출은 하지 않습니다. 계속합니까?')
+
+    def _decide_workload(self, decision):
+        label = '내부 검토 업무 생성' if decision == 'review_task' else '반려'
+        self._perform('부서 업무량 관리자 ' + label,
+            lambda: self.store.decide_department_workload_review(
+                self._id('workload_proposal'), decision, self._get('workload_note')),
+            '기존 직원 소속과 모델 설정을 변경하지 않고 관리자 ' +
+            label + '만 기록합니다. 계속합니까?')
 
     def _local_orders(self, panel):
         """기존 정산·은행 CSV·승인 상품·고객지원의 로컬 연결만 관리."""

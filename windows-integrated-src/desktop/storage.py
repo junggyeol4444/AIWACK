@@ -5296,3 +5296,33 @@ class LocalStore:
     def local_finance_evidence_history(self, limit=50):
         from desktop.company_order_finance_receipts import history
         return history(self, limit)
+
+    # 실제 SQLite 운영 이상 탐지·관리자 후속 업무 (모델 재시도/외부 조치 없음).
+    def scan_operational_incidents(self, running_age=1800, review_age=86400, limit=100):
+        from desktop.company_operational_incidents import scan
+        return scan(self, running_age=running_age, review_age=review_age, limit=limit)
+
+    def operational_incident_history(self, limit=50):
+        from desktop.company_operational_incidents import history
+        return history(self, limit)
+
+    def decide_operational_incident(self, incident_id, decision, note):
+        from desktop.company_operational_incidents import decide
+        return decide(self, incident_id, decision, note)
+
+    # 실제 15부서/31직원 등록 현황에 따른 부서별 업무량·개선 업무.
+    def department_workload_snapshot(self):
+        from desktop.company_department_workload import snapshot
+        return snapshot(self)
+
+    def propose_department_workload_review(self, department_id, note):
+        from desktop.company_department_workload import propose
+        return propose(self, department_id, note)
+
+    def decide_department_workload_review(self, proposal_id, decision, note):
+        from desktop.company_department_workload import decide
+        return decide(self, proposal_id, decision, note)
+
+    def department_workload_review_history(self, limit=50):
+        from desktop.company_department_workload import history
+        return history(self, limit)
