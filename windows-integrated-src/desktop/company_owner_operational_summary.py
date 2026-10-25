@@ -124,6 +124,9 @@ def snapshot(store, campaign_id: int, business_id: int | None = None) -> dict:
     # journal as separate observations. An aged lock is NOT a dead subprocess.
     sections['real_chief_final_report_attempt_audit'] = _read_section(
         lambda: final_reports.inspect_final_model_attempt_chain(store,campaign_id))
+    sections['chief_final_format_retry_budget'] = _read_section(
+        lambda: final_reports.remaining_final_report_model_attempts(
+            store, campaign_id))
     sections['final_report_cross_window_leases'] = _read_section(
         lambda: {'locks_for_campaign': [
             lock for lock in final_leases.snapshot(store,100)
