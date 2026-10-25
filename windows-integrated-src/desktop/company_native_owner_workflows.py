@@ -1012,6 +1012,34 @@ class CompanyOwnerWorkflows:
             ('실제 모델·사업 초안 출처 확인',lambda:self._perform(
                 '총괄 GGUF 실제 호출 및 사업 초안 연결 불변 감사',
                 lambda:self.store.list_chief_business_draft_links(limit=100)))])
+        self._buttons(panel,[
+            ('관리자 프로젝트 초안 연결',self._create_model_project_draft),
+            ('관리자 첫 상품 초안 연결',self._create_model_product_draft)])
+        self._buttons(panel,[
+            ('모델 → 사업 → 프로젝트 → 상품 원본 감사',lambda:self._perform(
+                '실제 GGUF 모델 출처·관리자 선택·사업/프로젝트/상품 원본 감사',
+                lambda:self.store.chief_idea_pipeline_history(limit=100)))])
+
+    def _create_model_project_draft(self):
+        self._perform('실제 모델 가설 → 예산 0원 프로젝트 계획 초안',
+            lambda:self.store.create_chief_idea_project_draft(
+                self._id('model_business_idea_id'),
+                self._get('model_project_title'),
+                self._get('model_project_note')),
+            '관리자가 검토 후보 선정과 사업 초안 등록을 마친 실제 GGUF 가설만 '
+            '기존 사업의 예산 0원 계획 프로젝트로 연결합니다. '
+            '모델 자동 실행·실제 지출·판매·게시 없이 계획만 기록합니다. 진행합니까?')
+
+    def _create_model_product_draft(self):
+        self._perform('실제 모델 가설 → 기존 상품 카탈로그 첫 초안',
+            lambda:self.store.create_chief_idea_first_product_draft(
+                self._id('model_business_idea_id'),
+                self._get('model_product_kind'),
+                self._get('model_product_title'),
+                self._get('model_product_delivery')),
+            '관리자가 별도로 검토한 실제 GGUF 사업 가설과 계획 프로젝트에 '
+            '가정 가격 0원의 첫 상품·서비스 초안만 연결합니다. '
+            '실제 상품 완성·게시·결제·매출은 발생하지 않습니다. 진행합니까?')
 
     def _create_business_draft(self):
         self._perform('실제 GGUF 사업 후보 → 예산 0원 로컬 사업 초안',
