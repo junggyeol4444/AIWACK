@@ -138,7 +138,8 @@ class CompanyOwnerWorkflows:
                             or packet['step']['task_status'] != 'in_progress'):
                         raise ValueError('미검수 중단 직원 결과물만 총괄 검토를 복구할 수 있습니다.')
                     recovery_task_id = packet['step']['task_id']
-                    self.store.chief_task_report_context(packet['artifact']['id'])
+                    recovery_artifact_id = packet['artifact']['id']
+                    self.store.chief_task_report_context(recovery_artifact_id)
                 else:
                     gate = self.store.inspect_full_company_resume_gate(campaign_id)
                     if action == 'next':
@@ -168,7 +169,7 @@ class CompanyOwnerWorkflows:
                             source_id, cancel=self._campaign_cancel)
                     elif action == 'recover':
                         packet = self._campaign_review_packet_worker(
-                            campaign_id, recovery_task_id)
+                            campaign_id, recovery_task_id, recovery_artifact_id)
                         from desktop.company_operations import recover_interrupted_chief_review
                         result = recover_interrupted_chief_review(
                             self.store, packet['step']['task_id'],
@@ -249,7 +250,8 @@ class CompanyOwnerWorkflows:
             '승인 시 기존 로컬 SQLite에 선행 순서가 있는 30업무가 등록되며 '
             '실제 모델 실행이나 외부 결제·게시·전송은 시작하지 않습니다. 승인합니까?')
 
-    def _campaign_review_packet_worker(self, campaign_id, task_id):
+    def _campaign_review_packet_worker(self, campaign_id, task_id,
+                                       expected_artifact_id):
         """Worker-safe provenance check: NO Tk variable access from a thread."""
         self.store.require_permission('company:manage')
         plan = self.store.read_full_company_campaign(campaign_id)
@@ -259,7 +261,9 @@ class CompanyOwnerWorkflows:
         if len(steps) != 1 or steps[0]['task_status'] != 'in_progress':
             raise ValueError('총괄 검토 복구 대상 업무 원본이 변경됐습니다.')
         artifacts = self.store.list_task_artifacts(task_id)
-        if len(artifacts) != 1 or artifacts[0]['review_status'] != 'pending':
+        if (len(artifacts) != 1
+                or artifacts[0]['review_status'] != 'pending'
+                or artifacts[0]['id'] != expected_artifact_id):
             raise ValueError('단일 미검수 직원 결과물 원본이 변경됐습니다.')
         if self.store.find_chief_task_report(artifacts[0]['id']) is not None:
             raise ValueError('이미 총괄 모델 검토 보고서가 저장됐습니다.')
