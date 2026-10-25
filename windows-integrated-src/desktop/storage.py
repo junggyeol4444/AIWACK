@@ -4795,6 +4795,11 @@ class LocalStore:
         from desktop.company_campaign_final_report import read
         return read(self, report_id)
 
+    def inspect_campaign_final_model_attempt_chain(self, campaign_id: int) -> dict:
+        """총괄 실제 모델 재시도/최종보고 불변 연결의 읽기 전용 검사."""
+        from desktop.company_campaign_final_report import inspect_final_model_attempt_chain
+        return inspect_final_model_attempt_chain(self, campaign_id)
+
     def decide_campaign_final_report(self, report_id: int, decision: str, reason: str):
         from desktop.company_campaign_final_report import decide
         return decide(self, report_id, decision, reason)
