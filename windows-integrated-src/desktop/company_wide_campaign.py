@@ -124,8 +124,9 @@ def initialize(con):
     single_columns={row[1] for row in con.execute(
         'PRAGMA table_info(aiwack_wide_single_department_staging)')}
     if 'payload_sha256' not in single_columns:
-        con.execute('''ALTER TABLE aiwack_wide_single_department_staging
-            ADD COLUMN payload_sha256 TEXT NOT NULL DEFAULT '' ''')
+        con.execute(
+            "ALTER TABLE aiwack_wide_single_department_staging "
+            "ADD COLUMN payload_sha256 TEXT NOT NULL DEFAULT ''")
     for action in ('UPDATE','DELETE'):
         con.execute(f'''CREATE TRIGGER IF NOT EXISTS aiwack_wide_single_staging_no_{action.lower()}
             BEFORE {action} ON aiwack_wide_single_department_staging
