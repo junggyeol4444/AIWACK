@@ -384,8 +384,30 @@ class CompanyOwnerWorkflows:
         if path:
             self.values['csv'].set(path)
 
+    def _summary_buttons(self, panel, pairs):
+        """Use two bounded columns instead of clipping long Korean Tk labels."""
+        row = ttk.Frame(panel)
+        row.pack(fill='x', padx=12, pady=5)
+        row.columnconfigure(0, weight=1, uniform='owner_actions')
+        row.columnconfigure(1, weight=1, uniform='owner_actions')
+        for index, (label, handler) in enumerate(pairs):
+            ttk.Button(row, text=label, command=handler).grid(
+                row=index // 2, column=index % 2, sticky='ew', padx=3, pady=3)
+
     def _operations_summary(self,panel):
-        """기존 실제 총괄/직원/관리자/금융 원본의 읽기 전용 연결."""
+        """Native scrollable 30-task workflow; other original tabs unchanged."""
+        canvas = tk.Canvas(panel, highlightthickness=0, borderwidth=0)
+        scrollbar = ttk.Scrollbar(panel, orient='vertical', command=canvas.yview)
+        canvas.configure(yscrollcommand=scrollbar.set)
+        canvas.pack(side='left', fill='both', expand=True)
+        scrollbar.pack(side='right', fill='y')
+        content = ttk.Frame(canvas)
+        item = canvas.create_window((0, 0), window=content, anchor='nw')
+        content.bind('<Configure>', lambda event:
+            canvas.configure(scrollregion=canvas.bbox('all')))
+        canvas.bind('<Configure>', lambda event:
+            canvas.itemconfigure(item, width=event.width))
+        panel = content
         self._field(panel,'summary_source_task','원본 기준 업무 번호 (초안 생성)')
         self._field(panel,'summary_campaign','30업무 협업 번호')
         self._field(panel,'summary_artifact','직원 실제 결과물 번호')
@@ -394,7 +416,7 @@ class CompanyOwnerWorkflows:
         self._field(panel,'summary_business','사업 번호 (선택)')
         self._field(panel,'summary_final_report','총괄 최종보고 번호')
         self._field(panel,'summary_final_reason','관리자 최종 검토 사유 (5~200자)')
-        self._buttons(panel,[
+        self._summary_buttons(panel,[
             ('전체 실제 운영 원본 재조회',lambda:self._perform(
                 '총괄 5그룹·30업무·최종 승인·결제/은행/조직 원본',
                 self._read_operations_summary)),
@@ -424,7 +446,7 @@ class CompanyOwnerWorkflows:
                     self._id('summary_campaign')))),
             ('5그룹 총괄 호출 불변 출처',lambda:self._perform(
                 '실제 총괄 5그룹 호출 원본·SHA256',self._read_plan_provenance))])
-        self._buttons(panel,[
+        self._summary_buttons(panel,[
             ('총괄 실제 GGUF 5그룹·30업무 초안 생성',lambda:self._start_real_model_action(
                 '총괄 실제 GGUF 30업무 초안 생성', 'plan',
                 '총괄 AI가 실제 로컬 GGUF를 호출해 15부서 31AI의 30업무 초안을 구성합니다. '
@@ -439,7 +461,7 @@ class CompanyOwnerWorkflows:
                 lambda:self.store.read_full_company_campaign(
                     self._id('summary_campaign')))),
             ('관리자 30업무 전체 초안 승인',self._approve_full_campaign)])
-        self._buttons(panel,[
+        self._summary_buttons(panel,[
             ('실제 30업무 승인·진행 현황',lambda:self._perform(
                 '15부서 30업무 직원·총괄·관리자 승인 진행 원본',
                 lambda:self.store.verified_full_company_progress(
@@ -452,14 +474,14 @@ class CompanyOwnerWorkflows:
                 '총괄 실제 GGUF 최종보고 생성', 'final',
                 '30업무 전부의 실제 호출·승인 원본을 재검사하고 총괄 모델 보고를 생성합니다. '
                 '자동 최종 승인은 하지 않습니다. 진행합니까?'))])
-        self._buttons(panel,[
+        self._summary_buttons(panel,[
             ('30업무 직원 결과물·총괄 원문 검토',lambda:self._perform(
                 '실제 직원 산출물과 총괄 모델 원문 SHA256 연결 (읽기 전용)',
                 self._campaign_review_packet)),
             ('직원 결과물 승인',lambda:self._review_campaign_artifact('approved')),
             ('직원 결과물 수정 요청',lambda:self._review_campaign_artifact('changes_requested')),
             ('직원 결과물 반려',lambda:self._review_campaign_artifact('rejected'))])
-        self._buttons(panel,[
+        self._summary_buttons(panel,[
             ('총괄 실제 GGUF 보고 수락',lambda:self._review_campaign_chief('accepted')),
             ('총괄 실제 GGUF 보고 반려',lambda:self._review_campaign_chief('rejected')),
             ('승인된 한 업무 완료 확정',self._finalize_campaign_artifact),
@@ -468,7 +490,7 @@ class CompanyOwnerWorkflows:
                 '기존 성공 직원 결과물을 다시 실행하지 않고, 실제 총괄 모델 검토가 '
                 '누락된 한 업무만 복구합니다. 자동 승인·업무 완료·외부 거래는 없습니다. '
                 '진행합니까?'))])
-        self._buttons(panel,[
+        self._summary_buttons(panel,[
             ('진행 중 GGUF 작업 취소 요청',self._cancel_real_model_action),
             ('총괄 최종보고 원본 조회',lambda:self._perform(
                 '총괄 최종보고 및 모델 호출 증빙',
