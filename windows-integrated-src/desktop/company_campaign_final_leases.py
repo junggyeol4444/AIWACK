@@ -13,6 +13,10 @@ from desktop.stage87_90_management import stopped
 
 
 def initialize(con) -> None:
+    # Existing final-report and 30-task tables may not have been opened yet.
+    # This only creates missing tables/triggers; it never modifies saved rows.
+    from desktop import company_campaign_final_report as final_reports
+    final_reports.initialize(con)
     con.execute('''CREATE TABLE IF NOT EXISTS aiwack_campaign_final_leases(
         campaign_id INTEGER PRIMARY KEY REFERENCES aiwack_wide_campaigns(id),
         chief_employee_id INTEGER NOT NULL REFERENCES ai_employee_profiles(id),
