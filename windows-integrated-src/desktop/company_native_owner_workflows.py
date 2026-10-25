@@ -130,6 +130,10 @@ class CompanyOwnerWorkflows:
                 '실제 승인·모델 실행 이력 및 중복 실행 방지',
                 lambda:self.store.inspect_full_company_resume_gate(
                     self._id('summary_campaign')))),
+            ('총괄 최종보고 실제 모델 재시도 감사',lambda:self._perform(
+                '30업무 승인 증빙과 실제 총괄 GGUF 호출·실패·최종 보고 연결 (읽기 전용)',
+                lambda:self.store.inspect_campaign_final_model_attempt_chain(
+                    self._id('summary_campaign')))),
             ('5그룹 총괄 호출 불변 출처',lambda:self._perform(
                 '실제 총괄 5그룹 호출 원본·SHA256',self._read_plan_provenance))])
         ttk.Label(panel,text=('현재 SQLite와 로컬 승인 파일의 원본만 조회합니다. '
