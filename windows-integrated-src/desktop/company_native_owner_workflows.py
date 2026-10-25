@@ -39,6 +39,8 @@ class CompanyOwnerWorkflows:
         product = ttk.Frame(tabs)
         payment = ttk.Frame(tabs)
         tabs.add(payment, text='결제·취소·환불 서명 증빙')
+        orders = ttk.Frame(tabs)
+        tabs.add(orders, text='주문·환불·고객지원 로컬 연결')
         tabs.add(bank, text='은행 CSV · 사업 결산')
         tabs.add(customer, text='고객 문의 · 승인 답변')
         tabs.add(product, text='30업무 · 상품 결과물')
@@ -55,6 +57,7 @@ class CompanyOwnerWorkflows:
         tabs.add(staff, text='실제 직원 평가 · 조직 개편')
         tabs.add(tools, text='승인된 실제 로컬 도구')
         self._payment(payment)
+        self._local_orders(orders)
         self._bank(bank)
         self._customer(customer)
         self._product(product)
@@ -880,6 +883,65 @@ class CompanyOwnerWorkflows:
         self._perform('관리자 확인 후 중단된 실행 감사 처리',action,
             ('실제 다른 Windows 창과 모델 프로세스가 실행 중이지 않은지 직접 확인한 경우에만 '
              '기존 running 기록을 failed로 표시합니다. 실제 프로세스 종료·모델 재호출은 하지 않습니다. 계속합니까?'))
+
+    def _local_orders(self, panel):
+        """기존 정산·은행 CSV·승인 상품·고객지원의 로컬 연결만 관리."""
+        for key,label in [
+            ('local_order_ref','로컬 주문 고유 번호'),
+            ('local_order_alias','고객 별칭 (고객 문의와 동일)'),
+            ('local_order_payment','관리자 승인 정산 이벤트 ID'),
+            ('local_order_document','승인 상품 문서 ID'),
+            ('local_order_id','기존 로컬 주문 ID'),
+            ('local_order_note','관리자 사유 5~200자'),
+            ('local_order_refund','관리자 승인 환불 이벤트 ID'),
+            ('local_order_case','기존 고객 문의 ID')]:
+            self._field(panel,key,label)
+        self._buttons(panel,[
+            ('정산·은행·상품 연결 주문 기록',self._create_local_order),
+            ('기존 주문·원본 파일 감사',lambda:self._perform(
+                '주문·상품·정산 원본 감사',
+                lambda:self.store.read_local_order(self._id('local_order_id')))),
+            ('로컬 주문 최근 50건',lambda:self._perform(
+                '주문 원본 목록',lambda:self.store.list_local_orders(50)))])
+        self._buttons(panel,[
+            ('로컬 상품 제공 준비 승인',lambda:self._perform(
+                '관리자 로컬 상품 준비 승인',
+                lambda:self.store.approve_local_order_package(
+                    self._id('local_order_id'),self._get('local_order_note')),
+                '실제 고객에게 전송하지 않고 로컬 상품 제공 준비만 승인합니까?')),
+            ('취소 요청 기록',lambda:self._perform(
+                '로컬 취소 요청 감사',
+                lambda:self.store.request_local_order_cancel(
+                    self._id('local_order_id'),self._get('local_order_note')),
+                '외부 PG 취소 요청 없이 내부 취소 요청 기록만 남깁니까?')),
+            ('환불 증빙 연결',lambda:self._perform(
+                '승인·은행 대사 환불 증빙 연결',
+                lambda:self.store.link_local_order_refund(
+                    self._id('local_order_id'),self._id('local_order_refund'),
+                    self._get('local_order_note')),
+                '기존 환불 서명·CSV 대사만 연결합니다. 실제 환불은 실행하지 않습니다. 계속합니까?'))])
+        self._buttons(panel,[
+            ('기존 고객지원 문의 연결',lambda:self._perform(
+                '주문과 고객지원 업무 연결',
+                lambda:self.store.link_local_order_customer_case(
+                    self._id('local_order_id'),self._id('local_order_case')),
+                '동일 고객 별칭·상품의 기존 문의만 연결하고 고객에게 발송하지 않습니다. 계속합니까?')),
+            ('주문별 고객지원 감사',lambda:self._perform(
+                '주문별 고객지원 원본',
+                lambda:self.store.read_local_order_customer_cases(self._id('local_order_id'))))])
+        ttk.Label(panel,text=('이 탭은 기존 HMAC 서명·소유자 CSV·실제 승인 직원 문서의 로컬 감사 연결입니다. '
+            '외부 PG/은행 독립 확인, 실제 주문 접수·결제·환불·고객 배송·매출 확정이 아닙니다.'),
+            wraplength=850).pack(padx=12,pady=12)
+
+    def _create_local_order(self):
+        def work():
+            result=self.store.create_local_order_intake(
+                self._get('local_order_ref'),self._get('local_order_alias'),
+                self._id('local_order_payment'),self._id('local_order_document'))
+            self.values['local_order_id'].set(str(result['id']))
+            return result
+        self._perform('기존 거래·상품 문서 로컬 주문 연결',work,
+            '실제 주문·결제·배송을 실행하지 않고 관리자 선택 원본을 연결합니까?')
 
     def _payment(self, panel):
         """Only ingest pre-existing signed evidence; never initiate a payment."""

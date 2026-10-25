@@ -4997,6 +4997,38 @@ class LocalStore:
         from desktop.company_campaign_owner_dossier import export
         return export(self, report_id)
 
+    def create_local_order_intake(self, order_ref, customer_alias, payment_event_id, document_id):
+        from desktop.company_local_order_fulfillment import create
+        return create(self, order_ref, customer_alias, payment_event_id, document_id)
+
+    def approve_local_order_package(self, order_id, note):
+        from desktop.company_local_order_fulfillment import approve_local_package
+        return approve_local_package(self, order_id, note)
+
+    def request_local_order_cancel(self, order_id, note):
+        from desktop.company_local_order_fulfillment import request_cancel
+        return request_cancel(self, order_id, note)
+
+    def link_local_order_refund(self, order_id, refund_event_id, note):
+        from desktop.company_local_order_fulfillment import link_refund
+        return link_refund(self, order_id, refund_event_id, note)
+
+    def read_local_order(self, order_id):
+        from desktop.company_local_order_fulfillment import read
+        return read(self, order_id)
+
+    def list_local_orders(self, limit=50):
+        from desktop.company_local_order_fulfillment import list_orders
+        return list_orders(self, limit)
+
+    def link_local_order_customer_case(self, order_id, case_id):
+        from desktop.company_order_support import link_case
+        return link_case(self, order_id, case_id)
+
+    def read_local_order_customer_cases(self, order_id):
+        from desktop.company_order_support import read
+        return read(self, order_id)
+
     def read_owner_approved_final_dossier(self, dossier_id: int) -> dict:
         from desktop.company_campaign_owner_dossier import read
         return read(self, dossier_id)
