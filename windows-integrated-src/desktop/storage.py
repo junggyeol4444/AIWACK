@@ -3943,6 +3943,16 @@ class LocalStore:
         from desktop.company_business_ideas_model import decide
         return decide(self,idea_id,decision,reason)
 
+    def create_chief_business_draft(self, idea_id: int, name: str) -> dict:
+        self.require_permission('company:manage')
+        from desktop.company_business_ideas_model import create_owner_approved_business_draft
+        return create_owner_approved_business_draft(self,idea_id,name)
+
+    def list_chief_business_draft_links(self, *, limit: int=100) -> list[dict]:
+        self.require_permission('company:manage')
+        from desktop.company_business_ideas_model import list_business_draft_links
+        return list_business_draft_links(self,limit=limit)
+
     # Stage62: offline candidate hypotheses from administrator-provided assumptions.
     def generate_business_candidates(self, audience: str, problem: str,
                                      max_candidates: int = 8) -> dict:
