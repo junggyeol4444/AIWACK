@@ -3124,6 +3124,13 @@ class LocalStore:
             con.execute('BEGIN IMMEDIATE')
             return dispatch(con, int(time.time()) if now is None else now)
 
+    def list_recurring_skipped_windows(self, *, limit: int = 100) -> list[dict[str, object]]:
+        """정기 업무 재시작 때 실행되지 않은 주기 구간을 원본 그대로 조회."""
+        self.require_permission('company:manage')
+        from desktop.recurring_scheduler import skipped_windows
+        with self._connect() as con:
+            return skipped_windows(con, limit=limit)
+
     def list_recurring_occurrences(self) -> list[dict[str, object]]:
         self.require_permission('company:manage')
         with self._connect() as con:
