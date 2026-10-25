@@ -99,9 +99,9 @@ def test_worker_recovery_does_not_touch_tk_fields_and_refuses_existing_report():
     store = FakeStore()
     ui = _controller(store)
     with pytest.raises(ValueError, match='이미 총괄'):
-        ui._campaign_review_packet_worker(7, 301)
+        ui._campaign_review_packet_worker(7, 301, 91)
     store.report = None
-    packet = ui._campaign_review_packet_worker(7, 301)
+    packet = ui._campaign_review_packet_worker(7, 301, 91)
     assert packet['artifact_id'] == 91
     assert store.chief_context_count == 1
     assert packet['step']['ordinal'] == 1
@@ -112,4 +112,11 @@ def test_worker_recovery_rejects_changed_task_status():
     store.report = None
     store.plan['steps'][0]['task_status'] = 'done'
     with pytest.raises(ValueError, match='원본이 변경'):
-        _controller(store)._campaign_review_packet_worker(7, 301)
+        _controller(store)._campaign_review_packet_worker(7, 301, 91)
+
+
+def test_worker_recovery_refuses_artifact_swapped_after_owner_confirmation():
+    store = FakeStore()
+    store.report = None
+    with pytest.raises(ValueError, match='원본이 변경'):
+        _controller(store)._campaign_review_packet_worker(7, 301, 999)
