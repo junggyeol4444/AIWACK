@@ -652,6 +652,64 @@ def staged_plan_progress(store,source_task_id:int)->dict:
             'external_actions_executed':False}
 
 
+
+def genuine_chief_retry_progress(store, source_task_id: int) -> dict:
+    """Owner-only read of remaining REAL chief plan format retries.
+
+    Includes both the 3-department and each individual department budget.
+    Does not invoke models, create tasks, clear locks, or approve proposals.
+    """
+    store.require_permission('company:manage')
+    if type(source_task_id) is not int or source_task_id <= 0:
+        raise ValueError('총괄 모델 재시도 현황의 원본 업무 번호 오류')
+    with store._connect() as con:
+        initialize(con)
+        fingerprint,_ = _source(store,con,source_task_id)
+        chief,model,groups = _staff_roster(con)
+        roster_sha = _roster_sha256(chief,model,groups)
+        complete = set()
+        staged = set()
+        for start in range(0,15,3):
+            part=groups[start:start+3]
+            if _verified_staged_group(con,source_task_id,start,fingerprint,
+                                      roster_sha,chief,model,part) is not None:
+                complete.add(start)
+                continue
+            for dept in part:
+                if _verified_staged_single(con,source_task_id,start,fingerprint,
+                                           roster_sha,chief,model,dept) is not None:
+                    staged.add((start,dept[1]))
+    result=[]
+    for start in range(0,15,3):
+        part=groups[start:start+3]
+        if start in complete:
+            result.append({'group_number':start//3+1,
+                           'staging_verified':True,
+                           'model_reinvoked':False})
+            continue
+        names=[name for _,name,_,_ in part]
+        group_budget=_genuine_chief_format_retry_budget(
+            store,source_task_id,chief,model,names,'three_departments')
+        singles=[]
+        for name in names:
+            if (start,name) in staged:
+                singles.append({'department':name,'staging_verified':True,
+                                'model_reinvoked':False})
+            else:
+                singles.append(_genuine_chief_format_retry_budget(
+                    store,source_task_id,chief,model,[name],'single_department'))
+        result.append({'group_number':start//3+1,'staging_verified':False,
+                       'group_retry_budget':group_budget,
+                       'single_department_retry_budgets':singles,
+                       'model_reinvoked':False})
+    return {'source_task_id':source_task_id,'chief_employee_id':chief,
+            'total_groups':5,'group_statuses':result,
+            'read_only':True,'model_reinvoked':False,
+            'owner_approval_bypassed':False,
+            'actual_gguf_binary_verified':False}
+
+
+
 def _assert_campaign_plan_matches_genuine_staging(store,con,campaign_id:int)->None:
     plan=con.execute('''SELECT source_task_id,source_fingerprint,chief_employee_id,state
         FROM aiwack_wide_campaigns WHERE id=?''',(campaign_id,)).fetchone()
