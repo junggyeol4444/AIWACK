@@ -99,6 +99,28 @@ def initialize(con):
         con.execute(f'''CREATE TRIGGER IF NOT EXISTS aiwack_wide_staging_no_{action.lower()}
             BEFORE {action} ON aiwack_wide_chief_group_staging
             BEGIN SELECT RAISE(ABORT,'실제 모델 계획 단계별 감사 변경·삭제 금지'); END''')
+    # A verified REAL single-department completion is crash durable, even if
+    # the other two responses in its group are not ready. No model text is invented.
+    con.execute('''CREATE TABLE IF NOT EXISTS aiwack_wide_single_department_staging (
+        source_task_id INTEGER NOT NULL REFERENCES company_tasks(id),
+        group_start INTEGER NOT NULL CHECK(group_start IN (0,3,6,9,12)),
+        department_name TEXT NOT NULL,
+        department_id INTEGER NOT NULL REFERENCES company_departments(id),
+        manager_id INTEGER NOT NULL REFERENCES ai_employee_profiles(id),
+        staff_id INTEGER NOT NULL REFERENCES ai_employee_profiles(id),
+        source_fingerprint TEXT NOT NULL,
+        roster_sha256 TEXT NOT NULL,
+        chief_employee_id INTEGER NOT NULL REFERENCES ai_employee_profiles(id),
+        chief_model_id INTEGER NOT NULL,
+        title TEXT NOT NULL,
+        instruction TEXT NOT NULL,
+        model_call_id INTEGER NOT NULL UNIQUE REFERENCES ai_model_call_history(id),
+        created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        PRIMARY KEY(source_task_id,group_start,department_name))''')
+    for action in ('UPDATE','DELETE'):
+        con.execute(f'''CREATE TRIGGER IF NOT EXISTS aiwack_wide_single_staging_no_{action.lower()}
+            BEFORE {action} ON aiwack_wide_single_department_staging
+            BEGIN SELECT RAISE(ABORT,'실제 총괄 단일 부서 계획 단계 변경·삭제 금지'); END''')
     cols={row[1] for row in con.execute('PRAGMA table_info(aiwack_wide_campaign_steps)')}
     if 'plan_sha256' not in cols:
         con.execute("ALTER TABLE aiwack_wide_campaign_steps ADD COLUMN plan_sha256 TEXT NOT NULL DEFAULT ''")
@@ -375,6 +397,85 @@ def _verified_staged_group(con,source_task_id,start,fingerprint,roster_sha,
             raise ValueError('해당 부서 실제 모델 호출의 단계별 부서 목록·원본 감사 불일치')
         parsed[name]=(title,instruction);calls[name]=call_id
     return parsed,calls
+
+
+def _verified_staged_single(con, source_id, start, fingerprint, roster_sha,
+                            chief, model, department):
+    """Reuse only one immutable genuine chief completion for this exact roster."""
+    dept,name,manager,staff=department
+    row=con.execute('''SELECT department_id,manager_id,staff_id,source_fingerprint,
+        roster_sha256,chief_employee_id,chief_model_id,title,instruction,model_call_id
+        FROM aiwack_wide_single_department_staging
+        WHERE source_task_id=? AND group_start=? AND department_name=?''',
+        (source_id,start,name)).fetchone()
+    if row is None:return None
+    if tuple(row[:7])!=(dept,manager,staff,fingerprint,roster_sha,chief,model):
+        raise ValueError('단일 부서 중단 계획의 업무·직원·모델 원본 불일치')
+    title,instruction,call_id=row[7:]
+    if (type(title) is not str or type(instruction) is not str
+            or not 1<=len(title)<=65 or not 14<=len(instruction)<=330
+            or title!=title.strip() or instruction!=instruction.strip()
+            or any(ord(char)<32 for char in title+instruction)
+            or type(call_id) is not int or call_id<=0):
+        raise ValueError('단일 부서 성공 모델 응답 원본 손상')
+    actual=con.execute('''SELECT employee_id,model_id,status,output_chars
+        FROM ai_model_call_history WHERE id=?''',(call_id,)).fetchone()
+    audit=con.execute('''SELECT source_task_id,chief_employee_id,department_names,
+        attempt_kind,parsed,output_chars,output_sha256 FROM aiwack_wide_chief_plan_attempts
+        WHERE model_call_id=?''',(call_id,)).fetchone()
+    if (actual is None or tuple(actual[:3])!=(chief,model,'success')
+            or type(actual[3]) is not int or actual[3]<=0
+            or audit is None or tuple(audit[:5])!=(source_id,chief,name,'single_department',1)
+            or type(audit[5]) is not int or audit[5]!=actual[3]
+            or type(audit[6]) is not str or len(audit[6])!=64
+            or any(c not in '0123456789abcdef' for c in audit[6])
+            or con.execute('''SELECT 1 FROM aiwack_wide_chief_rejected_attempts
+                              WHERE model_call_id=?''',(call_id,)).fetchone()):
+        raise ValueError('단일 부서 성공 모델 호출의 실제 감사 원본 불일치')
+    return title,instruction,call_id
+
+
+def _save_staged_single(store,source_id,start,fingerprint,roster_sha,
+                        chief,model,groups,department,title,instruction,call_id):
+    """Persist one actual parsed model result; stop on a concurrent writer."""
+    dept,name,manager,staff=department
+    with store._connect() as con:
+        con.execute('BEGIN IMMEDIATE');initialize(con)
+        if stopped(con):raise PermissionError('비상정지 중 단일 부서 계획 저장 금지')
+        fp,_=_source(store,con,source_id)
+        current,model_id,members=_staff_roster(con)
+        if (fp!=fingerprint or current!=chief or model_id!=model
+                or members!=groups or _roster_sha256(current,model_id,members)!=roster_sha):
+            raise ValueError('단일 부서 계획 실행 중 원본 업무·조직·모델 변경')
+        if con.execute('''SELECT 1 FROM aiwack_wide_campaigns
+                          WHERE source_task_id=? AND state IN ('draft','approved')''',
+                       (source_id,)).fetchone():
+            raise ValueError('다른 관리자 창에서 이미 전체 계획을 생성했습니다.')
+        if _verified_staged_single(con,source_id,start,fingerprint,roster_sha,
+                                  chief,model,department) is not None:
+            raise ValueError('다른 창에서 같은 단일 부서 계획을 먼저 저장했습니다.')
+        # All call provenance is verified BEFORE inserting the checkpoint.
+        audit=con.execute('''SELECT employee_id,model_id,status,output_chars
+                             FROM ai_model_call_history WHERE id=?''',(call_id,)).fetchone()
+        proof=con.execute('''SELECT source_task_id,chief_employee_id,department_names,
+             attempt_kind,parsed,output_chars,output_sha256 FROM aiwack_wide_chief_plan_attempts
+             WHERE model_call_id=?''',(call_id,)).fetchone()
+        if (audit is None or tuple(audit[:3])!=(chief,model,'success')
+                or type(audit[3]) is not int or audit[3]<=0
+                or proof is None
+                or tuple(proof[:5])!=(source_id,chief,name,'single_department',1)
+                or type(proof[5]) is not int or proof[5]!=audit[3]
+                or type(proof[6]) is not str or len(proof[6])!=64
+                or any(c not in '0123456789abcdef' for c in proof[6])):
+            raise ValueError('단일 부서 임시 저장의 실제 모델 호출·출처 감사 누락')
+        con.execute('''INSERT INTO aiwack_wide_single_department_staging
+            (source_task_id,group_start,department_name,department_id,manager_id,
+             staff_id,source_fingerprint,roster_sha256,chief_employee_id,chief_model_id,
+             title,instruction,model_call_id) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)''',
+            (source_id,start,name,dept,manager,staff,fingerprint,roster_sha,
+             chief,model,title,instruction,call_id))
+        _verified_staged_single(con,source_id,start,fingerprint,roster_sha,
+                                chief,model,department)
 
 
 def _save_staged_group(store,source_id,start,fingerprint,roster_sha,chief,
@@ -705,9 +806,17 @@ def propose(store,source_task_id:int,*,cancel:threading.Event|None=None):
             initialize(con)
             recovered=_verified_staged_group(con,source_task_id,start,fingerprint,
                                                roster_sha,chief,chief_model,part)
+        partial={}
         if recovered is None:
             parsed=None
             calls={}
+            with store._connect() as con:
+                initialize(con)
+                for department in part:
+                    single=_verified_staged_single(con,source_task_id,start,fingerprint,
+                                                   roster_sha,chief,chief_model,department)
+                    if single is not None:
+                        partial[department[1]]=single
         else:
             parsed,calls=recovered
         prompt=('당신은 기존 Windows 로컬 회사의 총괄 AI입니다. 실제 작업을 수행할 3개 부서를 위한 '
@@ -718,7 +827,7 @@ def propose(store,source_task_id:int,*,cancel:threading.Event|None=None):
                 '담당 부서: '+', '.join(name for _,name,_,_ in part))
         # Strictly bounded, auditable real-model retries for invalid output format.
         # Do not synthesize, guess or auto-approve a malformed department plan.
-        for attempt in range(3 if recovered is None else 0):
+        for attempt in range(3 if recovered is None and not partial else 0):
             if cancel is not None and cancel.is_set():
                 raise InterruptedError('취소된 총괄 재호출은 실행하지 않습니다.')
             assert_running_allowed(store)
@@ -747,6 +856,11 @@ def propose(store,source_task_id:int,*,cancel:threading.Event|None=None):
             parsed={}
             calls={}
             for dept,name,manager,staff in part:
+                previous=partial.get(name)
+                if previous is not None:
+                    parsed[name]=previous[:2]
+                    calls[name]=previous[2]
+                    continue
                 one_prompt=(f'Write one specific, practical task instruction for department {name}. '
                             '당신은 기존 Windows 로컬 회사의 총괄 AI입니다. '
                             '반드시 해당 부서만 담당하는 실행 가능한 작업을 작성하세요. '
@@ -781,15 +895,22 @@ def propose(store,source_task_id:int,*,cancel:threading.Event|None=None):
                     if cancel is not None and cancel.is_set():
                         raise InterruptedError('취소된 단일 부서 계획은 저장하지 않습니다.')
                     try:
-                        parsed[name]=_parse_single_chief_completion(answer,retry_prompt,name)
+                        generated=_parse_single_chief_completion(answer,retry_prompt,name)
                         _audit_chief_plan(store,source_task_id,chief,solo_call,
                                           [name],'single_department',True,answer,prompt=retry_prompt)
-                        calls[name]=int(solo_call)
-                        break
                     except ValueError as exc:
                         _audit_chief_plan(store,source_task_id,chief,solo_call,
                                           [name],'single_department',False,answer,exc,prompt=retry_prompt)
                         continue
+                    # Saving a successful genuine call is NOT a parse failure.
+                    # A DB conflict or changed roster must stop the run, not
+                    # retry the model or falsify a failed-call audit.
+                    _save_staged_single(store,source_task_id,start,fingerprint,
+                                        roster_sha,chief,chief_model,groups,
+                                        (dept,name,manager,staff),*generated,int(solo_call))
+                    parsed[name]=generated
+                    calls[name]=int(solo_call)
+                    break
                 else:
                     raise ValueError('실제 총괄 모델의 3부서 계획이 세 번 연속 실패하고 단일 부서 재계획도 실패했습니다.')
         if recovered is None:
