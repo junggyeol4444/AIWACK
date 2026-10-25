@@ -7,6 +7,7 @@ an authenticated owner's deliberate click and the existing LocalStore guards.
 from __future__ import annotations
 
 import json
+import hashlib
 import queue
 import threading
 from pathlib import Path
@@ -19,7 +20,7 @@ class CompanyOwnerWorkflows:
         store.require_permission('company:manage')
         self.store = store
         self.window = tk.Toplevel(parent)
-        self.window.title('AIWACK | 고객·상품·은행 대사·기간 결산')
+        self.window.title('AIWACK | 30업무·직원 검수·고객·상품·은행 대사')
         self.window.geometry('950x730')
         self.window.minsize(750, 590)
         self.values = {}
@@ -126,19 +127,29 @@ class CompanyOwnerWorkflows:
                 self.store.require_permission('agents:manage')
                 source_id = self._id('summary_source_task')
                 campaign_id = None
-            elif action in ('next', 'final'):
+            elif action in ('next', 'final', 'recover'):
                 campaign_id = self._id('summary_campaign')
                 source_id = None
-                gate = self.store.inspect_full_company_resume_gate(campaign_id)
-                if action == 'next':
-                    if gate.get('state') != 'ready':
-                        raise ValueError('30업무 재개 원본 검사 거부: ' + str(gate.get('reason')))
+                if action == 'recover':
+                    packet = self._campaign_review_packet()
+                    if packet['chief_report'] is not None:
+                        raise ValueError('이미 총괄 모델 검토가 저장된 결과물입니다.')
+                    if (packet['artifact']['review_status'] != 'pending'
+                            or packet['step']['task_status'] != 'in_progress'):
+                        raise ValueError('미검수 중단 직원 결과물만 총괄 검토를 복구할 수 있습니다.')
+                    recovery_task_id = packet['step']['task_id']
+                    self.store.chief_task_report_context(packet['artifact']['id'])
                 else:
-                    if gate.get('state') != 'completed':
-                        raise ValueError('30업무 완료 증빙 확인 전 최종 보고 생성 금지: ' +
-                                         str(gate.get('reason')))
-                    if self.store.find_campaign_final_report(campaign_id) is not None:
-                        raise ValueError('이미 존재하는 최종 보고를 중복 생성하지 않습니다.')
+                    gate = self.store.inspect_full_company_resume_gate(campaign_id)
+                    if action == 'next':
+                        if gate.get('state') != 'ready':
+                            raise ValueError('30업무 재개 원본 검사 거부: ' + str(gate.get('reason')))
+                    else:
+                        if gate.get('state') != 'completed':
+                            raise ValueError('30업무 완료 증빙 확인 전 최종 보고 생성 금지: ' +
+                                             str(gate.get('reason')))
+                        if self.store.find_campaign_final_report(campaign_id) is not None:
+                            raise ValueError('이미 존재하는 최종 보고를 중복 생성하지 않습니다.')
             else:
                 raise ValueError('지원하지 않는 실제 모델 실행 요청')
             if not messagebox.askyesno('AIWACK | 관리자 직접 실행', approval, parent=self.window):
@@ -155,6 +166,13 @@ class CompanyOwnerWorkflows:
                         self.store.require_permission('agents:manage')
                         result = self.store.propose_full_company_campaign(
                             source_id, cancel=self._campaign_cancel)
+                    elif action == 'recover':
+                        packet = self._campaign_review_packet_worker(
+                            campaign_id, recovery_task_id)
+                        from desktop.company_operations import recover_interrupted_chief_review
+                        result = recover_interrupted_chief_review(
+                            self.store, packet['step']['task_id'],
+                            cancel=self._campaign_cancel)
                     else:
                         # Recheck the source after confirmation, before execution.
                         fresh = self.store.inspect_full_company_resume_gate(campaign_id)
@@ -194,9 +212,21 @@ class CompanyOwnerWorkflows:
             self.window.destroy()
             return
         if status == 'ok':
-            if title == '총괄 실제 GGUF 30업무 초안 생성' and isinstance(payload, dict):
-                if type(payload.get('id')) is int and payload['id'] > 0:
-                    self.values['summary_campaign'].set(str(payload['id']))
+            if isinstance(payload, dict):
+                if title == '총괄 실제 GGUF 30업무 초안 생성':
+                    if type(payload.get('id')) is int and payload['id'] > 0:
+                        self.values['summary_campaign'].set(str(payload['id']))
+                if title in ('30업무 다음 한 단계 실제 실행',
+                             '중단 직원 결과물 총괄 실제 GGUF 검토 복구'):
+                    work = payload.get('work', payload)
+                    if isinstance(work, dict):
+                        for field, key in (('summary_artifact', 'artifact_id'),
+                                           ('summary_report', 'report_id')):
+                            if type(work.get(key)) is int and work[key] > 0:
+                                self.values[field].set(str(work[key]))
+                if title == '총괄 실제 GGUF 최종보고 생성':
+                    if type(payload.get('id')) is int and payload['id'] > 0:
+                        self.values['summary_final_report'].set(str(payload['id']))
             self._display(title + ' — SQLite 결과 (실기 전체 검증과 별개)', payload)
         else:
             self.notice.set(title + ' 실패: ' + payload)
@@ -219,6 +249,125 @@ class CompanyOwnerWorkflows:
             '승인 시 기존 로컬 SQLite에 선행 순서가 있는 30업무가 등록되며 '
             '실제 모델 실행이나 외부 결제·게시·전송은 시작하지 않습니다. 승인합니까?')
 
+    def _campaign_review_packet_worker(self, campaign_id, task_id):
+        """Worker-safe provenance check: NO Tk variable access from a thread."""
+        self.store.require_permission('company:manage')
+        plan = self.store.read_full_company_campaign(campaign_id)
+        if plan['state'] != 'approved':
+            raise ValueError('총괄 검토 복구 시 승인 계획이 변경됐습니다.')
+        steps = [s for s in plan['steps'] if s['task_id'] == task_id]
+        if len(steps) != 1 or steps[0]['task_status'] != 'in_progress':
+            raise ValueError('총괄 검토 복구 대상 업무 원본이 변경됐습니다.')
+        artifacts = self.store.list_task_artifacts(task_id)
+        if len(artifacts) != 1 or artifacts[0]['review_status'] != 'pending':
+            raise ValueError('단일 미검수 직원 결과물 원본이 변경됐습니다.')
+        if self.store.find_chief_task_report(artifacts[0]['id']) is not None:
+            raise ValueError('이미 총괄 모델 검토 보고서가 저장됐습니다.')
+        self.store.chief_task_report_context(artifacts[0]['id'])
+        return {'step': steps[0], 'artifact_id': artifacts[0]['id']}
+
+    def _campaign_review_packet(self):
+        """Read ONLY the exact approved 30-task member and immutable model evidence.
+
+        An arbitrary artifact ID from another company task/campaign is never
+        accepted by these owner controls. No automatic acceptance or execution.
+        """
+        campaign_id = self._id('summary_campaign')
+        artifact_id = self._id('summary_artifact')
+        plan = self.store.read_full_company_campaign(campaign_id)
+        if plan['state'] != 'approved':
+            raise ValueError('관리자가 승인한 30업무 계획만 검수할 수 있습니다.')
+        artifact = self.store.read_task_artifact(artifact_id)
+        matching = [step for step in plan['steps']
+                    if type(step['task_id']) is int
+                    and step['task_id'] == artifact['task_id']]
+        if len(matching) != 1:
+            raise ValueError('선택한 결과물이 현재 30업무 협업에 속하지 않습니다.')
+        step = matching[0]
+        body = artifact.get('body')
+        digest = artifact.get('sha256')
+        if (not isinstance(body, str) or not isinstance(digest, str)
+                or hashlib.sha256(body.encode('utf-8')).hexdigest() != digest):
+            raise ValueError('직원 결과물 원문 SHA256 무결성 검사 실패')
+        report = self.store.find_chief_task_report(artifact_id)
+        if report is not None:
+            report_body = report.get('body')
+            if (report.get('artifact_id') != artifact_id
+                    or report.get('chief_employee_id') != plan['chief_employee_id']
+                    or not isinstance(report_body, str)
+                    or hashlib.sha256(report_body.encode('utf-8')).hexdigest()
+                    != report.get('sha256')):
+                raise ValueError('총괄 실제 검토 보고서 원본·SHA256 연결 불일치')
+        return {'campaign_id': campaign_id, 'step': step,
+                'artifact': artifact, 'chief_report': report,
+                'requires_owner_approval': True, 'automatic_approval': False}
+
+    def _review_campaign_artifact(self, decision):
+        if decision not in ('approved', 'changes_requested', 'rejected'):
+            raise ValueError('직원 검수 상태 오류')
+        def work():
+            packet = self._campaign_review_packet()
+            artifact = packet['artifact']
+            if artifact['review_status'] != 'pending':
+                raise ValueError('이미 검수된 직원 결과물은 다시 승인할 수 없습니다.')
+            note = self._get('summary_review_note')
+            if decision != 'approved' and not note:
+                raise ValueError('수정 요청·반려 사유를 입력하세요.')
+            self.store.review_task_artifact(artifact['id'], decision, note)
+            return self._campaign_review_packet()
+        label = {'approved': '승인', 'changes_requested': '수정 요청',
+                 'rejected': '반려'}[decision]
+        self._perform('30업무 직원 결과물 관리자 ' + label, work,
+            '현재 선택한 30업무 직원 원문과 SHA256을 직접 확인했습니까? '
+            '관리자 검수만 저장하며 다음 업무 실행이나 총괄 보고 수락은 하지 않습니다. '
+            + label + '을(를) 기록합니까?')
+
+    def _review_campaign_chief(self, decision):
+        if decision not in ('accepted', 'rejected'):
+            raise ValueError('총괄 검토 상태 오류')
+        def work():
+            packet = self._campaign_review_packet()
+            report = packet['chief_report']
+            if report is None:
+                raise ValueError('직원 결과물에 연결된 실제 총괄 검토 보고서가 없습니다.')
+            if report['owner_decision'] != 'pending':
+                raise ValueError('총괄 보고서는 이미 검수되었습니다.')
+            self.store.review_chief_task_report(
+                report['id'], decision, self._get('summary_review_note'))
+            return self._campaign_review_packet()
+        label = '수락' if decision == 'accepted' else '반려'
+        self._perform('30업무 총괄 모델 보고 관리자 ' + label, work,
+            '실제 총괄 모델 보고 원문과 SHA256 및 선택한 직원 결과물의 연결을 '
+            '확인했습니까? 총괄 보고 검수만 기록하며 업무를 자동 완료하지 않습니다. '
+            + label + '합니까?')
+
+    def _finalize_campaign_artifact(self):
+        def work():
+            packet = self._campaign_review_packet()
+            artifact, report, step = (packet['artifact'],
+                                       packet['chief_report'], packet['step'])
+            if artifact['review_status'] != 'approved' or report is None:
+                raise ValueError('직원 결과물 승인과 실제 총괄 검토 보고서가 모두 필요합니다.')
+            if report['owner_decision'] != 'accepted':
+                raise ValueError('총괄 실제 모델 검토 보고서를 관리자가 수락해야 합니다.')
+            progress = self.store.verified_full_company_progress(
+                packet['campaign_id'])
+            if (progress['verified_completed_tasks'] != step['ordinal'] - 1
+                    or progress['verified_genuine_prefix_tasks'] != step['ordinal'] - 1
+                    or progress['next_task_id'] != step['task_id']):
+                raise ValueError('30업무 순서 또는 이전 총괄 모델·승인 증빙 불일치')
+            from desktop.company_operations import finalize_approved_artifact
+            task_id = finalize_approved_artifact(self.store, artifact['id'])
+            return {'completed_task_id': task_id,
+                    'completed_ordinal': step['ordinal'],
+                    'campaign_id': packet['campaign_id'],
+                    'next_execution_automatic': False,
+                    'external_payment_or_posting': False}
+        self._perform('관리자 직접 30업무 1단계 완료 확정', work,
+            '직원 결과물 승인, 실제 총괄 모델 검토 수락, 이전 단계의 승인·호출 원본을 '
+            '확인했습니까? 현재 한 업무만 완료로 확정하며 다음 단계 모델 실행·'
+            '외부 거래는 자동으로 진행하지 않습니다. 확정합니까?')
+
     def _decide_final_report(self, decision):
         def work():
             return self.store.decide_campaign_final_report(
@@ -239,6 +388,9 @@ class CompanyOwnerWorkflows:
         """기존 실제 총괄/직원/관리자/금융 원본의 읽기 전용 연결."""
         self._field(panel,'summary_source_task','원본 기준 업무 번호 (초안 생성)')
         self._field(panel,'summary_campaign','30업무 협업 번호')
+        self._field(panel,'summary_artifact','직원 실제 결과물 번호')
+        self._field(panel,'summary_report','총괄 검토 보고 번호 (자동 표시)')
+        self._field(panel,'summary_review_note','직원·총괄 검수 의견 (최대 1000자)')
         self._field(panel,'summary_business','사업 번호 (선택)')
         self._field(panel,'summary_final_report','총괄 최종보고 번호')
         self._field(panel,'summary_final_reason','관리자 최종 검토 사유 (5~200자)')
@@ -300,6 +452,22 @@ class CompanyOwnerWorkflows:
                 '총괄 실제 GGUF 최종보고 생성', 'final',
                 '30업무 전부의 실제 호출·승인 원본을 재검사하고 총괄 모델 보고를 생성합니다. '
                 '자동 최종 승인은 하지 않습니다. 진행합니까?'))])
+        self._buttons(panel,[
+            ('30업무 직원 결과물·총괄 원문 검토',lambda:self._perform(
+                '실제 직원 산출물과 총괄 모델 원문 SHA256 연결 (읽기 전용)',
+                self._campaign_review_packet)),
+            ('직원 결과물 승인',lambda:self._review_campaign_artifact('approved')),
+            ('직원 결과물 수정 요청',lambda:self._review_campaign_artifact('changes_requested')),
+            ('직원 결과물 반려',lambda:self._review_campaign_artifact('rejected'))])
+        self._buttons(panel,[
+            ('총괄 실제 GGUF 보고 수락',lambda:self._review_campaign_chief('accepted')),
+            ('총괄 실제 GGUF 보고 반려',lambda:self._review_campaign_chief('rejected')),
+            ('승인된 한 업무 완료 확정',self._finalize_campaign_artifact),
+            ('중단된 총괄 실제 GGUF 검토만 복구',lambda:self._start_real_model_action(
+                '중단 직원 결과물 총괄 실제 GGUF 검토 복구', 'recover',
+                '기존 성공 직원 결과물을 다시 실행하지 않고, 실제 총괄 모델 검토가 '
+                '누락된 한 업무만 복구합니다. 자동 승인·업무 완료·외부 거래는 없습니다. '
+                '진행합니까?'))])
         self._buttons(panel,[
             ('진행 중 GGUF 작업 취소 요청',self._cancel_real_model_action),
             ('총괄 최종보고 원본 조회',lambda:self._perform(
