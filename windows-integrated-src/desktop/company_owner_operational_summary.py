@@ -45,6 +45,8 @@ def snapshot(store, campaign_id: int, business_id: int | None = None) -> dict:
     from desktop import company_continuity as continuity
     from desktop import company_staff_metrics as staff_metrics
     from desktop import company_campaign_chain_integrity as chain_integrity
+    from desktop import company_campaign_final_leases as final_leases
+    from desktop import company_campaign_final_report as final_reports
 
     sections = {}
 
@@ -118,6 +120,18 @@ def snapshot(store, campaign_id: int, business_id: int | None = None) -> dict:
     sections['chief_five_group_plan'] = _read_section(plan)
     sections['worker_chief_30_tasks'] = _read_section(progress)
     sections['real_chief_final_report'] = _read_section(report)
+    # Preserve cross-window GGUF execution state and its immutable recovery
+    # journal as separate observations. An aged lock is NOT a dead subprocess.
+    sections['real_chief_final_report_attempt_audit'] = _read_section(
+        lambda: final_reports.inspect_final_model_attempt_chain(store,campaign_id))
+    sections['final_report_cross_window_leases'] = _read_section(
+        lambda: {'locks_for_campaign': [
+            lock for lock in final_leases.snapshot(store,100)
+            if lock['campaign_id']==campaign_id],
+            'manual_recovery_history': [
+                rec for rec in final_leases.recovery_history(store,100)
+                if rec['campaign_id']==campaign_id],
+            'process_liveness_verified':False,'automatic_retry':False})
     sections['owner_final_dossier'] = _read_section(dossier)
     sections['owner_dossier_disk_recovery_inventory'] = _read_section(
         lambda: store.inspect_owner_dossier_disk_consistency(100))
