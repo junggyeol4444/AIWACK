@@ -79,6 +79,8 @@ class CompanyOwnerWorkflows:
         self._operations_summary(summary)
         self._staff_management(staff)
         self._tool_management(tools)
+        from desktop.company_owner_evidence_tabs import attach as attach_owner_evidence_tabs
+        attach_owner_evidence_tabs(self, tabs)
         self.output = tk.Text(self.window, height=12, wrap='word')
         self.output.pack(fill='both', expand=True, padx=12, pady=10)
         self.output.insert('end','기존 SQLite 원본 결과와 관리자 승인 기록만 조회·연결합니다.')

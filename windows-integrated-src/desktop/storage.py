@@ -5348,3 +5348,36 @@ class LocalStore:
         from desktop.company_chief_evidence_decisions import decide
         return decide(self, review_id, decision, note)
 
+    # 소유자 확인이 끝난 중단 실행의 복구 전 내부 검토 업무(자동 재시도 없음).
+    def eligible_recovery_work_orders(self, limit=50):
+        from desktop.company_recovery_work_orders import eligible
+        return eligible(self, limit)
+
+    def capture_recovery_work_order(self, audit_id, note):
+        from desktop.company_recovery_work_orders import capture
+        return capture(self, audit_id, note)
+
+    def decide_recovery_work_order(self, work_order_id, decision, note):
+        from desktop.company_recovery_work_orders import decide
+        return decide(self, work_order_id, decision, note)
+
+    def recovery_work_order_history(self, limit=50):
+        from desktop.company_recovery_work_orders import history
+        return history(self, limit)
+
+    # 실제 직원 실행·모델 호출·승인 결과물에 기반한 불변 평가.
+    def employee_evidence_snapshot(self, employee_id):
+        from desktop.company_employee_evidence_reviews import snapshot
+        return snapshot(self, employee_id)
+
+    def capture_employee_evidence_review(self, employee_id, note):
+        from desktop.company_employee_evidence_reviews import capture
+        return capture(self, employee_id, note)
+
+    def decide_employee_evidence_review(self, review_id, decision, note):
+        from desktop.company_employee_evidence_reviews import decide
+        return decide(self, review_id, decision, note)
+
+    def employee_evidence_review_history(self, limit=50):
+        from desktop.company_employee_evidence_reviews import history
+        return history(self, limit)
