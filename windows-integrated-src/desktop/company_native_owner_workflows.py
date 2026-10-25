@@ -988,7 +988,12 @@ class CompanyOwnerWorkflows:
             ('model_business_problem','고객 문제 (1~240자)'),
             ('model_business_idea_id','검토할 사업 가설 번호'),
             ('model_business_reason','관리자 검토 사유 (5~200자)'),
-            ('model_business_name','관리자 등록 사업 초안 이름')]:
+            ('model_business_name','관리자 등록 사업 초안 이름'),
+            ('model_project_title','관리자 프로젝트 초안 이름'),
+            ('model_project_note','프로젝트 검토 사유 (5~300자)'),
+            ('model_product_kind','상품 유형 (product/service)'),
+            ('model_product_title','관리자 첫 상품 초안 이름'),
+            ('model_product_delivery','첫 상품 제공 계획')]:
             self._field(panel,key,label)
         self._buttons(panel,[
             ('실제 총괄 GGUF 사업 가설 1건 생성',lambda:self._start_real_model_action(
