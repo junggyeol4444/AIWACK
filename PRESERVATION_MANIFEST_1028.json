@@ -1,0 +1,152 @@
+{
+  "type": "21st round preserved historical source docs backup; remote test branch confirmed paths absent",
+  "source_inner_sha256": "049ed0104da70f0c537736d4e669827167c8ff3b6dc4076e3de6cc717140e262",
+  "count": 29,
+  "items": [
+    {
+      "path": "AIWACK_20261021_2회차_실제개발검증_결과.md",
+      "sha256": "c278ac9ec392f41667d94259fc35b3d6164aeb15cb123a726d1c09884a409c9c",
+      "bytes": 5647
+    },
+    {
+      "path": "docs/AIWACK_20261022_14회차_전체누적_통합인수인계.md",
+      "sha256": "b4c41fd445aa50c77faf2e8850e502ba643195afce8e63c9a6e4d179f5e10fa1",
+      "bytes": 5590
+    },
+    {
+      "path": "docs/AIWACK_20261022_16회차_검증결과.json",
+      "sha256": "e2bccd53c71b7ce0e52ac6f37604ec8576fd9531330ef418032511391acb2e23",
+      "bytes": 5027
+    },
+    {
+      "path": "docs/AIWACK_20261022_15회차_검증결과.json",
+      "sha256": "99dd58f780cc7538a5de16f97925db39c0de5e8d9763816cdfa11dd686170fdf",
+      "bytes": 1263
+    },
+    {
+      "path": "docs/AIWACK_20261022_17회차_전체누적_통합인수인계.md",
+      "sha256": "aa17e2ae112894f5b058dd39a3f470cf28cbce6e635c75f2bf3f5d581b22e3d2",
+      "bytes": 2950
+    },
+    {
+      "path": "docs/AIWACK_20261022_13회차_전체누적_통합인수인계.md",
+      "sha256": "3e4d79f5f0c7d8d909122e0caf1ca0081bbd86cae877d4ecd9b605aae3db49a2",
+      "bytes": 7496
+    },
+    {
+      "path": "docs/AIWACK_20261021_4회차_통합인수인계.md",
+      "sha256": "c4920b28904a49ca35051a5270d1b826745ed1b66899b535910eecded768536f",
+      "bytes": 5941
+    },
+    {
+      "path": "docs/AIWACK_20261021_매시간2회차_추가인수인계_로컬.md",
+      "sha256": "66b69a53ec054b9ccb38ce2c161c566a1387a36a97a4cc4cf2c5c9275f7b0ef4",
+      "bytes": 5933
+    },
+    {
+      "path": "docs/AIWACK_20261022_15회차_전체누적_통합인수인계.md",
+      "sha256": "9f41a0391b4f66b0e70d997b872514db2bd8b8b27b05bee9c3234e2a2f88a625",
+      "bytes": 7045
+    },
+    {
+      "path": "docs/AIWACK_20261022_17회차_검증결과.json",
+      "sha256": "3a64af45a3330a67f482186cbfe6add732eeae584a0fc611ab5bb9d124bca06d",
+      "bytes": 4265
+    },
+    {
+      "path": "docs/AIWACK_20261022_14회차_검증결과.json",
+      "sha256": "d3d7e343c3b4bea86ef8e1762b0c78a53fb36aee22ad8eccf3ac46d0f9d1863d",
+      "bytes": 1352
+    },
+    {
+      "path": "docs/AIWACK_20261022_11회차_검증결과.json",
+      "sha256": "51c97ce2b2f2c2c6ffb9b66a715892590bbffea6240816ec93fcfc5668fdd6da",
+      "bytes": 2384
+    },
+    {
+      "path": "docs/AIWACK_20261022_19회차_검증결과.json",
+      "sha256": "564ba605972e73688fabaeb28eadff55fc5c1891d3b640fdce4a07cf957f4ab8",
+      "bytes": 2191
+    },
+    {
+      "path": "docs/AIWACK_20261021_4회차_검증현황.json",
+      "sha256": "5870711feaa131554934ab608063a2f143ca9e032c07e5cbf7eb4ec4b9c50ad3",
+      "bytes": 1887
+    },
+    {
+      "path": "docs/AIWACK_20261021_다음대화_인수인계_15회차_추가내용.md",
+      "sha256": "554049c9a13186bac1ca7369ffd7a1d1c19fb353f6b4a3186efdab12da59ee52",
+      "bytes": 7267
+    },
+    {
+      "path": "docs/AIWACK_20261021_4회차_통합개발_원문누적인수인계.md",
+      "sha256": "0638e3fbdad7cdc6b8f7174ca418afb5cda2e94efd6c60e3407636d7b1d685bc",
+      "bytes": 5221
+    },
+    {
+      "path": "docs/AIWACK_20261021_5회차_전체누적_실개발_인수인계.md",
+      "sha256": "f5a83149ea768c97111d5d27c154df6bbdc725f450bee0bfaa132e55fa7eccb5",
+      "bytes": 2814
+    },
+    {
+      "path": "docs/AIWACK_20261022_12회차_전체누적_통합인수인계.md",
+      "sha256": "bd05d7dbe8e41ecffeba97a5e9cfea2e898e55d130577d3a9324e7e36630ebc7",
+      "bytes": 6812
+    },
+    {
+      "path": "docs/AIWACK_20261022_9회차_전체누적_통합인수인계.md",
+      "sha256": "367fd6819c458f17109ae73fca9231c8c29aaed3388b200840e5cf35546ed994",
+      "bytes": 5060
+    },
+    {
+      "path": "docs/AIWACK_20261022_11회차_전체누적_통합인수인계.md",
+      "sha256": "d616873839a95b82139dafabeb97b85ef3e765fd2dd52e33cd74273ab237aad4",
+      "bytes": 7650
+    },
+    {
+      "path": "docs/AIWACK_20261021_8회차_전체누적_통합인수인계.md",
+      "sha256": "6517d2b7fb3b02f563f487f3cc6f246981b1b26b84d01cf2ebdc277fd57c51d8",
+      "bytes": 6415
+    },
+    {
+      "path": "docs/AIWACK_20261022_18회차_검증결과.json",
+      "sha256": "e8070c546f13a4523ede866f0b744edfe88841da89b552ff69762215076d9c90",
+      "bytes": 735
+    },
+    {
+      "path": "docs/AIWACK_20261022_11회차_네이티브전체검증로그.txt",
+      "sha256": "e7a2826284d80f7fdc847117d9c996ee0da021ddb64fd27a53509c2202ec91fd",
+      "bytes": 435
+    },
+    {
+      "path": "docs/AIWACK_20261021_매시간3회차_누적개발_로컬.md",
+      "sha256": "fa0e9d334ec611f856d948fcdfe8c8f0bb0b1c6cf90f73f2ab3d3e68bc35972a",
+      "bytes": 5409
+    },
+    {
+      "path": "docs/AIWACK_20261022_13회차_검증결과.json",
+      "sha256": "c19addf1e9b3364bd42058c25ce2899a1bf13631587be09c81bf44c7b1cb99ff",
+      "bytes": 969
+    },
+    {
+      "path": "docs/AIWACK_20261021_6회차_전체누적_개발검증인수인계.md",
+      "sha256": "81af261031d903c9323f192351ac0c80d566fe3e99d9441bcb96b791e7535498",
+      "bytes": 6653
+    },
+    {
+      "path": "docs/AIWACK_20261021_5회차_검증요약.json",
+      "sha256": "3ff7baa28fb8b504add65fb8ac29fa6ed6318c8b879117872777ddcd78f040e8",
+      "bytes": 375
+    },
+    {
+      "path": "docs/AIWACK_20261022_16회차_전체누적_통합인수인계.md",
+      "sha256": "d3cdaeb07afae22366e1f5b384ef3aa4a3997c7756a93b36377237d212665c9a",
+      "bytes": 3337
+    },
+    {
+      "path": "PRESERVATION_MANIFEST.json",
+      "sha256": "32b77499597af53c566aebcdc491f770fd8940f8802f67197b20e3e1fae93701",
+      "bytes": 8589
+    }
+  ]
+}
