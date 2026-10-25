@@ -13,3 +13,14 @@
 
 ## 후속 개발 우선 지시
 테스트 브랜치 최신 기존 소스와 이 대화의 선행 전체 누적 인수인계를 읽고 아직 개발 완료하지 못한 원본 기획 기능과 누적 소스 병합을 이어서 개발한다. 전체 개발 종료 전 테스트·검증만 반복하지 않는다. 개발 완료 후 전체 통합검증→발견한 오류 수정→전체 재검증→main 안전 병합 순서를 반드시 보존한다.
+
+
+## 2026-10-25 17:59 KST 후속 실제 개발 — GGUF 가설→사업→프로젝트→첫 상품 원본 보존형 연결 (append-only)
+- 사용자 원문 최우선: “개발부터 다 끝내라”, “개발 하라고 그리고 main에 올리고”, “잔여 누적 소스 전체 main 병합”. **전체 개발 → 전체 통합검증 → 실패 수정 → 전체 재검증 → main 안전 병합·원격 확인** 순서를 유지. 단일 기능 테스트를 먼저 실행하거나 성공으로 기록하지 않음.
+- 기존 저장소/브랜치: `junggyeol4444/AIWACK`, `test/aiwack-20261023-0755-cumulative-resume-merge`. 최초 조회 테스트 HEAD `722deaf0d009fe78359dd0d89b6c8d86605cac62`, main `f70dd72c74f4b6440ebea85501a66f4f5d85a391`, PR #9 draft·미병합.
+- 실제 기능 코드: `windows-integrated-src/desktop/company_business_idea_pipeline.py` 신규. 이미 실제 총괄 GGUF 호출 원본과 관리자 후보 선정·사업 초안 링크가 존재하는 경우에만 관리자가 별도 클릭하여 기존 `business_projects.create`로 예산 0원·계획 상태 프로젝트를 생성. 다시 별도 클릭한 경우에만 기존 `product_catalog.create`로 가정가격 0원·미검증 첫 상품 초안 생성. SQLite `BEGIN IMMEDIATE`, 중복 거부, 비상정지, 기존 권한, 모델 출력 SHA/호출 ID/원본 연결, append-only 트리거, 프로젝트·상품 감사 체인 조회. 실판매·시장 검증·외부 게시·실결제 자동 실행 없음.
+- 기존 코드 실제 수정: `windows-integrated-src/desktop/storage.py`에 관리자 전용 프로젝트/상품/감사 API, `windows-integrated-src/desktop/company_native_owner_workflows.py` 기존 한국어 Tk 가설 탭에 입력·별도 승인 버튼·감사 조회 추가, `windows-integrated-src/build_windows_exe.bat` PyInstaller import 누적. 기존 7개 Windows EXE Actions workflow에 두 모델 사업 모듈 hidden-import 보존형 추가. 기존 30업무·고객·금융·직원·총괄 코드 삭제/대체 없음.
+- 실제 코드 커밋: `74ff903df2cb32c3ee5193055e321f0d69e3b5a1` (신규 모듈), `2612fc7b69ecf5c5dd14abf78d0d1e6ff2b0933d` (저장소 API), `15800d81f22c835e95f95bbf3aa43382c4c7d46e` (GUI 입력), `7dbce08ca86980328d7731d7092732eb3f07a8dd` (EXE 빌더), `1d27c517be236c1dd7eb178e20d95b3bba9d99be` (GUI 별도 버튼), `9d3d114f0df1e4610f508c65ef7799af0f183e9e` (Windows Actions 7개 단일 커밋).
+- 검증: **NOT_RUN** (전체 기능 개발 미완료이므로 신규 pytest·Windows EXE 실기·물리 GUI 클릭·실GGUF 모델 호출·24시간·T01~T20 전체 통합검증을 이번 회차 실행하지 않음). CI 최신 신규 커밋의 완료/PASS 증빙 없음. 과거 2026-10-23 `39896550100` CI SUCCESS, `39896550237` packaged GUI SUCCESS, `39896550165` Windows EXE SUCCESS는 과거 `126cd85b` 기준이며 신규 기능의 성공 아님. `39896550108` 실 GGUF FAILURE: Windows2022 실제 15부서31역할30업무 GGUF 단계 실패, Windows2025 CPU runner 진단 실패.
+- 남은 개발: 원본 1~21회차 1,099개 ZIP과 현 원격 main/테스트 파일의 전수 3-way 대조 및 기존 52개 변경/73개 추가의 기능별 보존형 병합, 역사 원문 28개+매니페스트 2개 원격 개별 원본 확인·복원, 15장·T01~T20·15부서31AI30업무·실 GGUF 총괄/직원 승인/최종 보고/관리자 승인·사업/고객/상품/실도구·외부 계정/금융·장기 복구 전체 요구의 잔여 개발. 정확한 잔여 기능 수·완료율/완료일 추측 금지.
+- 금지: HTML/WebUI·대체 앱, 가짜 GGUF·가짜 성과, 기능 축소, 외부 Drive, 원본/문서 삭제·덮어쓰기, 권한·안전 차단 우회, 무단 PG·은행·외부 게시, 임의 브랜치/force push, 다른 프로젝트/예약 변경. 현재 대화 유지 우선, 메시지 게시 위치 미확인 시 같은 대화 게시 주장 금지. 사용자 요청 최고 사용 가능 모델은 설정 권한 없으면 선택했다고 주장 금지.
