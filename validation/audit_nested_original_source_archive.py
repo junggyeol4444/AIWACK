@@ -134,11 +134,11 @@ def audit_archive(archive: Path, checkout: Path, *,
             original = z.read(member)
             original_blob, original_sha = _sha(original)
             target = root.joinpath(*relative.parts)
-            actual = target.resolve(strict=False)
-            if not actual.is_relative_to(root):
-                raise ValueError("대조 경로가 작업 디렉터리를 벗어납니다.")
             unsafe_link = any(p.is_symlink() for p in (target, *target.parents)
                               if p != root and p.is_relative_to(root))
+            actual = target.resolve(strict=False)
+            if not actual.is_relative_to(root) and not unsafe_link:
+                raise ValueError("대조 경로가 작업 디렉터리를 벗어납니다.")
             if (unsafe_link or (target.exists() and not target.is_file())
                     or (target.is_file() and target.stat().st_size > MAX_FILE)):
                 status = "unsafe_path"
