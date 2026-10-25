@@ -288,6 +288,7 @@ class CompanyOffice:
         self._action(campaign_controls, '31명 승인 연속 운영', self.run_campaign, compact=True)
         self._action(campaign_controls, '운영 기록 확인', self.campaign_report, compact=True)
         self._action(campaign_controls, '직원 실제 업무 성과', self.staff_metrics_report, compact=True)
+        self._action(campaign_controls, '선택 업무 자동 GGUF 호출 감사', self.inspect_selected_auto_model, compact=True)
         # 1040x720 실제 Windows 화면에서 업무 제어 버튼이 가로로 잘리지 않도록 분리.
         collaboration_controls = tk.Frame(main, bg=CARD)
         collaboration_controls.pack(fill='x', pady=(3, 0))
