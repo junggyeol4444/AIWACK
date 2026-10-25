@@ -46,8 +46,11 @@ def _safe_members(z):
 
 def _open_snapshot_archive(path: Path, prefix: str):
     """Find exactly one historical source root, with bounded nested ZIP scan."""
-    if not isinstance(prefix, str) or not prefix or not prefix.endswith("/"):
-        raise ValueError("원본 경로 접두사는 슬래시로 끝나야 합니다.")
+    if (not isinstance(prefix, str) or not prefix or not prefix.endswith("/")
+            or prefix.startswith("/") or "\\" in prefix
+            or any(part in ("", ".", "..") or ":" in part
+                   for part in prefix[:-1].split("/"))):
+        raise ValueError("원본 경로 접두사가 비정상입니다.")
     if path.stat().st_size > MAX_TOTAL:
         raise ValueError("원본 ZIP 파일 크기가 안전 한도를 초과했습니다.")
     candidates = [path.read_bytes()]
