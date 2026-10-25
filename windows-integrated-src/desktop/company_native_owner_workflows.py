@@ -1011,7 +1011,11 @@ class CompanyOwnerWorkflows:
             ('실제 모델 분석·중단 원본 감사',lambda:self._perform(
                 '총괄 모델 실패 분석 원본',
                 lambda:__import__('desktop.company_failure_ai_analysis',
-                    fromlist=['history']).history(self.store,limit=100)))])
+                    fromlist=['history']).history(self.store,limit=100))),
+            ('총괄 실패 분석 출처·호출 무결성 대조',lambda:self._perform(
+                '실제 실패 원본·총괄 GGUF 호출 메타데이터 무결성',
+                lambda:__import__('desktop.company_failure_ai_analysis',
+                    fromlist=['audit_history']).audit_history(self.store,limit=100)))])
 
     def _business_ideas(self, panel):
         ttk.Label(panel,text='실제 연결된 로컬 총괄 GGUF 모델의 미검증 사업 가설 1건을 만듭니다. '
