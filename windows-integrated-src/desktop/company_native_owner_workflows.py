@@ -42,6 +42,8 @@ class CompanyOwnerWorkflows:
         tabs.add(bank, text='은행 CSV · 사업 결산')
         tabs.add(customer, text='고객 문의 · 승인 답변')
         tabs.add(product, text='30업무 · 상품 결과물')
+        business = ttk.Frame(tabs)
+        tabs.add(business, text='실제 AI 신규 사업 가설')
         continuity = ttk.Frame(tabs)
         tabs.add(continuity, text='운영 기록 · 중단 복구')
         staff = ttk.Frame(tabs)
@@ -52,6 +54,7 @@ class CompanyOwnerWorkflows:
         self._bank(bank)
         self._customer(customer)
         self._product(product)
+        self._business_ideas(business)
         self._continuity(continuity)
         summary = ttk.Frame(tabs)
         tabs.add(summary, text='전체 운영 원본 통합 조회')
@@ -122,7 +125,15 @@ class CompanyOwnerWorkflows:
             self.store.require_permission('company:manage')
             if self._campaign_running:
                 raise ValueError('이미 실제 모델 업무가 진행 중입니다. 중복 실행을 차단합니다.')
-            if action == 'plan':
+            if action == 'business':
+                self.store.require_permission('agents:manage')
+                audience = self._get('model_business_audience')
+                problem = self._get('model_business_problem')
+                if not audience or not problem:
+                    raise ValueError('사업 고객 범위와 해결할 문제를 입력하세요.')
+                campaign_id = None
+                source_id = None
+            elif action == 'plan':
                 # New campaign planning still uses the ORIGINAL real GGUF path.
                 # This action only creates a draft; owner review is separate.
                 self.store.require_permission('agents:manage')
@@ -163,7 +174,10 @@ class CompanyOwnerWorkflows:
                 try:
                     if self._campaign_cancel.is_set():
                         raise InterruptedError('관리자가 실행을 취소했습니다.')
-                    if action == 'plan':
+                    if action == 'business':
+                        result = self.store.propose_chief_business_idea(
+                            audience, problem, cancel=self._campaign_cancel)
+                    elif action == 'plan':
                         self.store.require_permission('company:manage')
                         self.store.require_permission('agents:manage')
                         result = self.store.propose_full_company_campaign(
@@ -229,6 +243,9 @@ class CompanyOwnerWorkflows:
                 if title == '총괄 실제 GGUF 최종보고 생성':
                     if type(payload.get('id')) is int and payload['id'] > 0:
                         self.values['summary_final_report'].set(str(payload['id']))
+                if title == '실제 총괄 GGUF 사업 가설 생성':
+                    if type(payload.get('id')) is int and payload['id'] > 0:
+                        self.values['model_business_idea_id'].set(str(payload['id']))
             self._display(title + ' — SQLite 결과 (실기 전체 검증과 별개)', payload)
         else:
             self.notice.set(title + ' 실패: ' + payload)
@@ -961,6 +978,38 @@ class CompanyOwnerWorkflows:
             return result
         self._perform('승인 답변 로컬 파일 저장',work,
             '승인된 결과만 로컬 파일로 생성하고 고객에게 자동 발송하지 않습니다. 진행합니까?')
+
+    def _business_ideas(self, panel):
+        ttk.Label(panel,text='실제 연결된 로컬 총괄 GGUF 모델의 미검증 사업 가설 1건을 만듭니다. '
+            '사업 등록·실제 조사·판매·결제·고객 발송·최종 승인 기능은 실행하지 않습니다.',
+            wraplength=870).pack(anchor='w',padx=12,pady=8)
+        for key,label in [
+            ('model_business_audience','사업 대상 고객 (1~120자)'),
+            ('model_business_problem','고객 문제 (1~240자)'),
+            ('model_business_idea_id','검토할 사업 가설 번호'),
+            ('model_business_reason','관리자 검토 사유 (5~200자)')]:
+            self._field(panel,key,label)
+        self._buttons(panel,[
+            ('실제 총괄 GGUF 사업 가설 1건 생성',lambda:self._start_real_model_action(
+                '실제 총괄 GGUF 사업 가설 생성','business',
+                '현재 등록된 실제 총괄 로컬 GGUF를 1회 호출하여 미검증 신규 사업 가설을 '
+                '생성합니다. 결과는 SQLite에 출처 SHA와 함께 저장되며 '
+                '실제 시장 조사·사업/매출 생성·결제·게시와 무관합니다. 실행하시겠습니까?')),
+            ('GGUF 사업 가설·출처 기록',lambda:self._perform(
+                '실제 총괄 모델 사업 가설의 SQLite 원본',
+                lambda:self.store.list_chief_business_ideas(limit=100)))])
+        self._buttons(panel,[
+            ('관리자가 사업 후보로 선정',lambda:self._review_business_idea('shortlisted')),
+            ('관리자가 사업 가설 기각',lambda:self._review_business_idea('rejected'))])
+
+    def _review_business_idea(self, decision):
+        idea_id=self._id('model_business_idea_id')
+        reason=self._get('model_business_reason')
+        action='검토 후보로 선정' if decision=='shortlisted' else '기각'
+        self._perform('실제 모델 사업 가설 관리자 '+action,
+            lambda:self.store.review_chief_business_idea(idea_id,decision,reason),
+            '실제 GGUF 사업 가설의 원본·위험을 직접 확인하고 '+action+'합니다. '
+            '실제 사업 시작·계좌·외부 실행·판매는 하지 않습니다. 기록합니까?')
 
     def _product(self, panel):
         for key,label in [('campaign','전체 협업 계획 번호'),('ordinal','업무 단계 번호 (1~30)'),
