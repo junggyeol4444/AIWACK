@@ -46,6 +46,20 @@ def initialize(store):
            owner_token TEXT NOT NULL CHECK(length(owner_token)=32),
            started_epoch INTEGER NOT NULL CHECK(started_epoch>0),
            created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP)""")
+        con.execute("""CREATE TABLE IF NOT EXISTS aiwack_autopilot_tick_gaps(
+           id INTEGER PRIMARY KEY AUTOINCREMENT,
+           observed_run_id INTEGER NOT NULL UNIQUE REFERENCES aiwack_autopilot_runs(id),
+           originally_due INTEGER NOT NULL,
+           first_skipped_due INTEGER NOT NULL,
+           last_skipped_due INTEGER NOT NULL,
+           skipped_cycles INTEGER NOT NULL CHECK(skipped_cycles>0),
+           observed_epoch INTEGER NOT NULL,
+           created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP)""")
+        for action in ('UPDATE','DELETE'):
+            con.execute(f"""CREATE TRIGGER IF NOT EXISTS
+                aiwack_autopilot_tick_gaps_immutable_{action.lower()}
+                BEFORE {action} ON aiwack_autopilot_tick_gaps
+                BEGIN SELECT RAISE(ABORT,'자율 운영 누락 주기 감사 변경 금지'); END""")
 
 
 def settings(store):
@@ -93,6 +107,15 @@ def run_once(store, *, now=None):
         con.execute("UPDATE aiwack_autopilot_settings SET next_due=? WHERE id=1",(stamp+interval,))
         run_id=int(con.execute("INSERT INTO aiwack_autopilot_runs(planned_at,state) VALUES(?,'running')",
             (stamp,)).lastrowid)
+        # Execute only the current bounded tick. Persist the exact missed
+        # slots; do NOT fabricate historical successful work or replay purchases.
+        missed=(stamp-int(due))//int(interval) if int(due)>0 else 0
+        if missed>0:
+            con.execute("""INSERT INTO aiwack_autopilot_tick_gaps(
+                observed_run_id,originally_due,first_skipped_due,
+                last_skipped_due,skipped_cycles,observed_epoch)
+                VALUES(?,?,?,?,?,?)""",
+                (run_id,due,due+interval,due+missed*interval,missed,stamp))
     counts={'proposal_created':0,'schedule_created':0,'event_created':0}
     try:
         if _paused(store): raise InterruptedError('소유자가 실행을 중지했습니다.')
@@ -266,6 +289,21 @@ def approved_model_history(store, limit: int=30) -> list[dict]:
         return [dict(zip(('id','task_id','state','error_kind'),row))
             for row in con.execute("""SELECT id,task_id,state,error_kind
                FROM aiwack_autopilot_model_runs ORDER BY id DESC LIMIT ?""",(limit,))]
+
+
+def skipped_tick_windows(store, limit: int=100) -> list[dict]:
+    """Exact missed offline ticks; no fabricated runtime or model execution."""
+    initialize(store)
+    if type(limit) is not int or not 1<=limit<=100:
+        raise ValueError('자동 운영 누락 주기 조회는 1~100건입니다.')
+    with store._connect() as con:
+        rows=con.execute("""SELECT observed_run_id,originally_due,
+            first_skipped_due,last_skipped_due,skipped_cycles,observed_epoch
+            FROM aiwack_autopilot_tick_gaps ORDER BY id DESC LIMIT ?""",
+            (limit,)).fetchall()
+    columns=('observed_run_id','originally_due','first_skipped_due',
+             'last_skipped_due','skipped_cycles','observed_epoch')
+    return [dict(zip(columns,(int(v) for v in row))) for row in rows]
 
 
 def history(store,limit=30):
