@@ -1117,6 +1117,13 @@ class CompanyOffice:
                     f"일정 {r['schedule_created']}, 이벤트 {r['event_created']}, 오류 {r['error_kind'] or '-'}"
                     for r in rows]
             models=company_autopilot.approved_model_history(self.store,limit=20)
+            leases=company_autopilot.running_model_leases(self.store,limit=100)
+            if leases:
+                detail.append('--- 다른 Windows 창의 자동 GGUF 실행 잠금 (미완료 감사) ---')
+                detail.extend(
+                    f"업무 #{lock['task_id']} / 모델 시도 #{lock['run_id']} / "
+                    f"원본 실행 감사 {lock['audit_state']} / 실제 프로세스 상태 별도 확인 필요"
+                    for lock in leases)
             if models:
                 detail.append('--- 기존 소유자 승인 GGUF 실제 실행 ---')
                 detail.extend(f"업무 #{m['task_id']} · {m['state']} · 오류 {m['error_kind'] or '-'}"
