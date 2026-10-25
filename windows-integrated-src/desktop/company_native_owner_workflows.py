@@ -356,8 +356,8 @@ class CompanyOwnerWorkflows:
                     or progress['verified_genuine_prefix_tasks'] != step['ordinal'] - 1
                     or progress['next_task_id'] != step['task_id']):
                 raise ValueError('30업무 순서 또는 이전 총괄 모델·승인 증빙 불일치')
-            from desktop.company_operations import finalize_approved_artifact
-            task_id = finalize_approved_artifact(self.store, artifact['id'])
+            from desktop.company_wide_campaign import finalize_campaign_owner_artifact
+            task_id = finalize_campaign_owner_artifact(self.store, artifact['id'])
             return {'completed_task_id': task_id,
                     'completed_ordinal': step['ordinal'],
                     'campaign_id': packet['campaign_id'],
