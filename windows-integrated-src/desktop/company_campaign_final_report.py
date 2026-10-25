@@ -400,6 +400,95 @@ def model_attempts(store, campaign_id: int) -> list[dict]:
     return results
 
 
+def inspect_final_model_attempt_chain(store, campaign_id: int) -> dict:
+    """Read-only consistency audit of genuine chief final-report attempts.
+
+    This inspects existing SQLite evidence only; it does not call a model,
+    change a report, approve work, or claim a physical Windows/GGUF test.
+    """
+    store.require_permission('company:manage')
+    if type(campaign_id) is not int or campaign_id <= 0:
+        raise ValueError('회사 전체 협업 번호 오류')
+    with store._connect() as con:
+        initialize(con)
+        campaign = con.execute('''SELECT chief_employee_id FROM aiwack_wide_campaigns
+                                  WHERE id=?''', (campaign_id,)).fetchone()
+        if campaign is None or type(campaign[0]) is not int:
+            raise ValueError('총괄 최종 보고 감사 대상 협업이 없습니다.')
+        chief = campaign[0]
+        reports = con.execute('''SELECT id,chief_employee_id,chief_model_call_id,
+                                         evidence_sha256,report_sha256
+                                  FROM aiwack_campaign_final_reports
+                                  WHERE campaign_id=?''', (campaign_id,)).fetchall()
+        if len(reports) > 1:
+            raise ValueError('총괄 최종 보고 감사에 중복 보고가 있습니다.')
+        rows = con.execute('''SELECT a.model_call_id,a.chief_employee_id,
+                    a.evidence_sha256,a.completion_sha256,a.completion_chars,
+                    a.parsed,a.report_sha256,a.error_reason,
+                    h.employee_id,h.status,h.output_chars,h.model_id
+                FROM aiwack_campaign_final_model_attempts a
+                LEFT JOIN ai_model_call_history h ON h.id=a.model_call_id
+                WHERE a.campaign_id=? ORDER BY a.id''', (campaign_id,)).fetchall()
+    if not rows and not reports:
+        return {'campaign_id':campaign_id,'chief_employee_id':chief,
+                'attempt_count':0,'failed_format_count':0,
+                'successful_report_count':0,'status':'no_model_attempt',
+                'attempts_sha256':None,'independent_gguf_binary_verified':False,
+                'physical_windows_exe_verified':False}
+    _, seal = _complete_evidence(store,campaign_id)
+    valid_sha = lambda value: (type(value) is str and len(value) == 64
+                              and all(c in '0123456789abcdef' for c in value))
+    if not valid_sha(seal):
+        raise ValueError('30업무 승인 증빙 지문이 손상됐습니다.')
+    canonical = []
+    success = []
+    for row in rows:
+        (call_id,employee,evidence_sha,raw_sha,chars,parsed,digest,error,
+         source_employee,status,source_chars,model_id) = row
+        if (type(call_id) is not int or call_id <= 0
+                or type(employee) is not int or employee != chief
+                or evidence_sha != seal or not valid_sha(raw_sha)
+                or type(chars) is not int or chars < 0
+                or type(parsed) is not int or parsed not in (0,1)
+                or source_employee != chief or status != 'success'
+                or type(source_chars) is not int or source_chars != chars
+                or not model_id or type(digest) is not str
+                or type(error) is not str):
+            raise ValueError('총괄 최종 보고 실제 모델 시도 감사 원본 불일치')
+        if parsed == 1:
+            if not valid_sha(digest) or error:
+                raise ValueError('총괄 최종 보고 성공 시도 감사 원본 불일치')
+            success.append((call_id,digest))
+        elif digest or not error.strip():
+            raise ValueError('총괄 최종 보고 실패 시도 감사 원본 불일치')
+        canonical.append({'model_call_id':call_id,'chief_employee_id':employee,
+                          'evidence_sha256':evidence_sha,'completion_sha256':raw_sha,
+                          'completion_chars':chars,'parsed':parsed,
+                          'report_sha256':digest,'error_reason':error})
+    if len(success) > 1:
+        raise ValueError('총괄 최종 보고 성공 시도가 중복됐습니다.')
+    if reports:
+        report_id,report_chief,report_call,report_seal,report_sha = reports[0]
+        if (type(report_id) is not int or report_chief != chief
+                or report_seal != seal or success != [(report_call,report_sha)]):
+            raise ValueError('총괄 최종 보고와 실제 모델 성공 감사 연결 불일치')
+        state = 'report_saved'
+    elif success:
+        raise ValueError('총괄 최종 보고 원본 없이 성공 감사만 남았습니다.')
+    else:
+        state = 'format_failures_only'
+    body = json.dumps(canonical,ensure_ascii=False,sort_keys=True,
+                      separators=(',',':')).encode('utf-8')
+    return {'campaign_id':campaign_id,'chief_employee_id':chief,
+            'attempt_count':len(rows),
+            'failed_format_count':len(rows)-len(success),
+            'successful_report_count':len(success),'status':state,
+            'evidence_sha256':seal,
+            'attempts_sha256':hashlib.sha256(body).hexdigest(),
+            'independent_gguf_binary_verified':False,
+            'physical_windows_exe_verified':False}
+
+
 def decide(store,report_id:int,decision:str,reason:str):
     store.require_permission('company:manage')
     if decision not in ('accepted','rejected') or not isinstance(reason,str) or not 5<=len(reason.strip())<=200:
