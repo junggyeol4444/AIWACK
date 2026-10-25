@@ -972,7 +972,7 @@ def _parse_single_real_chief(raw, requested, prompt):
     return title, instruction
 
 
-def propose(store,source_task_id:int,*,cancel:threading.Event|None=None):
+def _propose_under_lease(store,source_task_id:int,*,cancel:threading.Event|None=None):
     """Five REAL chief calls; create 30 drafts only after all five succeed."""
     store.require_permission('company:manage');store.require_permission('agents:manage')
     if type(source_task_id) is not int or source_task_id<=0:
@@ -1162,6 +1162,28 @@ def propose(store,source_task_id:int,*,cancel:threading.Event|None=None):
                 VALUES(?,?,?,?,?,?,?,?,?)''',
                 (cid,ordinal,dept,employee,role,title,instruction,call,seal))
     return read(store,cid)
+
+
+
+def propose(store,source_task_id:int,*,cancel:threading.Event|None=None):
+    """Prevent two native Windows windows from invoking the same chief plan.
+
+    A process crash leaves a durable lock requiring explicit owner inspection.
+    Only a normal return/exception can release this invocation's own token.
+    """
+    store.require_permission('company:manage')
+    store.require_permission('agents:manage')
+    if type(source_task_id) is not int or source_task_id <= 0:
+        raise ValueError('기준 업무 번호 오류')
+    if cancel is not None and cancel.is_set():
+        raise InterruptedError('총괄 계획 시작 전에 취소됐습니다.')
+    from desktop import company_campaign_plan_leases as plan_leases
+    token=plan_leases.reserve(store,source_task_id)
+    try:
+        return _propose_under_lease(store,source_task_id,cancel=cancel)
+    finally:
+        plan_leases.release(store,source_task_id,token)
+
 
 
 def read(store,campaign_id:int):
