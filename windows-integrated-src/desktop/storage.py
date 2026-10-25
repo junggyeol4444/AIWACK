@@ -4007,6 +4007,21 @@ class LocalStore:
         from desktop.company_business_idea_artifact_export import inspect
         return inspect(self, limit=limit)
 
+    # Stage63: actual owner-confirmed public HTTPS evidence for chief model ideas.
+    def fetch_chief_business_market_source(self, idea_id: int, url: str,
+                                            hostname: str, title: str,
+                                            *, owner_confirmed: bool=False,
+                                            cancel=None) -> dict:
+        self.require_permission('company:manage')
+        from desktop.company_business_market_research import capture_source
+        return capture_source(self,idea_id,url,hostname,title,
+                              owner_confirmed=owner_confirmed,cancel=cancel)
+
+    def list_chief_business_market_sources(self, idea_id: int, *, limit: int=100) -> list[dict]:
+        self.require_permission('company:manage')
+        from desktop.company_business_market_research import history
+        return history(self,idea_id,limit)
+
     # Stage62: offline candidate hypotheses from administrator-provided assumptions.
     def generate_business_candidates(self, audience: str, problem: str,
                                      max_candidates: int = 8) -> dict:

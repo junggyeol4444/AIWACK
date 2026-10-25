@@ -144,6 +144,15 @@ class CompanyOwnerWorkflows:
                 failure_proposal_id = self._id('failure_model_followup_id')
                 campaign_id = None
                 source_id = None
+            elif action == 'market_source':
+                # User selected one literal HTTPS URL and an exact public host.
+                # Do not read Tk variables in the background worker.
+                idea_id=self._id('model_business_idea_id')
+                source_url=self._get('model_market_url')
+                source_host=self._get('model_market_hostname')
+                source_title=self._get('model_market_title')
+                campaign_id=None
+                source_id=None
             elif action == 'plan':
                 # New campaign planning still uses the ORIGINAL real GGUF path.
                 # This action only creates a draft; owner review is separate.
@@ -180,7 +189,8 @@ class CompanyOwnerWorkflows:
                 return
             self._campaign_cancel.clear()
             self._campaign_running = True
-            self.notice.set(title + ' — 실제 GGUF 모델 실행 중 (자동 승인 없음)')
+            self.notice.set(title + (' — 선택한 공개 HTTPS 자료 단일 수집 중' if action=='market_source'
+                                      else ' — 실제 GGUF 모델 실행 중 (자동 승인 없음)'))
             def work():
                 try:
                     if self._campaign_cancel.is_set():
@@ -192,6 +202,10 @@ class CompanyOwnerWorkflows:
                         from desktop.company_failure_ai_analysis import analyze
                         result = analyze(self.store,failure_proposal_id,
                                          cancel=self._campaign_cancel)
+                    elif action == 'market_source':
+                        result=self.store.fetch_chief_business_market_source(
+                            idea_id,source_url,source_host,source_title,
+                            owner_confirmed=True,cancel=self._campaign_cancel)
                     elif action == 'plan':
                         self.store.require_permission('company:manage')
                         self.store.require_permission('agents:manage')
@@ -1023,6 +1037,9 @@ class CompanyOwnerWorkflows:
             ('model_business_idea_id','검토할 사업 가설 번호'),
             ('model_business_reason','관리자 검토 사유 (5~200자)'),
             ('model_business_name','관리자 등록 사업 초안 이름'),
+            ('model_market_url','조사할 공개 HTTPS 원문 URL'),
+            ('model_market_hostname','승인할 공개 호스트명(소문자)'),
+            ('model_market_title','실제 조사 출처 제목'),
             ('model_project_title','관리자 프로젝트 초안 이름'),
             ('model_project_note','프로젝트 검토 사유 (5~300자)'),
             ('model_product_kind','상품 유형 (product/service)'),
@@ -1046,6 +1063,16 @@ class CompanyOwnerWorkflows:
             ('실제 모델·사업 초안 출처 확인',lambda:self._perform(
                 '총괄 GGUF 실제 호출 및 사업 초안 연결 불변 감사',
                 lambda:self.store.list_chief_business_draft_links(limit=100)))])
+        self._buttons(panel,[
+            ('사업 가설 공개자료 실제 HTTPS 수집 1건',lambda:self._start_real_model_action(
+                '실제 공개 HTTPS 시장 조사 출처 수집','market_source',
+                '입력한 정확한 공개 HTTPS 주소에서 단 1회 자료를 가져옵니다. '
+                '소유자 확인된 호스트만 허용하고 외부 게시/판매/결제는 없습니다. '
+                '자료는 출처 원본과 SHA256으로 저장되지만 사실 검증이나 수요 증명은 아닙니다. 진행합니까?')),
+            ('사업 가설 실제 출처·원본 SHA 조회',lambda:self._perform(
+                '실제 사업 가설 시장 조사 자료 수집 원본',
+                lambda:self.store.list_chief_business_market_sources(
+                    self._id('model_business_idea_id'),limit=100)))])
         self._buttons(panel,[
             ('관리자 프로젝트 초안 연결',self._create_model_project_draft),
             ('관리자 첫 상품 초안 연결',self._create_model_product_draft)])
