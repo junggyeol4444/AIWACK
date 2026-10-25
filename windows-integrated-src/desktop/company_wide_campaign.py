@@ -1275,6 +1275,18 @@ def require_campaign_owner_finalization(store, artifact_id: int) -> dict | None:
             'automatic_approval':False}
 
 
+def finalize_campaign_owner_artifact(store, artifact_id: int) -> int:
+    """Explicit native owner completion with 30-task REAL model provenance."""
+    evidence=require_campaign_owner_finalization(store,artifact_id)
+    if evidence is None:
+        raise ValueError('선택한 결과물이 승인된 30업무 협업에 속하지 않습니다.')
+    from desktop.company_operations import finalize_approved_artifact
+    completed=finalize_approved_artifact(store,artifact_id)
+    if completed!=evidence['task_id']:
+        raise ValueError('30업무 최종 완료 업무 번호가 승인 원본과 다릅니다.')
+    return completed
+
+
 def run_next(store,campaign_id:int,*,cancel:threading.Event|None=None,
              require_genuine_provenance:bool=True):
     """Execute next genuine GGUF step only after the previous owner-reviewed step.
