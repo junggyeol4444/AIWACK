@@ -260,8 +260,8 @@ def test_full_audit_rejects_scope_or_pattern_substitution(local, kind):
     module = evidence if kind == 'call' else dossier
     table = ('aiwack_campaign_evidence_exports' if kind == 'call'
              else 'aiwack_campaign_owner_dossiers')
-    correct_pattern = (r'campaign_[1-9][0-9]*_(?:[1-9]|[12][0-9]|30)_[0-9a-f]{20}\\.json'
-                       if kind == 'call' else r'owner_final_[0-9a-f]{32}\\.json')
+    correct_pattern = (r'campaign_[1-9][0-9]*_(?:[1-9]|[12][0-9]|30)_[0-9a-f]{20}\.json'
+                       if kind == 'call' else r'owner_final_[0-9a-f]{32}\.json')
     prefix = 'campaign_' if kind == 'call' else 'owner_final_'
     with pytest.raises(ValueError, match='형식·범위'):
         inspect_full(local, folder=module._folder(local), table=table,

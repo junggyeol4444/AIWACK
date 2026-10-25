@@ -26,10 +26,10 @@ def inspect_full(store, *, folder: Path, table: str, filename_pattern: str,
         raise ValueError('전체 파일 감사 한도는 1~10000 정수여야 합니다.')
     schemas = {
         'aiwack_campaign_evidence_exports': (
-            r'campaign_[1-9][0-9]*_(?:[1-9]|[12][0-9]|30)_[0-9a-f]{20}\\.json',
+            r'campaign_[1-9][0-9]*_(?:[1-9]|[12][0-9]|30)_[0-9a-f]{20}\.json',
             'campaign_'),
         'aiwack_campaign_owner_dossiers': (
-            r'owner_final_[0-9a-f]{32}\\.json', 'owner_final_'),
+            r'owner_final_[0-9a-f]{32}\.json', 'owner_final_'),
     }
     if table not in schemas:
         raise ValueError('허용되지 않은 로컬 감사 테이블입니다.')
