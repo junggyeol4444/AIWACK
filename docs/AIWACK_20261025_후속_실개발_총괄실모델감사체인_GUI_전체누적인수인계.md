@@ -1,0 +1,38 @@
+# AIWACK 2026-10-25 후속 회차 — 기존 Windows 네이티브 프로젝트 전체 누적 인수인계
+
+## 시작 상태
+- 저장소 `junggyeol4444/AIWACK`; 지정 테스트 브랜치 `test/aiwack-20261023-0755-cumulative-resume-merge`만 사용.
+- 직전 테스트 브랜치 HEAD `caa70094a66fe3e96acde23bbff3f8dfb4c8898b`; main `f70dd72c74f4b6440ebea85501a66f4f5d85a391`; PR #9 open/draft/미병합.
+- GitHub 지정 주요 누적 인수인계 8개, 15장 원본 기획안, T01~T20 인수 매트릭스, main/Actions 조회 후 기존 코드에서 실개발. 기존 Windows10/11 EXE·한국어 Tk·SQLite·실제 GGUF/15부서31AI30업무·관리자 승인 통제 보존.
+
+## 이번 실제 개발 묶음과 원격 커밋
+1. `windows-integrated-src/desktop/company_campaign_final_report.py`: `inspect_final_model_attempt_chain` 신규 추가. 기존 실제 총괄 모델의 실패/성공 시도 불변 기록과 SQLite 실제 호출 감사·30업무 원본 SHA256·최종보고 원문 SHA256 연결을 읽기 전용 대조. 모델 ID, 직원 ID, 호출 ID, 실제 응답 길이, 실패 사유, 성공 보고 원문이 서로 맞지 않으면 오류로 거부. 감사 이력의 정렬된 SHA256 지문 제공. 호출 기록이 없으면 성공이 아닌 `no_model_attempt`, 실패만 있으면 `format_failures_only`로 구분. 실제 GGUF 바이너리·Windows 물리 GUI 검증을 수행했다고 주장하지 않음. 커밋 `9f0e1ca73d05620a33939278eba3d8e4565e5e27`, `31b60677127dc76279ab36ea5445cf20f53b8bb5`.
+2. `windows-integrated-src/desktop/storage.py`: 기존 Storage 클래스에 `inspect_campaign_final_model_attempt_chain` API 연결. 커밋 `4f066d7eed4ec657f260a2ffaa68b0cb6b41f95c`.
+3. `windows-integrated-src/desktop/company_native_owner_workflows.py`: 기존 한국어 Tk 관리자 운영 요약에 “총괄 최종보고 실제 모델 재시도 감사” 읽기 전용 버튼 추가. 커밋 `a2f5ec205688d87b5e0ef96345b9ecea2931be61`. 새 앱·WebUI 없음.
+4. `windows-integrated-src/tests/test_final_model_attempt_chain_native_20261025.py`: SQLite 계약 기반 7종 테스트 작성(호출 없음/실패만/실제 호출 성공 감사 연결/호출 길이 위조/성공 감사 누락/보고 본문 변조/부적합 ID). **테스트 작성 ≠ 실제 실행/통과**. 커밋 `32147f19c86f48072e611f21dda6cfebc0735c9e`.
+5. `.github/workflows/ci.yml`: 기존 CI의 누적 네이티브 회귀 테스트 목록에 새 테스트 파일 연결. 커밋 `a725cd5e9b9d67c91bb6383dc98ae56d2f52067e`.
+6. 지정 주요 누적 인수인계 8개 + 직전 12:41 전체 인수인계에 이번 회차를 **append-only**로 추가. 기존 원문 삭제·덮어쓰기 없음. 이 문서는 새 전체 누적 인수인계.
+
+## 테스트 PASS/FAIL/로그 및 미완료
+- 신규 pytest 로컬 실행하지 않았으므로 **PASS 미확정**. 실제 Windows GUI 버튼을 물리 클릭하거나 EXE 빌드 결과를 직접 확인하지 않았음.
+- 신규 Actions CI `40160378053` QUEUED, Windows EXE `40160377976` QUEUED, 패키징 GUI `40160378005` QUEUED, 실 GGUF 2업무 `40160377974` QUEUED(마지막 조회).
+- 직전 CI `40156804577` FAIL. 이 회차 CI 결과를 기존 실패와 혼동하지 말 것.
+- 실제 GGUF 15부서 31AI 30업무 전체, 총괄 실제 모델 최종보고의 실기 정상 결과, Windows10/11 물리 GUI/재로그인, 24시간 연속운영, T01~T20 전체 인수검증, 외부 실결제/은행 대사/게시 미실행·미검증.
+- 역사 원문 28개와 보존 매니페스트 이전 회차 복원 기록 유지. 1~21회차 원본 ZIP 1,099개 전수 대조 미완료. 이번 회차 라이브러리에서 AIWACK 원본 ZIP을 찾지 못했으므로 재대조 성공 주장 금지.
+- 잔여 전체 누적 소스의 원본 보존형 병합, Windows 30업무/packaged GUI 스크립트 충돌, 실제 GGUF parser/재시도 전체 통합, 전체 검증→실패 수정→재검증 미완료.
+- main `f70dd72c74f4b6440ebea85501a66f4f5d85a391` 변경 없음, PR #9 draft/미병합. 검증·전수 대조 조건 충족 전 main 병합 금지.
+
+## 사용자 지시 원문
+“잔여 누적 소스 전체 main 병합”
+“남은 전체 코드와 기능 여러 묶음을 먼저 실개발·원본 보존형 병합 → 기존·신규 전체 통합검증 → 실패 수정 → 재검증 → GitHub main 최종 커밋·원격 확인”
+“테스트 브랜치에서 작업하고 전체 검증·원본대조 완료 후에만 main에 반영하라.”
+“매 실행마다 기존 3개 주요 누적 GitHub 인수인계 및 위 5개 기록 문서 끝에 실제 진행·파일·테스트 PASS/FAIL·로그·미완료·사용자 지시/금지 원문을 append-only로 추가하고 새로운 전체 누적 인수인계 파일도 생성하라.”
+“안전 차단은 우회하지 말고 사실만 기록.”
+“가장 높은 사용 가능한 모델 요청은 유지하되 모델을 확인없이 선택/주장하지 말 것.”
+
+## 사용자 금지 원문
+“HTML/WebUI/대체 프로그램, 가짜 모델 출력, 기능 축소, 외부 Drive 강제, 원본/인수인계 덮어쓰기·삭제, 보안/권한 우회, 임의 PG 실거래·외부 계정·게시, 다른 프로젝트 및 예약 변경 금지.”
+“실기 GUI 클릭/재로그인·24시간·외부 실결제·T01~T20 실행하지 않았으면 성공이라고 주장하지 말 것.”
+
+## 다음 실행
+같은 테스트 브랜치에서 원본 1,099개 대조 및 남은 누적 소스 여러 묶음 실개발·원본 보존형 병합을 먼저 수행. 그 후 전체 통합검증 → 실패 수정 → 재검증 → 조건 충족 시에만 main 최종 커밋/원격 확인. 기존 예약·다른 프로젝트·브랜치 생성/삭제 금지.
