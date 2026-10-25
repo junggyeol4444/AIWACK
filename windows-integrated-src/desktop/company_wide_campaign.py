@@ -1139,7 +1139,8 @@ def _verified_step_evidence(con, campaign_id: int, ordinal: int, *,
 
 
 def _verified_chief_model_call_link(con, campaign_id: int, ordinal: int,
-                                    *, expected_chief: int) -> bool:
+                                    *, expected_chief: int,
+                                    require_done: bool = True) -> bool:
     """Require the report's own real chief model call after worker inference."""
     row=con.execute("""SELECT rep.chief_model_call_id, h.id, h.employee_id,
           h.status,h.output_chars,rep.chief_employee_id,
@@ -1173,7 +1174,8 @@ def _verified_chief_model_call_link(con, campaign_id: int, ordinal: int,
         and call_state=='success' and type(chars) is int and chars>0
         and call_id>worker_call
         and worker_state=='success' and review=='approved' and decision=='accepted'
-        and task_state=='done' and report_order==order_id
+        and task_state==('done' if require_done else 'in_progress')
+        and report_order==order_id
         and artifact_task==run_task==order_task)
 
 
@@ -1222,6 +1224,55 @@ def verified_progress(store, campaign_id: int) -> dict:
             'all_30_chief_model_call_links_verified':genuine_prefix==30,
             'actual_gguf_binary_verified':False,
             'owner_approval_was_required':True,'automatic_approval':False}
+
+
+def require_campaign_owner_finalization(store, artifact_id: int) -> dict | None:
+    """Require complete REAL chief + worker owner approval for a 30-task member.
+
+    This is an ADDITIONAL fail-closed gate for existing completion paths, not
+    a new way to approve, pay, run, or automatically finish any task.
+    Return None for artifacts outside a wide campaign; the original rules
+    remain authoritative for those other company tasks.
+    """
+    store.require_permission('company:manage')
+    if type(artifact_id) is not int or artifact_id <= 0:
+        raise ValueError('30업무 완료할 결과물 번호 오류')
+    with store._connect() as con:
+        initialize(con)
+        member=con.execute('''SELECT s.campaign_id,s.ordinal,s.task_id,
+            c.chief_employee_id,c.state
+            FROM aiwack_wide_campaign_steps s
+            JOIN aiwack_wide_campaigns c ON c.id=s.campaign_id
+            JOIN company_task_artifacts a ON a.task_id=s.task_id
+            WHERE a.id=?''',(artifact_id,)).fetchone()
+    if member is None:
+        return None
+    campaign_id,ordinal,task_id,chief,state=member
+    if (type(campaign_id) is not int or type(ordinal) is not int
+            or type(task_id) is not int or type(chief) is not int
+            or state!='approved' or not 1<=ordinal<=30):
+        raise ValueError('30업무 관리자 완료 원본이 승인되지 않았습니다.')
+    progress=verified_progress(store,campaign_id)
+    if (progress['verified_completed_tasks']!=ordinal-1
+            or progress['verified_genuine_prefix_tasks']!=ordinal-1
+            or progress['next_task_id']!=task_id):
+        raise ValueError('30업무 이전 직원·총괄 실제 모델 승인 원본 또는 순서 불일치')
+    with store._connect() as con:
+        initialize(con)
+        _assert_campaign_plan_matches_genuine_staging(store,con,campaign_id)
+        proof=_verified_step_evidence(con,campaign_id,ordinal,
+                                      expected_chief=chief,require_done=False)
+        if proof is None or proof['artifact_id']!=artifact_id:
+            raise ValueError('현재 직원 결과물·총괄 보고서·관리자 승인 원본 불일치')
+        if not _verified_chief_model_call_link(con,campaign_id,ordinal,
+                                               expected_chief=chief,
+                                               require_done=False):
+            raise ValueError('현재 총괄 AI의 실제 모델 호출·관리자 수락 증빙 불일치')
+    return {'campaign_id':campaign_id,'ordinal':ordinal,
+            'task_id':task_id,'artifact_id':artifact_id,
+            'genuine_chief_model_call_verified':True,
+            'owner_review_verified':True,
+            'automatic_approval':False}
 
 
 def run_next(store,campaign_id:int,*,cancel:threading.Event|None=None,
