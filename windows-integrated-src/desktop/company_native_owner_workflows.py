@@ -1057,7 +1057,8 @@ class CompanyOwnerWorkflows:
             ('delivery_owner_note', '업무 인계 관리자 사유'),
             ('delivery_research_artifact', '승인된 조사 결과물 번호'),
             ('delivery_product_artifact', '승인된 제작 결과물 번호'),
-            ('delivery_review_note', '상품 내부 검토 관리자 사유')]:
+            ('delivery_review_note', '상품 내부 검토 관리자 사유'),
+            ('delivery_export_id', '승인 로컬 상품 파일 번호')]:
             self._field(panel, key, label)
         self._buttons(panel, [
             ('조사 → 제작 업무 2건 등록', self._create_business_delivery_tasks),
@@ -1066,6 +1067,16 @@ class CompanyOwnerWorkflows:
                 lambda: self.store.chief_idea_delivery_history(limit=100)))])
         self._buttons(panel, [
             ('승인된 직원 결과 2건 → 상품 내부 검토', self._review_business_delivery)])
+        self._buttons(panel, [
+            ('관리자 승인 로컬 상품 파일 생성', self._export_business_delivery),
+            ('상품 파일 원본·SHA 검증', lambda: self._perform(
+                '실제 직원 승인 상품 파일 무결성',
+                lambda: self.store.read_chief_idea_local_product(
+                    self._id('delivery_export_id'))))])
+        self._buttons(panel, [
+            ('상품 로컬 파일 전체 감사', lambda: self._perform(
+                '실제 GGUF 상품 파일 누락·변조 감사',
+                lambda: self.store.inspect_chief_idea_local_products(limit=100)))])
         ttk.Label(panel,
             text='업무 실행은 기존 담당 직원 배정/실제 모델 호출/관리자 결과물 승인 '
                  '화면에서 수행합니다. 내부 검토는 출시 승인·매출 검증이 아닙니다.',
@@ -1092,6 +1103,18 @@ class CompanyOwnerWorkflows:
             '조사·제작 업무가 각각 실제 로컬 직원 모델 실행 성공, '
             '관리자 결과물 승인 및 업무 완료된 경우에만 상품을 내부 검토중으로 '
             '전환합니다. 상품 출시·판매·외부 게시·실제 매출은 아닙니다. 진행합니까?')
+
+    def _export_business_delivery(self):
+        def work():
+            result = self.store.export_chief_idea_local_product(
+                self._id('delivery_idea_id'))
+            self.values['delivery_export_id'].set(str(result['id']))
+            return result
+        self._perform('실제 직원 조사·제작 결과 로컬 상품 파일',
+            work,
+            '실제 직원 모델 실행·관리자 결과물 승인·2개 업무 완료·상품 내부 검토 '
+            '감사 원본이 일치할 때만 로컬 파일 1개를 생성합니다. '
+            '실제 시장 검증·상품 출시·외부 게시·결제·판매는 하지 않습니다. 진행합니까?')
 
     def _create_business_draft(self):
         self._perform('실제 GGUF 사업 후보 → 예산 0원 로컬 사업 초안',
