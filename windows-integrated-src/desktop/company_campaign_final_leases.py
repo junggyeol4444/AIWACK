@@ -88,14 +88,17 @@ def snapshot(store, limit: int = 100) -> list[dict]:
         rows=con.execute('''SELECT l.campaign_id,l.chief_employee_id,
             l.started_epoch,EXISTS(
               SELECT 1 FROM aiwack_campaign_final_reports r
-              WHERE r.campaign_id=l.campaign_id)
+              WHERE r.campaign_id=l.campaign_id),
+            (SELECT COUNT(*) FROM ai_model_call_history h
+             WHERE h.employee_id=l.chief_employee_id AND h.status='running')
             FROM aiwack_campaign_final_leases l
             ORDER BY l.started_epoch,l.campaign_id LIMIT ?''',(limit,)).fetchall()
     now=int(time.time())
     return [dict(campaign_id=int(cid),chief_employee_id=int(chief),
                  age_seconds=max(0,now-int(started)),report_exists=bool(report),
+                 sqlite_chief_model_calls_running=int(running),
                  process_state='unknown',owner_process_inspection_required=True)
-            for cid,chief,started,report in rows]
+            for cid,chief,started,report,running in rows]
 
 
 def clear_after_owner_inspection(store, campaign_id: int, *,
@@ -122,6 +125,11 @@ def clear_after_owner_inspection(store, campaign_id: int, *,
         age=int(time.time())-started
         if age < 180:
             raise ValueError('최종 보고 잠금 생성 후 3분이 지나지 않았습니다.')
+        # Even an owner-confirmed stale lease must not be cleared while the
+        # durable SQLite model-call journal still shows an active chief run.
+        if con.execute('''SELECT 1 FROM ai_model_call_history
+            WHERE employee_id=? AND status='running' LIMIT 1''',(chief,)).fetchone():
+            raise RuntimeError('SQLite에 총괄 AI 모델 실행 중 기록이 있습니다. 기존 중단 실행 복구 감사부터 확인하세요.')
         if con.execute('''DELETE FROM aiwack_campaign_final_leases
             WHERE campaign_id=? AND started_epoch=?''',(campaign_id,started)).rowcount!=1:
             raise RuntimeError('총괄 최종보고 잠금이 동시에 변경됐습니다.')
