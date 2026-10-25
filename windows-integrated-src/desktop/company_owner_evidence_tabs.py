@@ -13,6 +13,7 @@ def attach(owner, tabs):
     tabs.add(queue, text="관리자 승인 GGUF 영속 대기열")
     owner._field(queue, "owner_queue_task", "기존 승인된 업무 번호")
     owner._field(queue, "owner_campaign_queue_id", "기존 승인된 15부서·30업무 계획 번호")
+    owner._field(queue, "owner_campaign_checkpoint_note", "운영 원본 확인 기록 사유 (5~200자)")
     owner._field(queue, "owner_queue_id", "대기열 항목 번호")
     owner._field(queue, "owner_queue_note", "관리자 사유 (5~200자)")
     owner._field(queue, "owner_model_run_id", "Windows 종료 모델 실행 번호")
@@ -67,6 +68,27 @@ def attach(owner, tabs):
             "30업무 모델 호출/관리자 승인 근거",
             lambda: owner.store.model_queue_evidence_audit(100))),
     ])
+    owner._buttons(queue, [
+        ("30업무 전체 승인 원본 관측", lambda: owner._perform(
+            "15부서 30업무 전사 실행·승인 상태",
+            lambda: owner.store.campaign_owner_board(30))),
+        ("30업무 현재 관측 SHA 보존", lambda: owner._perform(
+            "30업무 관리자 확인 시점 원본 기록",
+            lambda: owner.store.capture_campaign_owner_checkpoint(
+                owner._id("owner_campaign_queue_id"),
+                owner._get("owner_campaign_checkpoint_note")),
+            "현재 30업무 원본·실제 GGUF 대기열의 관측 결과만 SHA256과 함께 "
+            "SQLite 불변 감사에 남깁니다. 개별 결과물 승인·모델 재실행은 하지 않습니다. 기록합니까?")),
+        ("30업무 관리자 관측 이력", lambda: owner._perform(
+            "30업무 원본 관측 기록 무결성",
+            lambda: owner.store.campaign_owner_checkpoint_history(
+                owner._id("owner_campaign_queue_id"),30))),
+    ])
+    ttk.Label(queue, text=(
+        "30업무 전체 조회는 각 실제 SQLite 시점의 관측값입니다. "
+        "동시 실행 시 단일 원자 스냅샷은 아니며, 관리자 승인·모델 실행·"
+        "실제 GGUF 바이너리 검증을 대신하지 않습니다."),
+        wraplength=800).pack(anchor="w",padx=12,pady=8)
     finance = ttk.Frame(tabs)
     tabs.add(finance, text="서명 거래·은행 CSV 근거")
     owner._field(finance, "finance_board_business", "사업 번호 (선택)")
@@ -83,6 +105,28 @@ def attach(owner, tabs):
         wraplength=800).pack(anchor="w",padx=12,pady=10)
     recovery = ttk.Frame(tabs)
     tabs.add(recovery, text="중단 복구 후속 업무")
+    owner._buttons(recovery, [
+        ("Windows 감시 실제 감사 파일 조회", lambda: owner._perform(
+            "외부 Windows 감시 JSONL 실행 이력",
+            lambda: owner.store.native_supervisor_audit(80))),
+        ("로그인 자동 시작 등록 상태", lambda: owner._perform(
+            "Windows 현재 사용자 로그인 시작 등록",
+            lambda: owner.store.native_supervisor_startup_status())),
+    ])
+    owner._buttons(recovery, [
+        ("로그인 후 감시 EXE 실행 등록", lambda: owner._perform(
+            "Windows 현재 사용자 로그인 시작 등록",
+            lambda: owner.store.enable_native_supervisor_startup(),
+            "현재 사용자 Windows 로그인 시 같은 폴더의 AIWACKSupervisor.exe가 "
+            "AIWACK.exe를 감시하도록 HKCU 시작 항목을 등록합니다. "
+            "기존 다른 항목은 덮어쓰지 않습니다. 로그인 전 실행·"
+            "모델 자동 승인·24시간 무중단은 보장하지 않습니다. 등록합니까?")),
+        ("현재 설치 경로의 로그인 시작 해제", lambda: owner._perform(
+            "Windows 현재 사용자 로그인 시작 해제",
+            lambda: owner.store.disable_native_supervisor_startup(),
+            "현재 AIWACK 설치 경로와 정확히 일치하는 로그인 시작 항목만 "
+            "삭제합니다. 이미 실행 중인 감시/GUI는 종료하지 않습니다. 해제합니까?")),
+    ])
     owner._field(recovery, "recovery_audit_id", "기존 중단 확인 감사 번호")
     owner._field(recovery, "recovery_work_id", "복구 후속 제안 번호")
     owner._field(recovery, "recovery_work_note", "관리자 사유 (5~200자)")
