@@ -54,6 +54,8 @@ class CompanyOwnerWorkflows:
         tabs.add(continuity, text='운영 기록 · 중단 복구')
         operational = ttk.Frame(tabs)
         tabs.add(operational, text='운영 이상 · 부서 업무량')
+        chief_evidence = ttk.Frame(tabs)
+        tabs.add(chief_evidence, text='총괄 GGUF 운영·재무 판단')
         failure_ai = ttk.Frame(tabs)
         tabs.add(failure_ai, text='실패 업무 총괄 AI 원인 분석')
         staff = ttk.Frame(tabs)
@@ -70,6 +72,7 @@ class CompanyOwnerWorkflows:
         self._business_delivery(delivery)
         self._continuity(continuity)
         self._operational_management(operational)
+        self._chief_evidence_management(chief_evidence)
         self._failure_model_review(failure_ai)
         summary = ttk.Frame(tabs)
         tabs.add(summary, text='전체 운영 원본 통합 조회')
@@ -153,6 +156,11 @@ class CompanyOwnerWorkflows:
                 failure_proposal_id = self._id('failure_model_followup_id')
                 campaign_id = None
                 source_id = None
+            elif action in ('operations_evidence_ai', 'commerce_evidence_ai'):
+                self.store.require_permission('agents:manage')
+                evidence_domain = 'operations' if action == 'operations_evidence_ai' else 'commerce'
+                campaign_id = None
+                source_id = None
             elif action == 'financial_brief_ai':
                 self.store.require_permission('agents:manage')
                 financial_brief_id=self._id('model_financial_brief_id')
@@ -221,6 +229,9 @@ class CompanyOwnerWorkflows:
                         from desktop.company_failure_ai_analysis import analyze
                         result = analyze(self.store,failure_proposal_id,
                                          cancel=self._campaign_cancel)
+                    elif action in ('operations_evidence_ai', 'commerce_evidence_ai'):
+                        result = self.store.propose_chief_evidence_review(
+                            evidence_domain, cancel=self._campaign_cancel)
                     elif action == 'financial_brief_ai':
                         result=self.store.analyze_real_chief_financial_brief(
                             financial_brief_id,cancel=self._campaign_cancel)
@@ -297,6 +308,9 @@ class CompanyOwnerWorkflows:
                 if title == '총괄 실제 GGUF 최종보고 생성':
                     if type(payload.get('id')) is int and payload['id'] > 0:
                         self.values['summary_final_report'].set(str(payload['id']))
+                if title in ('총괄 실제 GGUF 운영 근거 분석', '총괄 실제 GGUF 재무 근거 분석'):
+                    if type(payload.get('id')) is int and payload['id'] > 0:
+                        self.values['chief_evidence_review_id'].set(str(payload['id']))
                 if title == '실제 총괄 GGUF 사업 가설 생성':
                     if type(payload.get('id')) is int and payload['id'] > 0:
                         self.values['model_business_idea_id'].set(str(payload['id']))
@@ -932,6 +946,53 @@ class CompanyOwnerWorkflows:
             '직원 이동·AI 재호출·외부 고객 발송·결제·게시를 자동 실행하지 않습니다. '
             '실제 Windows 24시간 연속 운영 합격도 주장하지 않습니다.'),
             wraplength=780).pack(anchor='w', padx=12, pady=10)
+
+    def _chief_evidence_management(self, panel):
+        """실제 총괄 GGUF 판단과 소유자 후속 업무 승인(기존 Tk 창)."""
+        self._field(panel, 'chief_evidence_review_id', '실제 총괄 분석 번호')
+        self._field(panel, 'chief_evidence_note', '관리자 판단 사유 (5~200자)')
+        self._buttons(panel, [
+            ('운영·부서 원본 조회', lambda: self._perform(
+                '운영 원본 SHA256', lambda: self.store.chief_evidence_snapshot('operations'))),
+            ('주문·재무 원본 조회', lambda: self._perform(
+                '재무 원본 SHA256 (실매출 아님)',
+                lambda: self.store.chief_evidence_snapshot('commerce')))])
+        self._buttons(panel, [
+            ('실제 총괄 GGUF 운영 분석', lambda: self._start_real_model_action(
+                '총괄 실제 GGUF 운영 근거 분석', 'operations_evidence_ai',
+                '현재 SQLite 운영 이상·부서 업무량을 실제 로컬 총괄 GGUF에 전달해 '
+                '분석 초안만 생성합니다. 결과는 미승인 상태이며 외부 작업은 없습니다. 진행합니까?')),
+            ('실제 총괄 GGUF 재무 분석', lambda: self._start_real_model_action(
+                '총괄 실제 GGUF 재무 근거 분석', 'commerce_evidence_ai',
+                '현재 주문·환불·은행 대사 관련 로컬 증빙을 실제 로컬 총괄 GGUF에 전달해 '
+                '분석 초안만 생성합니다. 실제 매출/결제 확정은 아닙니다. 진행합니까?'))])
+        self._buttons(panel, [
+            ('총괄 모델·근거 감사 조회', lambda: self._perform(
+                '실제 GGUF 호출·SHA256 원본',
+                lambda: self.store.read_chief_evidence_review(
+                    self._id('chief_evidence_review_id')))),
+            ('총괄 분석 최근 30건', lambda: self._perform(
+                '총괄 운영·재무 분석 원본 이력',
+                lambda: self.store.chief_evidence_review_history(30)))])
+        self._buttons(panel, [
+            ('관리자 후속 내부 업무 생성', lambda: self._decide_chief_evidence('followup_task')),
+            ('관리자 분석 반려', lambda: self._decide_chief_evidence('rejected')),
+            ('진행 중 실제 GGUF 취소', self._cancel_real_model_action)])
+        ttk.Label(panel, text=(
+            '모델 판단은 검증되지 않은 의견입니다. 원본 SHA256·실제 모델 호출 감사와 '
+            '관리자 개별 승인 전에는 후속 업무를 생성하지 않습니다. '
+            '승인 이후에도 외부 결제·환불·발송·게시 및 AI 자동 실행은 없습니다.'),
+            wraplength=800).pack(anchor='w', padx=12, pady=12)
+
+    def _decide_chief_evidence(self, decision):
+        label = '후속 내부 검토 업무 생성' if decision == 'followup_task' else '분석 반려'
+        self._perform('총괄 모델 분석 관리자 ' + label,
+            lambda: self.store.decide_chief_evidence_review(
+                self._id('chief_evidence_review_id'), decision,
+                self._get('chief_evidence_note')),
+            '실제 총괄 GGUF 출력과 원본 증빙을 직접 확인했습니까? '
+            '모델 의견을 확정 매출이나 실행 성공으로 간주하지 않으며 '
+            '내부 검토 업무만 기록합니다. ' + label + '합니까?')
 
     def _review_incident(self, decision):
         label = {'acknowledged': '확인', 'followup': '후속 업무 생성',

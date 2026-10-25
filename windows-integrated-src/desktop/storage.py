@@ -5326,3 +5326,25 @@ class LocalStore:
     def department_workload_review_history(self, limit=50):
         from desktop.company_department_workload import history
         return history(self, limit)
+ 
+    # 실제 총괄 GGUF 운영·재무 근거 분석 및 소유자 개별 후속업무 승인.
+    def chief_evidence_snapshot(self, domain):
+        from desktop.company_chief_evidence_sources import snapshot
+        return snapshot(self, domain)
+
+    def propose_chief_evidence_review(self, domain, *, cancel=None):
+        from desktop.company_chief_evidence_decisions import propose
+        return propose(self, domain, cancel=cancel)
+
+    def read_chief_evidence_review(self, review_id):
+        from desktop.company_chief_evidence_decisions import read
+        return read(self, review_id)
+
+    def chief_evidence_review_history(self, limit=30):
+        from desktop.company_chief_evidence_decisions import history
+        return history(self, limit)
+
+    def decide_chief_evidence_review(self, review_id, decision, note):
+        from desktop.company_chief_evidence_decisions import decide
+        return decide(self, review_id, decision, note)
+

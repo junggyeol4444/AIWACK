@@ -152,6 +152,8 @@ def snapshot(store, campaign_id: int, business_id: int | None = None) -> dict:
         store.department_workload_snapshot)
     sections['department_workload_owner_reviews'] = _read_section(
         lambda: store.department_workload_review_history(100))
+    sections['real_chief_operations_finance_reviews'] = _read_section(
+        lambda: store.chief_evidence_review_history(30))
 
     sections['customer_case_global_reconciliation'] = _read_section(
         lambda: store.list_customer_cases(100))
