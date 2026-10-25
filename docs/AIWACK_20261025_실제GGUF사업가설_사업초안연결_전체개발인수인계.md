@@ -37,3 +37,9 @@
 - 신규 `desktop/company_business_market_research.py`: 관리자가 기존 실제 총괄 GGUF 사업 가설에 연결할 단일 공개 HTTPS URL/호스트를 별도 승인하면, 기존 `public_web_research.read_public_https` DNS 고정·TLS 검증·128KiB 제한·리다이렉트 금지로 실제 자료 1건을 수집. `research_captures` 기존 자료 원문, 진짜 HTTPS 200 영수증과 SHA, 소유자 승인·사업 가설 ID를 불변 SQLite 링크로 연결. 같은 원문은 진짜 HTTPS 영수증과 URL+raw SHA가 일치할 때만 재사용. 출처 주장/시장 수요는 미검증으로 유지. 네트워크 접근은 관리자 직접 클릭할 때만 허용.
 - 기존 `desktop/storage.py` 소유자 전용 실제 자료 수집/출처 이력 API, `desktop/company_native_owner_workflows.py` 한국어 사업 기획 탭에 URL/호스트/제목 입력·관리자 확인·백그라운드 수집·원본 조회 추가. 기존 EXE PyInstaller 가져오기 설정 누적.
 - 기존 GitHub `main`에 소스와 인수인계를 반영. 전체 기능 개발 미완료, 새 Windows GUI·실제 HTTPS 외부사이트·전체 모델 통합검증 **아직 하지 않음**. 개발 → 통합검증 → 오류 수정 → 재검증 원칙 유지. 사용자 승인 없는 외부 송신·게시/계좌 접근·매출 생성 금지.
+
+
+## 실제 개발 후속: 공개 HTTPS 진짜 원문→실제 로컬 총괄 GGUF 시장 관찰 분석
+- 신규 `windows-integrated-src/desktop/company_business_market_ai.py`: 실제 `company_business_market_research`에 기록된 사업 가설 관련 공개 HTTPS 원본 최대 3건(실제 캡처 SHA/URL 포함)만 모아서 실제 연결된 총괄 GGUF 모델로 한 차례 분석. 모델 호출 전 SQLite 원본 출처 묶음 ID+SHA와 입력 SHA를 **영속 UNIQUE claim**으로 기록해 중복·crash 후 자동 재호출을 금지. 출력은 정확한 JSON 세 필드(관찰, 경쟁 언급, 미확인 사항)만 허용, 실제 호출 ID/출력 SHA/성공·실패 원본 이력을 append-only 감사로 보존. 외부 웹 글의 명령은 참고 데이터로만 전달, 모델에게 외부도구 실행 권한 없음. 3,000자 모델 입력 제한 유지.
+- 기존 `desktop/storage.py`의 실제 AI 분석 및 감사 읽기 API, 한국어 `company_native_owner_workflows.py`에서 소유자 승인 버튼과 감사 조회 UI, `build_windows_exe.bat` 누적 hidden-import 실제 추가.
+- **전체 개발 미완료 / 통합검증·실기 GGUF 실행 아직 NOT_RUN.** 개발이 끝나기 전에 검증했다고 표시 금지, 최종 시장 수요·경쟁 데이터 진위·매출 검증 주장 금지.

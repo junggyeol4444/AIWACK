@@ -4022,6 +4022,18 @@ class LocalStore:
         from desktop.company_business_market_research import history
         return history(self,idea_id,limit)
 
+    # Stage63: genuine local chief GGUF analysis of the actual owner-captured URLs.
+    def analyze_chief_business_market(self, idea_id: int, *, cancel=None) -> dict:
+        self.require_permission('company:manage')
+        self.require_permission('agents:manage')
+        from desktop.company_business_market_ai import analyze
+        return analyze(self,idea_id,cancel=cancel)
+
+    def chief_business_market_analysis_history(self, idea_id: int, *, limit: int=50) -> list[dict]:
+        self.require_permission('company:manage')
+        from desktop.company_business_market_ai import history
+        return history(self,idea_id,limit)
+
     # Stage62: offline candidate hypotheses from administrator-provided assumptions.
     def generate_business_candidates(self, audience: str, problem: str,
                                      max_candidates: int = 8) -> dict:

@@ -144,6 +144,11 @@ class CompanyOwnerWorkflows:
                 failure_proposal_id = self._id('failure_model_followup_id')
                 campaign_id = None
                 source_id = None
+            elif action == 'market_ai':
+                self.store.require_permission('agents:manage')
+                idea_id=self._id('model_business_idea_id')
+                campaign_id=None
+                source_id=None
             elif action == 'market_source':
                 # User selected one literal HTTPS URL and an exact public host.
                 # Do not read Tk variables in the background worker.
@@ -202,6 +207,9 @@ class CompanyOwnerWorkflows:
                         from desktop.company_failure_ai_analysis import analyze
                         result = analyze(self.store,failure_proposal_id,
                                          cancel=self._campaign_cancel)
+                    elif action == 'market_ai':
+                        result=self.store.analyze_chief_business_market(
+                            idea_id,cancel=self._campaign_cancel)
                     elif action == 'market_source':
                         result=self.store.fetch_chief_business_market_source(
                             idea_id,source_url,source_host,source_title,
@@ -1072,6 +1080,16 @@ class CompanyOwnerWorkflows:
             ('사업 가설 실제 출처·원본 SHA 조회',lambda:self._perform(
                 '실제 사업 가설 시장 조사 자료 수집 원본',
                 lambda:self.store.list_chief_business_market_sources(
+                    self._id('model_business_idea_id'),limit=100)))])
+        self._buttons(panel,[
+            ('실제 공개자료 1~3건 → 총괄 GGUF 시장 관찰 분석',lambda:self._start_real_model_action(
+                '실제 총괄 GGUF 시장 자료 원문 분석','market_ai',
+                '선택한 실제 사업 가설에 이미 직접 수집된 공개 HTTPS 원문 최대 3건을 '
+                '기존 총괄 GGUF 모델에 전달해 미검증 관찰·경쟁 언급·불확실성을 분석합니다. '
+                '허위 시장 수요·매출 판단이나 외부 게시·결제는 하지 않습니다. 진행합니까?')),
+            ('총괄 실제 출처 분석·호출 감사 조회',lambda:self._perform(
+                '실제 총괄 GGUF 시장 원문 분석 기록',
+                lambda:self.store.chief_business_market_analysis_history(
                     self._id('model_business_idea_id'),limit=100)))])
         self._buttons(panel,[
             ('관리자 프로젝트 초안 연결',self._create_model_project_draft),
