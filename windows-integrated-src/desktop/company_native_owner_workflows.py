@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import json
 import hashlib
+import os
 import queue
 import threading
 from pathlib import Path
@@ -502,10 +503,70 @@ class CompanyOwnerWorkflows:
                     self._id('summary_final_report')))),
             ('관리자 최종보고 승인',lambda:self._decide_final_report('accepted')),
             ('관리자 최종보고 거절',lambda:self._decide_final_report('rejected'))])
+        self._summary_buttons(panel,[
+            ('관리자 승인 30업무 최종 인계 지문 저장',lambda:self._perform(
+                'SQLite 실제 모델 호출·30업무·최종 승인 인계 로컬 저장',
+                self._export_chain_receipt)),
+            ('저장된 최종 인계 지문 원본 재검증',lambda:self._perform(
+                '기존 JSON 지문과 현재 SQLite·최종 인계 파일 일치 검사',
+                self._verify_saved_chain_receipt))])
         ttk.Label(panel,text=('현재 SQLite와 로컬 승인 파일의 원본만 조회합니다. '
             '실제 Windows10/11·24시간·GGUF 바이너리·PG 실거래·T01~T20 최종 합격은 '
             '조회만으로 주장하지 않습니다.'),wraplength=850).pack(
                 anchor='w',padx=12,pady=12)
+
+    def _export_chain_receipt(self):
+        """Owner-selected local chain proof; never replace files or call GGUF."""
+        self.store.require_permission('company:manage')
+        campaign_id = self._id('summary_campaign')
+        from desktop.company_campaign_chain_integrity import (
+            export_receipt_json, verify_receipt_json)
+        original = export_receipt_json(self.store, campaign_id)
+        # Verify immediately against live SQLite and already saved owner dossier.
+        proof = verify_receipt_json(self.store, campaign_id, original)
+        if proof.get('verified') is not True:
+            raise ValueError('최종 인계 원본 무결성 연결이 확인되지 않았습니다.')
+        dest = filedialog.asksaveasfilename(
+            parent=self.window, title='실제 승인된 30업무 인계 지문 저장',
+            defaultextension='.json', filetypes=[('JSON', '*.json')])
+        if not dest:
+            return {'cancelled': True, 'file_written': False}
+        path = Path(dest)
+        if path.is_symlink() or path.exists():
+            raise FileExistsError('기존 파일은 덮어쓰지 않습니다. 새 파일명을 선택하세요.')
+        data = original.encode('utf-8')
+        if not 0 < len(data) <= 32768:
+            raise ValueError('승인된 최종 인계 증빙 파일 크기 오류')
+        # Exclusive create protects owner files on a concurrent filesystem.
+        with path.open('xb') as stream:
+            stream.write(data)
+            stream.flush()
+            os.fsync(stream.fileno())
+        if path.read_bytes() != data:
+            raise ValueError('인계 파일을 저장한 뒤 원본이 달라졌습니다. 원본 재확인이 필요합니다.')
+        verified = verify_receipt_json(
+            self.store, campaign_id, path.read_text(encoding='utf-8'))
+        return {'saved_path': str(path), 'bytes': len(data),
+                'receipt_sha256': verified['receipt_sha256'],
+                'source_reverified': True, 'external_transmission': False}
+
+    def _verify_saved_chain_receipt(self):
+        """Inspect existing user-selected receipt without changing it."""
+        self.store.require_permission('company:manage')
+        campaign_id = self._id('summary_campaign')
+        source = filedialog.askopenfilename(
+            parent=self.window, title='저장된 30업무 최종 인계 지문 검증',
+            filetypes=[('JSON', '*.json')])
+        if not source:
+            return {'cancelled': True, 'read_only': True}
+        path = Path(source)
+        if path.is_symlink() or not path.is_file() or path.stat().st_size > 32768:
+            raise ValueError('검증 파일이 없거나 링크/파일 크기가 올바르지 않습니다.')
+        from desktop.company_campaign_chain_integrity import verify_receipt_json
+        result = verify_receipt_json(
+            self.store, campaign_id, path.read_text(encoding='utf-8'))
+        return {**result, 'selected_file': str(path),
+                'file_modified': False, 'external_actions_executed': False}
 
     def _read_operations_summary(self):
         from desktop.company_owner_operational_summary import snapshot
