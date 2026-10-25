@@ -295,7 +295,7 @@ def find_by_campaign(store,campaign_id:int):
     return read(store,int(row[0])) if row is not None else None
 
 
-def propose(store,campaign_id:int,*,cancel:threading.Event|None=None):
+def _propose_under_lease(store,campaign_id:int,*,cancel:threading.Event|None=None):
     store.require_permission('company:manage')
     store.require_permission('agents:manage')
     if type(campaign_id) is not int or campaign_id<=0:
@@ -374,6 +374,29 @@ def propose(store,campaign_id:int,*,cancel:threading.Event|None=None):
         _record_final_model_attempt(con,campaign_id,chief,call_id,seal,raw,
                                     parsed=True,report_sha256=digest)
     return read(store,rid)
+
+
+def propose(store,campaign_id:int,*,cancel:threading.Event|None=None):
+    """One durable owner-controlled final-report model session per campaign.
+
+    A different Windows GUI session cannot duplicate the costly real GGUF
+    calls while this lease is held. Crashes leave an explicit recovery gate,
+    never an automatic replay or silent acceptance.
+    """
+    store.require_permission('company:manage')
+    store.require_permission('agents:manage')
+    if type(campaign_id) is not int or campaign_id <= 0:
+        raise ValueError('회사 전체 협업 번호 오류')
+    if cancel is not None and cancel.is_set():
+        raise InterruptedError('총괄 최종 보고 시작 전에 취소됐습니다.')
+    from desktop import company_campaign_final_leases as final_leases
+    token=final_leases.reserve(store,campaign_id)
+    try:
+        return _propose_under_lease(store,campaign_id,cancel=cancel)
+    finally:
+        # A genuine process crash cannot run finally; that lease is never
+        # silently cleared by age and requires explicit owner inspection.
+        final_leases.release(store,campaign_id,token)
 
 
 def model_attempts(store, campaign_id: int) -> list[dict]:
