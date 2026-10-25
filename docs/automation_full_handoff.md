@@ -1715,3 +1715,13 @@ CI 마지막 확정 실패: b9a09e88 커밋의 루트 138 PASS, 네이티브 335
 - 과거 GitHub Actions 브랜치 삭제 실행 `40190196239`은 이번 조회에서도 **queued**. 브랜치 조회 시 `main` 외 4개 테스트/개발 브랜치 존재. 삭제 완료 주장 없음. 새 브랜치 생성 없음.
 - **미완료**: 원본 15장·100단계 잔여 모든 실업무, 15부서/31AI/30업무 실제 자율 생성→협업→총괄 최종보고 전 과정, 24시간 복구, 독립 실제 PG/은행/환불/배송 연결, 원본 ZIP의 나머지 역사 파일 32개 보존형 복원과 52개 내용 전수 의미 대조. 전체 개발 완료 이후에만 Windows 10/11 EXE+실 GGUF+T01~T20 통합검증→오류 일괄 수정→전체 재검증. 이번 기능에 대한 pytest·Windows 실기·실거래 검증은 **NOT_RUN**, PASS 0건, 실패 0건(검증 자체 미실시).
 - 다음 시간: 최신 main HEAD 재조회, 이 회차 코드·인수인계 보존, 위 미완료 원본 기능을 여러 핵심 영역에서 계속 구현하고 main에 비강제/expected-SHA로 반영. 기존 4개 브랜치 삭제 상태 사실 재확인. 원본·DB·예약·다른 프로젝트 변경 금지.
+
+
+## 2026-10-25 23:44 KST — 기존 승인 주문의 실제 로컬 상품 준비·재무 대조 기능 개발 (append-only)
+
+- 시작 main `83c7c3598ba2dfeb4eb3c70624e4b9d398f0cecb`. 신규 제품 코드 2개 + 기존 저장소 API/한국어 Tkinter GUI/PyInstaller 빌드 3개 수정. 코드·상세 인수인계 최초 커밋 `6f12b4b60074f47b65dc1dfda1a3493469db76b9`.
+- 신규 `windows-integrated-src/desktop/company_local_delivery_packets.py`: 기존 승인·미취소·미환불 로컬 주문의 실제 승인된 30업무 상품 문서 바이트를 관리자 개별 승인 후 주문별 1회만 로컬에 복사. SQLite append-only 영수증/파일 SHA256/중복 차단/비상정지 재확인. 고객 발송·외부 PG·은행 연결 없음.
+- 신규 `windows-integrated-src/desktop/company_local_order_finance.py`: 서명된 정산 증빙/환불 증빙/상품 준비/고객지원 연결을 기존 SQLite·로컬 파일에서 읽기 전용 대조. 금액은 로컬 증빙 합계로만 표시, 실제 매출/이익은 미확인.
+- 기존 `storage.py`에 API 4개, `company_native_owner_workflows.py` 주문 탭에 한국어 버튼 4개, `build_windows_exe.bat`에 PyInstaller hidden-import 2개 누적. 상세: `docs/AIWACK_20261025_2344_로컬상품준비_재무대조_전체누적_인수인계.md`.
+- 전체 원본 기능 개발은 아직 미완료. 원본 1,099/후속 1,171개 ZIP 원본 바이트 미확보, 52개 수정/73개 추가 내용 전수 3-way 확인 및 역사 잔여 32개 복원 미완료. 과거 4개 테스트 브랜치 조회상 존재, 삭제 Actions #40190196239 queued.
+- **검증 NOT_RUN**: 전체 개발 완료 전 Windows 10/11 네이티브 EXE·실 GGUF·T01~T20 통합검증/오류 수정·재검증 미실시. 실제 결제·환불·매출·고객 전송 없음. 다음 회차는 원격 HEAD 재조회 후 원본 잔여 개발부터 계속.
