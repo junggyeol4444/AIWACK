@@ -55,6 +55,7 @@ def _open_snapshot_archive(path: Path, prefix: str):
     inspected = scan_bytes = 0
     for depth in range(MAX_DEPTH + 1):
         next_level = []
+        queued_bytes = 0
         for raw in candidates:
             digest = hashlib.sha256(raw).hexdigest()
             if digest in seen:
@@ -77,9 +78,12 @@ def _open_snapshot_archive(path: Path, prefix: str):
                 if depth < MAX_DEPTH:
                     for item in infos:
                         if item.filename.lower().endswith(".zip"):
-                            if len(next_level) >= MAX_NESTED_ARCHIVES:
-                                raise ValueError("중첩 ZIP 후보 수가 안전 한도를 초과했습니다.")
-                            next_level.append(z.read(item))
+                            if (len(next_level) >= MAX_NESTED_ARCHIVES
+                                    or queued_bytes + item.file_size > MAX_SCAN_BYTES):
+                                raise ValueError("중첩 ZIP 후보 수·크기가 안전 한도를 초과했습니다.")
+                            nested = z.read(item)
+                            queued_bytes += len(nested)
+                            next_level.append(nested)
         candidates = next_level
     if len(found) == 1:
         return found[0]
