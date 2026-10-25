@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import sqlite3
+import hashlib
 import pytest
 from desktop import company_campaign_evidence as evidence
 from desktop import company_campaign_owner_dossier as dossier
@@ -29,10 +30,10 @@ def local(tmp_path, monkeypatch):
     monkeypatch.setattr(dossier, 'initialize', lambda con: None)
     monkeypatch.setattr(evidence, 'read', lambda store, ident: {
         'id': ident, 'filename': str(evidence._folder(store) / _name('call', ident)),
-        'sha256': 'a' * 64})
+        'sha256': hashlib.sha256(b'sample').hexdigest()})
     monkeypatch.setattr(dossier, 'read', lambda store, ident: {
         'id': ident, 'path': str(dossier._folder(store) / _name('dossier', ident)),
-        'file_sha256': 'b' * 64})
+        'file_sha256': hashlib.sha256(b'sample').hexdigest()})
     return _Store(tmp_path / 'company.sqlite')
 
 
@@ -218,3 +219,36 @@ def test_malformed_verifier_failure_is_classified_without_stopping_whole_audit(
     assert len(result['registered_files_failed']) == 1
     assert result['registered_files_failed'][0]['error_type'] == type(exception).__name__
     assert result['requires_owner_review'] is True
+
+
+@pytest.mark.parametrize('kind', ['call', 'dossier'])
+def test_full_audit_checks_actual_file_hash_not_only_verifier_claim(local, kind):
+    module = evidence if kind == 'call' else dossier
+    table = ('aiwack_campaign_evidence_exports' if kind == 'call'
+             else 'aiwack_campaign_owner_dossiers')
+    folder = module._folder(local)
+    folder.mkdir()
+    name = _name(kind, 1)
+    with local._connect() as con:
+        con.execute('INSERT INTO ' + table + ' VALUES(1,?)', (name,))
+    (folder / name).write_bytes(b'changed-original')
+    result = module.inspect_disk_consistency_full(local)
+    assert result['registered_files_verified'] == []
+    assert len(result['registered_files_failed']) == 1
+    assert 'SHA256' in result['registered_files_failed'][0]['reason']
+    assert result['requires_owner_review'] is True
+    assert (folder / name).read_bytes() == b'changed-original'
+
+
+@pytest.mark.parametrize('kind', ['call', 'dossier'])
+def test_full_audit_classifies_crash_leftover_with_non_json_suffix(local, kind):
+    module = evidence if kind == 'call' else dossier
+    folder = module._folder(local)
+    folder.mkdir()
+    name = _name(kind, 1) + '.tmp'
+    (folder / name).write_bytes(b'unregistered-partial-write')
+    result = module.inspect_disk_consistency_full(local)
+    assert result['unsafe_candidate_paths'] == [name]
+    assert result['all_registered_files_verified'] is False
+    assert result['requires_owner_review'] is True
+    assert result['files_deleted'] is False

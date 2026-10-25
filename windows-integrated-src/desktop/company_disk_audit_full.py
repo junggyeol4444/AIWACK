@@ -6,6 +6,7 @@ Windows GUI, 외부 거래나 24시간 운영 성공을 증명하지 않는다.
 from __future__ import annotations
 
 import hashlib
+import hmac
 import json
 import os
 import re
@@ -35,6 +36,7 @@ def inspect_full(store, *, folder: Path, table: str, filename_pattern: str,
                            ' ORDER BY id LIMIT ?', (max_records,)).fetchall()
     partial_rows = total > len(rows)
     registered_names = {name for _, name in rows if isinstance(name, str)}
+    folder_before = folder.stat() if folder.exists() else None
     verified, failed = [], []
     seen_names = set()
     for ident, name in rows:
@@ -64,6 +66,27 @@ def inspect_full(store, *, folder: Path, table: str, filename_pattern: str,
             if (not isinstance(digest, str) or
                     re.fullmatch(r'[0-9a-f]{64}', digest) is None):
                 raise ValueError('등록된 감사 파일의 SHA256 검증 결과 오류')
+            # Rehash the actual archive independently of the verifier. A
+            # matching ID/path and a syntactically valid digest are not proof.
+            before = expected_path.stat()
+            if not 0 < before.st_size <= 16 * 1024 * 1024:
+                raise ValueError('감사 원본 파일 크기가 허용 범위를 벗어났습니다.')
+            actual = hashlib.sha256()
+            counted = 0
+            with expected_path.open('rb') as source:
+                for chunk in iter(lambda: source.read(65536), b''):
+                    counted += len(chunk)
+                    if counted > 16 * 1024 * 1024:
+                        raise ValueError('감사 원본 파일이 점검 도중 허용 크기를 넘었습니다.')
+                    actual.update(chunk)
+            after = expected_path.stat()
+            if (counted != before.st_size or before.st_size != after.st_size
+                    or before.st_mtime_ns != after.st_mtime_ns
+                    or before.st_ino != after.st_ino
+                    or expected_path.is_symlink()):
+                raise ValueError('감사 원본 파일이 점검 도중 변경됐습니다.')
+            if not hmac.compare_digest(actual.hexdigest(), digest):
+                raise ValueError('디스크 감사 원본 SHA256이 등록된 검증 결과와 다릅니다.')
         except (ValueError, PermissionError, OSError, sqlite3.Error,
                 TypeError, KeyError) as exc:
             failed.append({'id': ident, 'filename': name,
@@ -79,7 +102,7 @@ def inspect_full(store, *, folder: Path, table: str, filename_pattern: str,
         with os.scandir(folder) as entries:
             for entry in entries:
                 name = entry.name
-                if not (name.startswith(candidate_prefix) and name.endswith('.json')):
+                if not name.startswith(candidate_prefix):
                     continue
                 if candidates >= max_records:
                     partial_files = True
@@ -92,7 +115,12 @@ def inspect_full(store, *, folder: Path, table: str, filename_pattern: str,
                     # 등록 행 일부만 읽었다면 미확인 파일을 고아로 단정하지 않는다.
                     (unknown if partial_rows else orphans).append(name)
 
-    complete = not partial_rows and not partial_files
+    folder_after = folder.stat() if folder.exists() else None
+    folder_changed = (folder_before is None) != (folder_after is None)
+    if folder_before is not None and folder_after is not None:
+        folder_changed = (folder_before.st_mtime_ns != folder_after.st_mtime_ns
+                          or folder_before.st_ino != folder_after.st_ino)
+    complete = not partial_rows and not partial_files and not folder_changed
     review = bool(failed or orphans or unsafe or unknown or not complete)
     # 조회 결과의 결정적 지문일 뿐, 전자서명이나 외부 모델 실행 증명이 아니다.
     inventory = {
@@ -101,6 +129,7 @@ def inspect_full(store, *, folder: Path, table: str, filename_pattern: str,
         'verified': verified, 'failed': failed,
         'orphaned': sorted(orphans), 'unsafe': sorted(unsafe),
         'unclassified': sorted(unknown), 'scan_complete': complete,
+        'directory_changed_during_scan': folder_changed,
     }
     inventory_sha256 = hashlib.sha256(json.dumps(
         inventory, ensure_ascii=False, sort_keys=True, separators=(',', ':')
@@ -119,6 +148,7 @@ def inspect_full(store, *, folder: Path, table: str, filename_pattern: str,
         'unsafe_candidate_paths': sorted(unsafe),
         'unclassified_candidate_files': sorted(unknown),
         'scan_complete': complete,
+        'directory_changed_during_scan': folder_changed,
         'all_registered_files_verified': complete and len(verified) == total
                                          and not failed and not orphans and not unsafe,
         'requires_owner_review': review,
