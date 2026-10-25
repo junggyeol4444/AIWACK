@@ -138,9 +138,20 @@ def step_history(store, run_id: int) -> list[dict]:
            result_ids_sha256,result_ids_json,recorded_at
            FROM aiwack_autopilot_step_evidence WHERE run_id=?
            ORDER BY id""",(run_id,)).fetchall()
-    return [{'step':kind,'created_count':int(count),
-             'result_ids_sha256':digest,'result_ids':json.loads(ids),
-             'recorded_at':recorded} for kind,count,digest,ids,recorded in rows]
+    result=[]
+    for kind,count,digest,ids,recorded in rows:
+        try:
+            items=json.loads(ids)
+        except (ValueError,TypeError) as exc:
+            raise ValueError('자동 운영 단계 번호 감사 JSON이 손상됐습니다.') from exc
+        if (not isinstance(items,list) or len(items)!=count
+                or any(type(x) is not int or x<=0 for x in items)
+                or hashlib.sha256(ids.encode('utf-8')).hexdigest()!=digest):
+            raise ValueError('자동 운영 단계 생성 업무 ID 원본 SHA256 검사가 실패했습니다.')
+        result.append({'step':kind,'created_count':int(count),
+                       'result_ids_sha256':digest,'result_ids':items,
+                       'recorded_at':recorded})
+    return result
 
 
 def run_once(store, *, now=None):
