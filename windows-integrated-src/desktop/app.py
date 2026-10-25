@@ -3173,6 +3173,7 @@ class AIWACKWindow:
         tk.Button(controls, text='선택 일정 활성화', command=lambda: self._toggle_recurring(True)).pack(side='left')
         tk.Button(controls, text='선택 일정 비활성화', command=lambda: self._toggle_recurring(False)).pack(side='left')
         tk.Button(controls, text='지금 기한 검사', command=self._run_recurring).pack(side='left')
+        tk.Button(controls, text='지난 일정 누락 감사', command=self._recurring_skip_audit).pack(side='left')
         self._label(parent, '', textvariable=self.recurring_feedback).pack(anchor='w')
         self.refresh_recurring_schedules()
 
@@ -3209,6 +3210,22 @@ class AIWACKWindow:
             self.recurring_feedback.set(f'새 업무 {len(created)}개 등록 (AI 실행 없음)')
             self.refresh_recurring_schedules()
         except (ValueError, PermissionError) as exc:
+            self.recurring_feedback.set(str(exc))
+
+    def _recurring_skip_audit(self) -> None:
+        """24시간 운영 성공 주장이 아닌 실제 로컬 SQLite 누락 기록만 표시."""
+        try:
+            rows = self.store.list_recurring_skipped_windows(limit=100)
+            skipped = sum(int(row['skipped_count']) for row in rows)
+            if not rows:
+                self.recurring_feedback.set('기록된 누락 주기가 없습니다 (24시간 연속 운영 증명 아님).')
+            else:
+                latest = rows[0]
+                self.recurring_feedback.set(
+                    f"최근 감사 {len(rows)}건 / 실행하지 못한 일정 구간 합계 {skipped}회 / "
+                    f"최근 일정 #{latest['schedule_id']} ({latest['first_skipped_due']}~"
+                    f"{latest['last_skipped_due']} Unix 초). 자동 재실행하지 않았습니다.")
+        except (ValueError, PermissionError, OSError) as exc:
             self.recurring_feedback.set(str(exc))
 
     def _continuity_tick(self, generation: int) -> None:
