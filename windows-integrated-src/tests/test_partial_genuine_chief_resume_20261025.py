@@ -107,3 +107,54 @@ def test_single_department_checkpoint_is_immutable_and_original_bound(tmp_path, 
                     ('기준 업무 내용이 변경됨', source))
     with pytest.raises(ValueError, match='원본 불일치'):
         wide.staged_plan_progress(store, source)
+
+
+def test_single_department_checkpoint_digest_detects_cold_disk_mutation(tmp_path, monkeypatch):
+    """Only fixture SQLite is modified to emulate a corrupt disk, not an owner DB."""
+    store, source = _office(tmp_path)
+    names = [name for name, _ in ops.BLUEPRINT_DEPARTMENTS][:3]
+
+    def response(config, prompt, **kwargs):
+        if '담당 부서: ' in prompt:
+            return '형식에 맞지 않는 세 부서 응답'
+        if names[0] in prompt:
+            return f'{names[0]}|검증 계획|{names[0]}의 실제 직원 결과를 검토해 안전하게 보고합니다'
+        return '미완료'
+
+    monkeypatch.setattr('desktop.employee_model_runtime.run_local_model', response)
+    with pytest.raises(ValueError, match='재계획도 실패'):
+        wide.propose(store, source)
+    with store._connect() as con:
+        original = con.execute(
+            'SELECT title,payload_sha256 FROM aiwack_wide_single_department_staging'
+        ).fetchone()
+        assert original and len(original[1]) == 64
+        con.execute('DROP TRIGGER aiwack_wide_single_staging_no_update')
+        con.execute(
+            'UPDATE aiwack_wide_single_department_staging SET title=?',
+            ('독립 원본 변경 모의',))
+    with pytest.raises(ValueError, match='SHA256'):
+        wide.staged_plan_progress(store, source)
+
+
+def test_chief_plan_audit_failure_is_not_retryable_model_format_error(tmp_path, monkeypatch):
+    """An audit-write error cannot turn a real valid model response into a retry."""
+    store, source = _office(tmp_path)
+    attempts = []
+
+    def real_model_shape(config, prompt, **kwargs):
+        attempts.append(prompt)
+        return _genuine_shape_for_group(prompt)
+
+    def failed_audit(*args, **kwargs):
+        parsed = args[6]
+        if parsed:
+            raise ValueError('SQLite 실제 모델 호출 감사 저장 불가')
+        pytest.fail('유효한 모델 응답을 형식 실패로 오기록했습니다.')
+
+    monkeypatch.setattr('desktop.employee_model_runtime.run_local_model', real_model_shape)
+    monkeypatch.setattr(wide, '_audit_chief_plan', failed_audit)
+    with pytest.raises(ValueError, match='감사 저장 불가'):
+        wide.propose(store, source)
+    assert len(attempts) == 1
+    assert len(store.list_tasks()) == 1
