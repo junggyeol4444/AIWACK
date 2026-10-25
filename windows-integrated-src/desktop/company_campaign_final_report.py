@@ -317,11 +317,24 @@ def _propose_under_lease(store,campaign_id:int,*,cancel:threading.Event|None=Non
         raise InterruptedError('총괄 최종 보고 실행 취소')
     from desktop.company_operations import assert_running_allowed
     assert_running_allowed(store)
-    # Retry only malformed REAL completions. Every completed attempt has a
-    # separate model-call ID, and every rejected completion is immutable-audited.
-    # Never fabricate a report, bypass permissions, or retry a failed invocation.
+    # Count REAL format attempts across crashes/restarts and all Windows
+    # sessions, not only this one Python invocation. The immutable journal
+    # remains authoritative even when a previous model-run was interrupted.
+    # A completed (but unsaved) success is not reconstructed or retried.
+    prior = inspect_final_model_attempt_chain(store, campaign_id)
+    if (prior['status'] not in ('no_model_attempt', 'format_failures_only')
+            or prior['attempt_count'] < 0 or prior['attempt_count'] > 3):
+        raise ValueError('총괄 최종보고 과거 모델 감사 상태 오류: 재호출 금지')
+    if (prior['attempt_count'] > 0
+            and prior.get('evidence_sha256') != seal):
+        raise ValueError('총괄 최종보고 과거 모델 시도 원본 증빙 불일치')
+    remaining = 3 - prior['attempt_count']
+    if remaining == 0:
+        raise ValueError('총괄 최종보고 실제 모델 형식 실패 누적 3회: 관리자 검토 필요')
+    # Retry only malformed REAL completions; an entire app restart never
+    # resets the remaining budget or fabricates a successful model output.
     last_format_error = None
-    for _attempt in range(3):
+    for _attempt in range(remaining):
         if cancel is not None and cancel.is_set():
             raise InterruptedError('총괄 최종 보고 재호출 취소')
         assert_running_allowed(store)
@@ -353,7 +366,7 @@ def _propose_under_lease(store,campaign_id:int,*,cancel:threading.Event|None=Non
         digest=hashlib.sha256(body.encode('utf-8')).hexdigest()
         break
     else:
-        raise ValueError('실제 총괄 최종 보고 형식이 3회 연속 실패했습니다.') from last_format_error
+        raise ValueError('실제 총괄 최종 보고 형식 오류 누적 3회(재시작 횟수 포함): 관리자 검토 필요') from last_format_error
     store.require_permission('company:manage')
     store.require_permission('agents:manage')
     with store._connect() as con:
