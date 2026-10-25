@@ -27,8 +27,12 @@ class _Store:
 def local(tmp_path, monkeypatch):
     monkeypatch.setattr(evidence, 'initialize', lambda con: None)
     monkeypatch.setattr(dossier, 'initialize', lambda con: None)
-    monkeypatch.setattr(evidence, 'read', lambda store, ident: {'sha256': 'a' * 64})
-    monkeypatch.setattr(dossier, 'read', lambda store, ident: {'file_sha256': 'b' * 64})
+    monkeypatch.setattr(evidence, 'read', lambda store, ident: {
+        'id': ident, 'filename': str(evidence._folder(store) / _name('call', ident)),
+        'sha256': 'a' * 64})
+    monkeypatch.setattr(dossier, 'read', lambda store, ident: {
+        'id': ident, 'path': str(dossier._folder(store) / _name('dossier', ident)),
+        'file_sha256': 'b' * 64})
     return _Store(tmp_path / 'company.sqlite')
 
 
@@ -100,3 +104,51 @@ def test_registered_but_damaged_proof_is_not_success(local, monkeypatch):
     assert len(result['registered_files_failed']) == 1
     assert result['all_registered_files_verified'] is False
     assert result['requires_owner_review'] is True
+
+
+@pytest.mark.parametrize('kind', ['call', 'dossier'])
+@pytest.mark.parametrize('fault', ['wrong_id', 'wrong_path', 'missing_identity', 'invalid_digest'])
+def test_full_audit_rejects_mismatched_verification_identity(local, monkeypatch, kind, fault):
+    module = evidence if kind == 'call' else dossier
+    table = ('aiwack_campaign_evidence_exports' if kind == 'call'
+             else 'aiwack_campaign_owner_dossiers')
+    folder = module._folder(local)
+    folder.mkdir()
+    name = _name(kind, 1)
+    (folder / name).write_text('원본', encoding='utf-8')
+    with local._connect() as con:
+        con.execute('INSERT INTO ' + table + ' VALUES(1,?)', (name,))
+    proof = {'id': 1,
+             ('filename' if kind == 'call' else 'path'): str(folder / name),
+             ('sha256' if kind == 'call' else 'file_sha256'): 'a' * 64}
+    if fault == 'wrong_id':
+        proof['id'] = 2
+    elif fault == 'wrong_path':
+        proof['filename' if kind == 'call' else 'path'] = str(folder / 'different.json')
+    elif fault == 'missing_identity':
+        del proof['id']
+    else:
+        proof['sha256' if kind == 'call' else 'file_sha256'] = 'z' * 64
+    monkeypatch.setattr(module, 'read', lambda store, ident: proof)
+    result = module.inspect_disk_consistency_full(local)
+    assert result['registered_files_verified'] == []
+    assert len(result['registered_files_failed']) == 1
+    assert result['all_registered_files_verified'] is False
+    assert result['requires_owner_review'] is True
+    assert (folder / name).exists()
+
+
+@pytest.mark.parametrize('kind', ['call', 'dossier'])
+def test_inventory_fingerprint_is_repeatable_and_changes_with_candidate_set(local, kind):
+    module = evidence if kind == 'call' else dossier
+    folder = module._folder(local)
+    folder.mkdir()
+    first = module.inspect_disk_consistency_full(local)
+    second = module.inspect_disk_consistency_full(local)
+    assert first['inventory_snapshot_sha256'] == second['inventory_snapshot_sha256']
+    assert len(first['inventory_snapshot_sha256']) == 64
+    assert first['inventory_snapshot_is_signature'] is False
+    (folder / _name(kind, 42)).write_text('고아 파일', encoding='utf-8')
+    third = module.inspect_disk_consistency_full(local)
+    assert third['inventory_snapshot_sha256'] != first['inventory_snapshot_sha256']
+    assert third['requires_owner_review'] is True
