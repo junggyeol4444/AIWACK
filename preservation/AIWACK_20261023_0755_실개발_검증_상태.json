@@ -1,0 +1,23 @@
+{
+  "basis": "AIWACK_20261023_0730_전체누적_재개게이트_원본보존.zip",
+  "github_main_at_start": "f70dd72c74f4b6440ebea85501a66f4f5d85a391",
+  "test_branch": "test/aiwack-20261023-0755-cumulative-resume-merge",
+  "source_files": {
+    "windows-integrated-src/desktop/company_campaign_resume_gate.py": "04681d4fb9b97ff68a1205bd323e8f5968d0c7d67bcb2957bd161a38b882bbb4",
+    "windows-integrated-src/desktop/company_wide_campaign.py": "6fb8a4e557068fda1a38ec04aef2e5534bf363c40b17445f96ca788653783fd5",
+    "windows-integrated-src/desktop/storage.py": "d8400a42e48149b1d70d230a6697591cc50d4e3a55797c2a1c0b5c87367d2de7",
+    "windows-integrated-src/desktop/app.py": "951f7ad65ebbf236713e46cf4951d81f22aeeee0f53818d80510c10595d621d1",
+    "windows-integrated-src/tests/test_round_0730_resume_gate.py": "f3c9b5dfbe9b0a226a02312d3a93522495b079ca9d2aa05879a987b08081085e",
+    "windows-integrated-src/tests/test_round_20261023_resume_contract.py": "7c6db8d1b324a175c353dc50741e54a00c567e9a2079fdf964933ca6ea9e5096",
+    "validation/windows_packaged_real_gguf_queue_e2e.py": "416205f04f2be76114e146fa7a179c21206ee56f9b9cb061af0118994a8f3327",
+    "validation/windows_real_30_step_campaign_e2e.py": "35d2d8e4dc380270c5482b40458cc71fef6f6da738fdbcd0b101fe2c887b0fba",
+    "windows-integrated-src/build_windows_exe.bat": "896b1c43241316ef32f9830376fac44302550266a06e999e6fe9d118d571269b"
+  },
+  "tests": {
+    "resume_related": "39 passed",
+    "windows_ci_regressions": "34 passed",
+    "new_contract": "5 passed",
+    "all_suite": "stopped at 8% after timeout; not successful"
+  },
+  "remote_main_merge": "pending"
+}

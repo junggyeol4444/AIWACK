@@ -1,0 +1,58 @@
+{
+  "date_kst": "2026-10-23 05:36",
+  "base": "20261023_0437 local zip",
+  "remote_main_head": "f70dd72c74f4b6440ebea85501a66f4f5d85a391",
+  "remote_main_commit_created": false,
+  "full_1_to_21_original_archive_reconciled": false,
+  "files": [
+    {
+      "path": "windows-integrated-src/desktop/company_campaign_owner_dossier.py",
+      "action": "modify",
+      "before_sha256": "0a22c64e7e8701e06f17e6edb6f99b56d7bf405cf70971209090821113a9e6b5",
+      "after_sha256": "0f40872d838dc6041a300d3e94bcf22bdeb3715bc772f6a9034007b9b6d50e3f",
+      "after_bytes": 15993
+    },
+    {
+      "path": "windows-integrated-src/desktop/company_campaign_plan_provenance.py",
+      "action": "modify",
+      "before_sha256": "8b7968e3a8756470445e4f085833083c9149a0cc50cf4a84e1d9983cc6c4bcd7",
+      "after_sha256": "0cf4b38047232104335fecb27ed500338fc3e14e10939cd09ff92ab99924d675",
+      "after_bytes": 7629
+    },
+    {
+      "path": "windows-integrated-src/desktop/company_owner_operational_summary.py",
+      "action": "modify",
+      "before_sha256": "b44673d4947f1d6f2323f769e08068a7ac20714216b68f906e3446213aeb6b53",
+      "after_sha256": "e34874b3859ec694cae52045915a349a66ce81325520ee013d5c9ab00cf10e60",
+      "after_bytes": 10585
+    },
+    {
+      "path": "windows-integrated-src/desktop/company_native_owner_workflows.py",
+      "action": "modify",
+      "before_sha256": "f94c80b12565d769d46d1e31e5b3fe3fc78b0912349ada1ac9b632f98e924f44",
+      "after_sha256": "4d1e23f3371e6cf7a80a13db807b8021345a50145b346a5275bfdfd8ee593134",
+      "after_bytes": 31298
+    },
+    {
+      "path": "windows-integrated-src/desktop/storage.py",
+      "action": "modify",
+      "before_sha256": "0eda96550b714f8ca41ddbf61596d20073f6eaf0e7db717d5d054c24ea43fabf",
+      "after_sha256": "030a6990fc08a8f6cd6c946a1e96255d276cc1182b2377b38f2fa81a720d9ad6",
+      "after_bytes": 291027
+    },
+    {
+      "path": "windows-integrated-src/tests/test_round_0536_dossier_recovery_inventory.py",
+      "action": "add",
+      "before_sha256": null,
+      "after_sha256": "4c5555cef0638ce2e97de735297f08c23d771f2f59470cee9ce766576e75735e",
+      "after_bytes": 2805
+    }
+  ],
+  "test_results": {
+    "new_local_tests": "4 passed",
+    "python_ast": "475 files, 0 errors",
+    "older_regression_suite": "timed out after 120 seconds; no pass claim",
+    "windows_10_11": "not run",
+    "real_gguf": "not run"
+  }
+}
