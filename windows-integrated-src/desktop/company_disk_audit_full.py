@@ -51,13 +51,21 @@ def inspect_full(store, *, folder: Path, table: str, filename_pattern: str,
                 raise ValueError('감사 검증 결과가 등록 번호와 일치하지 않습니다.')
             proof_path = (proof.get('filename') if table == 'aiwack_campaign_evidence_exports'
                           else proof.get('path'))
-            if not isinstance(proof_path, str) or Path(proof_path).name != name:
-                raise ValueError('감사 검증 결과의 파일 이름이 등록 원본과 일치하지 않습니다.')
+            # The verifier must point to this exact local archive, not merely
+            # another directory containing a file with the same basename.
+            expected_path = folder / name
+            if (not isinstance(proof_path, str)
+                    or not Path(proof_path).is_absolute()
+                    or Path(proof_path) != expected_path):
+                raise ValueError('감사 검증 결과의 파일 경로가 등록 원본과 일치하지 않습니다.')
+            if expected_path.is_symlink() or not expected_path.is_file():
+                raise ValueError('등록된 감사 파일이 없거나 안전한 일반 파일이 아닙니다.')
             digest = proof.get('sha256', proof.get('file_sha256'))
             if (not isinstance(digest, str) or
                     re.fullmatch(r'[0-9a-f]{64}', digest) is None):
                 raise ValueError('등록된 감사 파일의 SHA256 검증 결과 오류')
-        except (ValueError, PermissionError, OSError, sqlite3.Error) as exc:
+        except (ValueError, PermissionError, OSError, sqlite3.Error,
+                TypeError, KeyError) as exc:
             failed.append({'id': ident, 'filename': name,
                            'error_type': type(exc).__name__,
                            'reason': str(exc)[:240]})
