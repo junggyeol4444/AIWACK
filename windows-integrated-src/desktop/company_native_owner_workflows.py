@@ -929,6 +929,26 @@ class CompanyOwnerWorkflows:
             ('주문별 고객지원 감사',lambda:self._perform(
                 '주문별 고객지원 원본',
                 lambda:self.store.read_local_order_customer_cases(self._id('local_order_id'))))])
+        self._field(panel,'local_packet_id','로컬 상품 준비 파일 ID')
+        self._field(panel,'local_finance_business','사업 ID (비우면 전체)')
+        self._buttons(panel,[
+            ('실제 승인 상품 파일 로컬 준비',lambda:self._perform(
+                '주문별 로컬 상품 준비 파일',
+                lambda:self.store.prepare_local_order_delivery_packet(
+                    self._id('local_order_id'),self._get('local_order_note')),
+                '승인된 원본 상품 문서를 로컬에 1회 복사합니다. 고객 발송이나 결제 확인은 하지 않습니다. 진행합니까?')),
+            ('로컬 상품 준비 원본 재검사',lambda:self._perform(
+                '로컬 준비 파일 SHA256 감사',
+                lambda:self.store.read_local_order_delivery_packet(self._id('local_packet_id')))),
+            ('로컬 준비 파일 목록',lambda:self._perform(
+                '기존 상품 준비 원본 목록',
+                lambda:self.store.list_local_order_delivery_packets(50)))])
+        self._buttons(panel,[
+            ('주문·환불·고객지원 재무 대조',lambda:self._perform(
+                '서명 거래와 로컬 주문 재무 대조',
+                lambda:self.store.local_order_finance_snapshot(
+                    self._id('local_finance_business') if self._get('local_finance_business') else None,
+                    100)))])
         ttk.Label(panel,text=('이 탭은 기존 HMAC 서명·소유자 CSV·실제 승인 직원 문서의 로컬 감사 연결입니다. '
             '외부 PG/은행 독립 확인, 실제 주문 접수·결제·환불·고객 배송·매출 확정이 아닙니다.'),
             wraplength=850).pack(padx=12,pady=12)

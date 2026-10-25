@@ -5029,6 +5029,22 @@ class LocalStore:
         from desktop.company_order_support import read
         return read(self, order_id)
 
+    def prepare_local_order_delivery_packet(self, order_id, note):
+        from desktop.company_local_delivery_packets import prepare
+        return prepare(self, order_id, note)
+
+    def read_local_order_delivery_packet(self, packet_id):
+        from desktop.company_local_delivery_packets import read
+        return read(self, packet_id)
+
+    def list_local_order_delivery_packets(self, limit=50):
+        from desktop.company_local_delivery_packets import list_packets
+        return list_packets(self, limit)
+
+    def local_order_finance_snapshot(self, business_id=None, limit=100):
+        from desktop.company_local_order_finance import snapshot
+        return snapshot(self, business_id, limit)
+
     def read_owner_approved_final_dossier(self, dossier_id: int) -> dict:
         from desktop.company_campaign_owner_dossier import read
         return read(self, dossier_id)
