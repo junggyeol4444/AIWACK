@@ -152,3 +152,16 @@ def read(store,batch_id:int)->dict:
             'independent_provider_verified':False,
             'real_bank_settlement_confirmed':False,
             'actual_payment_or_refund_executed':False}
+
+
+def list_batches(store, limit: int = 100) -> list[dict]:
+    """기존 관리자 CSV/서명 거래 대사 기록을 원본과 다시 대조해 조회."""
+    store.require_permission('company:manage')
+    if type(limit) is not int or not 1 <= limit <= 200:
+        raise ValueError('은행 CSV 대사 조회 범위는 1~200건이어야 합니다.')
+    with store._connect() as con:
+        initialize(con)
+        ids = [int(row[0]) for row in con.execute(
+            'SELECT id FROM aiwack_bank_reconciliation_batches ORDER BY id DESC LIMIT ?',
+            (limit,)).fetchall()]
+    return [read(store, batch_id) for batch_id in ids]
