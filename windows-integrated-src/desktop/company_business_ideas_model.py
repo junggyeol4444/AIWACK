@@ -37,9 +37,17 @@ def initialize(con: sqlite3.Connection) -> None:
         decision TEXT NOT NULL CHECK(decision IN ('shortlisted','rejected')),
         owner_reason TEXT NOT NULL CHECK(length(owner_reason) BETWEEN 5 AND 200),
         decided_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP)""")
+    con.execute("""CREATE TABLE IF NOT EXISTS aiwack_chief_business_idea_drafts (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        idea_id INTEGER NOT NULL UNIQUE REFERENCES aiwack_chief_business_ideas(id),
+        business_id INTEGER NOT NULL UNIQUE REFERENCES managed_businesses(id),
+        model_call_id INTEGER NOT NULL REFERENCES ai_model_call_history(id),
+        model_output_sha256 TEXT NOT NULL CHECK(length(model_output_sha256)=64),
+        recorded_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP)""")
     for table in ('aiwack_chief_business_idea_attempts',
                   'aiwack_chief_business_ideas',
-                  'aiwack_chief_business_idea_decisions'):
+                  'aiwack_chief_business_idea_decisions',
+                  'aiwack_chief_business_idea_drafts'):
         for operation in ('UPDATE','DELETE'):
             con.execute(f"""CREATE TRIGGER IF NOT EXISTS {table}_immutable_{operation.lower()}
                 BEFORE {operation} ON {table}
@@ -191,3 +199,57 @@ def decide(store, idea_id: int, decision: str, reason: str) -> dict:
             (idea_id,decision,reason))
     return {'id':idea_id,'state':decision,
             'owner_review_recorded':True,'business_launched':False,'revenue_generated':False}
+
+
+def create_owner_approved_business_draft(store, idea_id: int, name: str) -> dict:
+    """Human-clicked draft from an explicitly shortlisted real GGUF candidate.
+
+    The new business is a local plan only. No market validation, funding, sales
+    channel, payment, product posting or model-triggered external action.
+    """
+    store.require_permission('company:manage')
+    if type(idea_id) is not int or idea_id<=0:
+        raise ValueError('실제 모델 사업 가설 번호 오류')
+    name=_text(name,'관리자가 지정한 사업명',120)
+    from desktop.business_portfolio import initialize as init_business, add_business
+    with store._connect() as con:
+        con.execute('BEGIN IMMEDIATE')
+        init_business(con)
+        initialize(con)
+        if stopped(con):
+            raise PermissionError('비상정지 중 신규 사업 초안 생성 금지')
+        row=con.execute("""SELECT i.type_id,i.concept,a.model_call_id,
+                a.output_sha256,d.decision
+            FROM aiwack_chief_business_ideas i
+            JOIN aiwack_chief_business_idea_attempts a ON a.id=i.attempt_id
+            JOIN aiwack_chief_business_idea_decisions d ON d.idea_id=i.id
+            WHERE i.id=?""",(idea_id,)).fetchone()
+        if row is None or row[4]!='shortlisted':
+            raise PermissionError('관리자가 후보 선정한 실제 GGUF 사업 가설만 사업 초안으로 등록합니다.')
+        type_id,concept,model_call,model_sha,_=row
+        if con.execute('SELECT 1 FROM aiwack_chief_business_idea_drafts WHERE idea_id=?',
+                       (idea_id,)).fetchone():
+            raise ValueError('해당 모델 가설에서 이미 사업 초안을 등록했습니다.')
+        business_id=add_business(con,int(type_id),name,concept,budget_krw=0)
+        con.execute("""INSERT INTO aiwack_chief_business_idea_drafts
+            (idea_id,business_id,model_call_id,model_output_sha256)
+            VALUES(?,?,?,?)""",(idea_id,business_id,model_call,model_sha))
+    return {'business_id':business_id,'idea_id':idea_id,
+            'model_call_id':int(model_call),'model_output_sha256':model_sha,
+            'state':'draft','budget_krw':0,'owner_action_recorded':True,
+            'external_sales_or_payment':False,'verified_market_demand':False}
+
+
+def list_business_draft_links(store, *, limit: int=100) -> list[dict]:
+    """Read-only trace from an actual chief call to a local draft business."""
+    store.require_permission('company:manage')
+    if type(limit) is not int or not 1<=limit<=200:
+        raise ValueError('실제 모델 기반 사업 초안 인계 조회는 1~200건입니다.')
+    with store._connect() as con:
+        initialize(con)
+        rows=con.execute("""SELECT idea_id,business_id,model_call_id,
+            model_output_sha256,recorded_at
+            FROM aiwack_chief_business_idea_drafts ORDER BY id DESC LIMIT ?""",
+            (limit,)).fetchall()
+    return [dict(zip(('idea_id','business_id','model_call_id',
+                      'model_output_sha256','recorded_at'),row)) for row in rows]
