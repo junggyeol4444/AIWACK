@@ -43,6 +43,25 @@ def initialize(con: sqlite3.Connection) -> None:
                 BEGIN SELECT RAISE(ABORT,'실제 실패 분석 원본 감사 수정·삭제 금지'); END""")
 
 
+    con.execute("""CREATE TABLE IF NOT EXISTS aiwack_failure_chief_owner_decisions (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        claim_id INTEGER NOT NULL UNIQUE REFERENCES aiwack_failure_chief_claims(id),
+        followup_id INTEGER NOT NULL UNIQUE REFERENCES aiwack_failed_work_followups(id),
+        model_call_id INTEGER NOT NULL REFERENCES ai_model_call_history(id),
+        model_output_sha256 TEXT NOT NULL CHECK(length(model_output_sha256)=64),
+        decision TEXT NOT NULL CHECK(decision IN ('approved','rejected')),
+        owner_note TEXT NOT NULL CHECK(length(owner_note) BETWEEN 5 AND 200),
+        followup_task_id INTEGER REFERENCES company_tasks(id),
+        receipt_sha256 TEXT NOT NULL CHECK(length(receipt_sha256)=64),
+        created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        CHECK((decision='approved' AND followup_task_id IS NOT NULL)
+           OR (decision='rejected' AND followup_task_id IS NULL)))""")
+    for operation in ("UPDATE", "DELETE"):
+        con.execute(f"""CREATE TRIGGER IF NOT EXISTS aiwack_failure_chief_owner_decisions_no_{operation.lower()}
+            BEFORE {operation} ON aiwack_failure_chief_owner_decisions
+            BEGIN SELECT RAISE(ABORT,'총괄 실패 분석 관리자 결정 원본 변경 금지'); END""")
+
+
 def _id(value: int) -> int:
     if type(value) is not int or value<=0:
         raise ValueError("실제 실패 후속 제안 ID가 필요합니다.")
@@ -277,4 +296,106 @@ def audit_history(store, limit: int = 100) -> dict:
         "scope": "현재 SQLite 출처·실제 모델 호출 메타데이터 대조만 수행",
         "raw_model_output_independently_verified": False,
         "model_invoked": False, "external_actions": False,
+    }
+
+
+def decide_from_analysis(store, claim_id: int, decision: str, note: str) -> dict:
+    """실제 GGUF 실패 분석의 원본 확인 뒤 관리자가 명시적으로 승인·반려.
+
+    원래 실패 업무나 모델은 재실행하지 않는다. 승인 시 새 todo만 만든다.
+    결제·외부 전송·게시·자동 작업 실행은 하지 않는다.
+    """
+    store.require_permission("company:manage")
+    store.require_permission("agents:manage")
+    claim_id = _id(claim_id)
+    if decision not in ("approved", "rejected"):
+        raise ValueError("관리자 승인·반려만 가능합니다.")
+    if type(note) is not str or not 5 <= len(note.strip()) <= 200:
+        raise ValueError("관리자 검토 사유는 5~200자여야 합니다.")
+    note = note.strip()
+    from desktop.company_failure_followups import initialize as init_followups
+    with store._connect() as con:
+        init_followups(con)
+        initialize(con)
+        con.execute("BEGIN IMMEDIATE")
+        if stopped(con):
+            raise PermissionError("비상정지 중 실패 분석 후속 결정 금지")
+        row = con.execute("""SELECT c.followup_id,c.source_run_id,
+            o.result_kind,o.model_call_id,o.output_sha256,
+            o.diagnosis,o.improvement,o.risk,
+            f.task_id,f.employee_id,f.failure_status,f.state,t.title,
+            r.task_id,r.employee_id,r.status,
+            h.status,h.output_chars
+            FROM aiwack_failure_chief_claims c
+            JOIN aiwack_failure_chief_outcomes o ON o.claim_id=c.id
+            JOIN aiwack_failed_work_followups f ON f.id=c.followup_id
+            JOIN company_tasks t ON t.id=f.task_id
+            JOIN company_task_runs r ON r.id=c.source_run_id
+            LEFT JOIN ai_model_call_history h ON h.id=o.model_call_id
+            WHERE c.id=?""", (claim_id,)).fetchone()
+        if row is None:
+            raise ValueError("실제 총괄 모델 실패 분석 성공 원본이 없습니다.")
+        (followup, source_run, result, model_call, output_sha,
+         diagnosis, improvement, risk, task, employee, failure, state,
+         title, run_task, run_employee, run_status, call_status, output_chars) = row
+        if state != "pending":
+            raise PermissionError("이미 처리된 실패 후속 제안은 다시 결정할 수 없습니다.")
+        if (task, employee, failure) != (run_task, run_employee, run_status):
+            raise ValueError("실제 실패 업무·직원·상태 원본 연결이 다릅니다.")
+        if failure not in ("failure", "timeout", "interrupted"):
+            raise ValueError("실제 실패 실행 원본이 아닙니다.")
+        if (result != "success" or model_call is None or
+                call_status != "success" or not output_chars or
+                type(output_sha) is not str or len(output_sha) != 64 or
+                any(type(v) is not str or not v.strip()
+                    for v in (diagnosis, improvement, risk))):
+            raise PermissionError("실제 총괄 GGUF 성공·분석 출처가 확인되지 않았습니다.")
+        if con.execute("""SELECT 1 FROM aiwack_failure_chief_owner_decisions
+                          WHERE claim_id=? OR followup_id=?""",
+                       (claim_id, followup)).fetchone():
+            raise PermissionError("이미 결정 감사가 존재합니다.")
+        new_task = None
+        if decision == "approved":
+            description = (
+                f"실제 실패 실행 #{source_run} / 직원 #{employee} / 상태 {failure}. "
+                f"총괄 실제 모델 호출 #{model_call}, 출력 SHA256 {output_sha}. "
+                f"총괄 분석은 미확정 가설이며 관리자 검토가 필요합니다. "
+                f"원인 가설: {diagnosis[:180]}. "
+                f"개선 제안: {improvement[:220]}. "
+                f"불확실성: {risk[:140]}. "
+                f"관리자 사유: {note}. "
+                "기존 실패 모델·업무 자동 재시도 금지."
+            )[:1000]
+            new_task = int(con.execute("""INSERT INTO company_tasks
+                (title,description,status) VALUES(?,?,'todo')""",
+                (("실패 분석 검토: " + title)[:120], description)).lastrowid)
+            con.execute("""INSERT INTO company_task_status_events
+                (task_id,old_status,new_status) VALUES(?,NULL,'todo')""",
+                (new_task,))
+        updated = con.execute("""UPDATE aiwack_failed_work_followups
+            SET state=?,followup_task_id=?,owner_note=?,decided_at=CURRENT_TIMESTAMP
+            WHERE id=? AND state='pending'""",
+            (decision, new_task, note, followup))
+        if updated.rowcount != 1:
+            raise PermissionError("실패 후속 제안이 이미 결정되었습니다.")
+        receipt = hashlib.sha256(json.dumps({
+            "claim_id": claim_id, "followup_id": followup,
+            "source_run_id": source_run, "model_call_id": model_call,
+            "model_output_sha256": output_sha, "decision": decision,
+            "owner_note": note, "followup_task_id": new_task,
+        }, ensure_ascii=False, sort_keys=True, separators=(",", ":")
+        ).encode("utf-8")).hexdigest()
+        decision_id = int(con.execute("""INSERT INTO aiwack_failure_chief_owner_decisions
+            (claim_id,followup_id,model_call_id,model_output_sha256,decision,
+             owner_note,followup_task_id,receipt_sha256)
+            VALUES(?,?,?,?,?,?,?,?)""",
+            (claim_id, followup, model_call, output_sha, decision,
+             note, new_task, receipt)).lastrowid)
+    return {
+        "decision_id": decision_id, "claim_id": claim_id,
+        "followup_id": followup, "decision": decision,
+        "new_task_id": new_task, "receipt_sha256": receipt,
+        "owner_approved": decision == "approved",
+        "model_invoked": False, "automatic_retry": False,
+        "external_actions": False,
     }
