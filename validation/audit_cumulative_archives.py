@@ -25,8 +25,11 @@ MAX_COMPRESSION_RATIO = 300
 
 def _read_archive(path: Path) -> dict[str, str]:
     """SHA256 each safe regular ZIP member without extracting anything."""
-    path = Path(path).resolve(strict=True)
-    if not path.is_file() or path.is_symlink():
+    candidate = Path(path)
+    if candidate.is_symlink():
+        raise ValueError('원본 ZIP 심볼릭 링크는 열지 않습니다.')
+    path = candidate.resolve(strict=True)
+    if not path.is_file():
         raise ValueError('원본 ZIP은 기존 일반 파일이어야 합니다.')
     result: dict[str, str] = {}
     folded: dict[str, str] = {}
