@@ -1,0 +1,45 @@
+name: AIWACK user-authorized one-time merged branch deletion
+on:
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/aiwack-delete-4-merged-branches-once.yml"
+permissions:
+  contents: write
+jobs:
+  delete_only_four_explicitly_approved_refs:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Recheck exact branch SHAs, main ancestry, then delete only four refs
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          while IFS='|' read -r branch expected; do
+            if [ -z "$branch" ]; then continue; fi
+            echo "Checking explicitly approved branch $branch"
+            encoded=$(python3 -c 'import sys,urllib.parse; print(urllib.parse.quote(sys.argv[1],safe=""))' "$branch")
+            actual=$(curl -fsS -H "Authorization: Bearer $GH_TOKEN" -H "Accept: application/vnd.github+json" "https://api.github.com/repos/$REPO/branches/$encoded" | jq -r '.commit.sha')
+            if [ "$actual" != "$expected" ]; then
+              echo "Ref moved, refusing deletion of $branch"
+              exit 1
+            fi
+            ahead=$(curl -fsS -H "Authorization: Bearer $GH_TOKEN" -H "Accept: application/vnd.github+json" "https://api.github.com/repos/$REPO/compare/main...$encoded" | jq -r '.ahead_by')
+            if [ "$ahead" != "0" ]; then
+              echo "Branch contains unique commits, refusing deletion of $branch"
+              exit 1
+            fi
+            status=$(curl -sS -o /dev/null -w '%{http_code}' -X DELETE -H "Authorization: Bearer $GH_TOKEN" -H "Accept: application/vnd.github+json" "https://api.github.com/repos/$REPO/git/refs/heads/$branch")
+            if [ "$status" != "204" ]; then
+              echo "GitHub deletion failed: $branch status=$status"
+              exit 1
+            fi
+            echo "Deleted merged branch $branch"
+          done <<'AIWACK_BRANCHES'
+aiwack/round11-cumulative-20261022|47c67a8dcd644988ad770371d6212de60b8c29b5
+aiwack-test-20261021-r6-payment-ledger|4efe352cb4ad565fb513b30ab5b4ca45d3d19d57
+test/aiwack-20261023-0755-cumulative-resume-merge|46ed5c1886ac04a45cc674c6c5b924766b369ea1
+test/aiwack-20261023-cumulative-merge|f70dd72c74f4b6440ebea85501a66f4f5d85a391
+AIWACK_BRANCHES
