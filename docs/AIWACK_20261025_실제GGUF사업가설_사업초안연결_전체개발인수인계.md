@@ -55,3 +55,18 @@
 - 신규 실제 기능 개발: 실제 URL/호스트 관리자 승인→공개 HTTPS 자료 1개를 SSRF/DNS 안전 검사·TLS 읽기로 받은 SHA 포함 SQLite 사업 가설 원본으로 연결(`company_business_market_research.py`, main `1c4835e8a527be432321afc53b568b806ea082f9`), 실제 HTTPS 원문 1~3개→로컬 총괄 GGUF 실제 추론과 진단·불확실성 영속 감사(`company_business_market_ai.py`, main `71bb0774c649e53883cb107346cda6b54b3fb8ef`), 기존 미검증 금융 시나리오 → 실GGUF 총괄 후보 선택/판단보류 가설 + 영속 모델 감사·한국어 GUI·EXE 설정(`company_real_chief_financial_brief.py`, main `0d93ff97ad5f8eacbfe41febb659dc6acd373538`).
 - 복원 커밋: `17cffb465a5962f76c30ce3c729602f4cc8eb4b5`(4개), `f83601ced53a6329f620a8c6ab5f295d56cc3fd8`(3개 원문 복원 시작), 역사 JSON 원본 줄바꿈 정합 추가 커밋 `2a61bce1f71d619ad080b9f8cc6afdde018f11a1`, `16e7daed9311410e4414310394492a768594d633`(최종 ZIP Git SHA 정확 일치).
 - **이번 회차 전체 기능 미완료**, 신규 기능 실제 Windows 10/11 GGUF/EXE 실행 및 T01~T20 전체 검증은 하지 않음. 유료 실거래 미실행, 가짜 매출 없음. 15개 부서·31 AI·30업무 실제 끝까지 자율협업/장시간 등 남은 개발은 이후 구현해야 함. 사용자의 4개 테스트 브랜치 원격 삭제 요청은 GitHub Actions run `40190196239` queued이므로 **미완료**, 브랜치 4개가 GitHub에 아직 존재, 삭제 완료 거짓 주장 금지. 기존 예약 임의 변경 없음.
+
+
+## 2026-10-25 22:44 KST — 기존 Windows 네이티브 주문·상품·서명정산·은행 CSV·환불·고객지원 연결 실개발 (append-only)
+
+- 사용자 최우선 지시: 기존 `junggyeol4444/AIWACK`의 남은 원본 요구만 개발, 전체 개발 완료 후 통합검증→오류 수정→재검증. 기존 파일·사용자 DB·원본·다른 프로젝트·예약 보존. 이 회차는 테스트/Windows EXE/실GGUF 실행을 하지 않았음.
+- 시작 원격 `main` HEAD: `cc12254696f50d36fd7f461d60f273765d61ccdc`. **실제 제품 코드 5파일**을 원본 보존형 Git tree로 추가·수정하고 `expected_sha`/비강제 fast-forward로 `main`에 반영. 코드 커밋: `f67b62ec77605f0881c07bc4337c1ce3a76dde65`.
+- 신규 `windows-integrated-src/desktop/company_local_order_fulfillment.py`: 기존 관리자가 승인한 HMAC 서명 settlement + 관리자 선택 은행 CSV의 1:1 대사 + 실제 승인된 30업무 상품 문서 파일 SHA256 + 기존 카탈로그의 사업·가격을 교차검증한 로컬 주문 접수. 거래·은행·문서 원본 불변성/동일 이벤트 중복 주문 차단, BEGIN IMMEDIATE, append-only 주문 감사 SHA 체인, 승인된 로컬 상품 준비·취소 요청·대사된 환불 이벤트 연결. 환불 금액 초과/중복/미대사/승인 전 환불 발생 시 상품 준비 승인 차단. 독립 PG/은행 확인, 실제 매출·고객 발송·환불 실행을 절대로 주장하지 않음.
+- 신규 `windows-integrated-src/desktop/company_order_support.py`: 기존 고객지원부의 실제 문의 업무와 동일 고객 별칭·상품의 주문을 연결, 주문·고객지원 원본을 다시 조회하며 외부 고객 전송은 하지 않음. SQLite 추가형 링크와 UPDATE/DELETE 금지 감사.
+- 수정 `windows-integrated-src/desktop/storage.py`: 기존 LocalStore에 주문 등록/로컬 준비 승인/취소 요청/환불 증빙 연결/조회/목록/고객 문의 연결 API 8개 연결. 기존 DB 테이블 재작성·삭제 없음.
+- 수정 `windows-integrated-src/desktop/company_native_owner_workflows.py`: 기존 한국어 Tk 창에 '주문·환불·고객지원 로컬 연결' 탭 추가, 원본 감사/상품 준비/취소 요청/환불 연결/고객 문의 연결 버튼과 관리자 개별 확인 대화상자 연결. HTML·웹 UI 대체 없음.
+- 수정 `windows-integrated-src/build_windows_exe.bat`: 기존 PyInstaller 빌드 명령에 신규 두 모듈 hidden-import 추가. 실제 Windows EXE 빌드/실행은 아직 NOT_RUN.
+- 역사 ZIP 대조: 기존 GitHub 원문에 1,099개 원본, 후속 1,171개, 동일 1,046/수정 52/추가 73/개발 SQLite DB 1개 제외 기록 있음. 이번 Library `/AIWACK` 목록과 파일명 검색에서는 해당 두 원본 ZIP을 새로 확보하지 못함. 따라서 이 회차에서 ZIP 바이트 전수 대조·남은 역사 자료 32개 복원 완료를 **주장하지 않음**. 기존 GitHub 원문·보존 매니페스트·기존 DB는 변경하지 않음.
+- 과거 GitHub Actions 브랜치 삭제 실행 `40190196239`은 이번 조회에서도 **queued**. 브랜치 조회 시 `main` 외 4개 테스트/개발 브랜치 존재. 삭제 완료 주장 없음. 새 브랜치 생성 없음.
+- **미완료**: 원본 15장·100단계 잔여 모든 실업무, 15부서/31AI/30업무 실제 자율 생성→협업→총괄 최종보고 전 과정, 24시간 복구, 독립 실제 PG/은행/환불/배송 연결, 원본 ZIP의 나머지 역사 파일 32개 보존형 복원과 52개 내용 전수 의미 대조. 전체 개발 완료 이후에만 Windows 10/11 EXE+실 GGUF+T01~T20 통합검증→오류 일괄 수정→전체 재검증. 이번 기능에 대한 pytest·Windows 실기·실거래 검증은 **NOT_RUN**, PASS 0건, 실패 0건(검증 자체 미실시).
+- 다음 시간: 최신 main HEAD 재조회, 이 회차 코드·인수인계 보존, 위 미완료 원본 기능을 여러 핵심 영역에서 계속 구현하고 main에 비강제/expected-SHA로 반영. 기존 4개 브랜치 삭제 상태 사실 재확인. 원본·DB·예약·다른 프로젝트 변경 금지.
