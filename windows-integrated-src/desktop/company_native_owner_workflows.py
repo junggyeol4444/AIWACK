@@ -421,6 +421,10 @@ class CompanyOwnerWorkflows:
         self._field(panel,'summary_business','사업 번호 (선택)')
         self._field(panel,'summary_final_report','총괄 최종보고 번호')
         self._field(panel,'summary_final_reason','관리자 최종 검토 사유 (5~200자)')
+        self.values['final_model_process_checked'] = tk.BooleanVar(value=False)
+        ttk.Checkbutton(panel,
+            text='총괄 최종보고 중단 잠금 해제 전 다른 Windows 창·모델 프로세스 종료를 직접 확인했습니다.',
+            variable=self.values['final_model_process_checked']).pack(anchor='w',padx=12,pady=5)
         self._summary_buttons(panel,[
             ('전체 실제 운영 원본 재조회',lambda:self._perform(
                 '총괄 5그룹·30업무·최종 승인·결제/은행/조직 원본',
@@ -449,6 +453,10 @@ class CompanyOwnerWorkflows:
                 '30업무 승인 증빙과 실제 총괄 GGUF 호출·실패·최종 보고 연결 (읽기 전용)',
                 lambda:self.store.inspect_campaign_final_model_attempt_chain(
                     self._id('summary_campaign')))),
+            ('최종보고 GGUF 동시 실행 잠금 조회',lambda:self._perform(
+                '다른 Windows 창 최종보고 실행/중단 잠금 (읽기 전용)',
+                self._final_report_leases)),
+            ('중단 최종보고 GGUF 잠금 관리자 확인 후 해제',self._clear_final_report_lease),
             ('5그룹 총괄 호출 불변 출처',lambda:self._perform(
                 '실제 총괄 5그룹 호출 원본·SHA256',self._read_plan_provenance))])
         self._summary_buttons(panel,[
@@ -514,6 +522,29 @@ class CompanyOwnerWorkflows:
             '실제 Windows10/11·24시간·GGUF 바이너리·PG 실거래·T01~T20 최종 합격은 '
             '조회만으로 주장하지 않습니다.'),wraplength=850).pack(
                 anchor='w',padx=12,pady=12)
+
+    def _final_report_leases(self):
+        from desktop import company_campaign_final_leases as leases
+        return {'active_or_interrupted':leases.snapshot(self.store,100),
+                'manual_recoveries':leases.recovery_history(self.store,30),
+                'live_process_state_verified':False,
+                'automatic_model_reinvocation':False}
+
+    def _clear_final_report_lease(self):
+        from desktop import company_campaign_final_leases as leases
+        def action():
+            if self._campaign_running:
+                raise PermissionError('이 창의 실제 모델 작업이 종료되기 전에는 잠금을 해제할 수 없습니다.')
+            if self.values['final_model_process_checked'].get() is not True:
+                raise PermissionError('관리자가 다른 창과 모델 프로세스를 직접 확인해야 합니다.')
+            result=leases.clear_after_owner_inspection(
+                self.store,self._id('summary_campaign'),owner_confirmed=True)
+            self.values['final_model_process_checked'].set(False)
+            return result
+        self._perform('총괄 최종보고 모델 잠금 수동 복구',action,
+            '3분 이상 지난 잠금만 해제합니다. 다른 Windows 창과 실제 GGUF 모델 프로세스가 '
+            '종료됐음을 직접 확인했으며 기존 모델을 재실행하거나 보고서를 승인하지 않습니다. '
+            '계속합니까?')
 
     def _export_chain_receipt(self):
         """Owner-selected local chain proof; never replace files or call GGUF."""
