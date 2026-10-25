@@ -6,6 +6,7 @@
 from __future__ import annotations
 
 import hashlib
+import hmac
 import json
 import re
 import sqlite3
@@ -115,8 +116,16 @@ def initialize(con):
         title TEXT NOT NULL,
         instruction TEXT NOT NULL,
         model_call_id INTEGER NOT NULL UNIQUE REFERENCES ai_model_call_history(id),
+        payload_sha256 TEXT NOT NULL DEFAULT '',
         created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
         PRIMARY KEY(source_task_id,group_start,department_name))''')
+    # Additive migration only: never rewrite old user checkpoints to claim
+    # an integrity seal existed before this version.
+    single_columns={row[1] for row in con.execute(
+        'PRAGMA table_info(aiwack_wide_single_department_staging)')}
+    if 'payload_sha256' not in single_columns:
+        con.execute('''ALTER TABLE aiwack_wide_single_department_staging
+            ADD COLUMN payload_sha256 TEXT NOT NULL DEFAULT '' ''')
     for action in ('UPDATE','DELETE'):
         con.execute(f'''CREATE TRIGGER IF NOT EXISTS aiwack_wide_single_staging_no_{action.lower()}
             BEFORE {action} ON aiwack_wide_single_department_staging
@@ -399,19 +408,30 @@ def _verified_staged_group(con,source_task_id,start,fingerprint,roster_sha,
     return parsed,calls
 
 
+def _single_checkpoint_digest(source_id,start,name,dept,manager,staff,
+                              fingerprint,roster_sha,chief,model,
+                              title,instruction,call_id,raw_output_sha):
+    """Seal the exact genuine model-call link and parsed checkpoint bytes."""
+    parts=[source_id,start,name,dept,manager,staff,fingerprint,roster_sha,
+           chief,model,title,instruction,call_id,raw_output_sha]
+    return hashlib.sha256(json.dumps(parts,ensure_ascii=False,
+                                     separators=(',',':')).encode('utf-8')).hexdigest()
+
+
 def _verified_staged_single(con, source_id, start, fingerprint, roster_sha,
                             chief, model, department):
     """Reuse only one immutable genuine chief completion for this exact roster."""
     dept,name,manager,staff=department
     row=con.execute('''SELECT department_id,manager_id,staff_id,source_fingerprint,
-        roster_sha256,chief_employee_id,chief_model_id,title,instruction,model_call_id
-        FROM aiwack_wide_single_department_staging
+        roster_sha256,chief_employee_id,chief_model_id,title,instruction,model_call_id,
+        payload_sha256 FROM aiwack_wide_single_department_staging
         WHERE source_task_id=? AND group_start=? AND department_name=?''',
         (source_id,start,name)).fetchone()
     if row is None:return None
     if tuple(row[:7])!=(dept,manager,staff,fingerprint,roster_sha,chief,model):
         raise ValueError('단일 부서 중단 계획의 업무·직원·모델 원본 불일치')
-    title,instruction,call_id=row[7:]
+    title,instruction,call_id=row[7:10]
+    checkpoint_digest=row[10]
     if (type(title) is not str or type(instruction) is not str
             or not 1<=len(title)<=65 or not 14<=len(instruction)<=330
             or title!=title.strip() or instruction!=instruction.strip()
@@ -432,6 +452,14 @@ def _verified_staged_single(con, source_id, start, fingerprint, roster_sha,
             or con.execute('''SELECT 1 FROM aiwack_wide_chief_rejected_attempts
                               WHERE model_call_id=?''',(call_id,)).fetchone()):
         raise ValueError('단일 부서 성공 모델 호출의 실제 감사 원본 불일치')
+    if checkpoint_digest:
+        if (type(checkpoint_digest) is not str or len(checkpoint_digest)!=64
+                or not hmac.compare_digest(checkpoint_digest,
+                    _single_checkpoint_digest(source_id,start,name,dept,manager,
+                        staff,fingerprint,roster_sha,chief,model,title,
+                        instruction,call_id,audit[6]))):
+            raise ValueError('실제 단일 부서 체크포인트 내용 SHA256 원본 불일치')
+    # Empty digest means a pre-migration original, never silently backfilled.
     return title,instruction,call_id
 
 
@@ -468,12 +496,16 @@ def _save_staged_single(store,source_id,start,fingerprint,roster_sha,
                 or type(proof[6]) is not str or len(proof[6])!=64
                 or any(c not in '0123456789abcdef' for c in proof[6])):
             raise ValueError('단일 부서 임시 저장의 실제 모델 호출·출처 감사 누락')
+        digest=_single_checkpoint_digest(source_id,start,name,dept,manager,staff,
+                                         fingerprint,roster_sha,chief,model,
+                                         title,instruction,call_id,proof[6])
         con.execute('''INSERT INTO aiwack_wide_single_department_staging
             (source_task_id,group_start,department_name,department_id,manager_id,
              staff_id,source_fingerprint,roster_sha256,chief_employee_id,chief_model_id,
-             title,instruction,model_call_id) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)''',
+             title,instruction,model_call_id,payload_sha256)
+             VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)''',
             (source_id,start,name,dept,manager,staff,fingerprint,roster_sha,
-             chief,model,title,instruction,call_id))
+             chief,model,title,instruction,call_id,digest))
         _verified_staged_single(con,source_id,start,fingerprint,roster_sha,
                                 chief,model,department)
 
