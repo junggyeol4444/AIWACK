@@ -5262,3 +5262,37 @@ class LocalStore:
         self.require_permission('company:manage')
         from desktop.stage94_100_validation import local_validation_snapshot
         with self._connect() as con:return local_validation_snapshot(con)
+
+    # 주문 예외 → 고객지원부 실제 업무 연결/감사 (외부 고객 발송 없음).
+    def scan_local_order_exceptions(self, limit=100):
+        from desktop.company_order_exception_queue import scan
+        return scan(self, limit)
+
+    def escalate_local_order_exception(self, order_id, kind, case_ref, owner_note):
+        from desktop.company_order_exception_queue import escalate
+        return escalate(self, order_id, kind, case_ref, owner_note)
+
+    def read_local_order_exception(self, escalation_id):
+        from desktop.company_order_exception_queue import read
+        return read(self, escalation_id)
+
+    def review_local_order_exception(self, escalation_id, decision, owner_note):
+        from desktop.company_order_exception_queue import review
+        return review(self, escalation_id, decision, owner_note)
+
+    def local_order_exception_history(self, limit=50):
+        from desktop.company_order_exception_queue import history
+        return history(self, limit)
+
+    # 로컬 정산/환불/상품/고객지원 증빙의 관리자 불변 재무 검토.
+    def capture_local_finance_evidence(self, order_id, kind, owner_note):
+        from desktop.company_order_finance_receipts import capture
+        return capture(self, order_id, kind, owner_note)
+
+    def read_local_finance_evidence(self, review_id):
+        from desktop.company_order_finance_receipts import read
+        return read(self, review_id)
+
+    def local_finance_evidence_history(self, limit=50):
+        from desktop.company_order_finance_receipts import history
+        return history(self, limit)

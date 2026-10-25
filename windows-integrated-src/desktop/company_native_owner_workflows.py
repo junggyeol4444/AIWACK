@@ -953,6 +953,64 @@ class CompanyOwnerWorkflows:
             '외부 PG/은행 독립 확인, 실제 주문 접수·결제·환불·고객 배송·매출 확정이 아닙니다.'),
             wraplength=850).pack(padx=12,pady=12)
 
+        self._field(panel,'order_exception_kind','예외 유형 (unlinked_refund 등)')
+        self._field(panel,'order_exception_case_ref','신규 고객지원 고유번호')
+        self._field(panel,'order_exception_id','주문 예외 연결 ID')
+        self._field(panel,'order_finance_review_id','재무 증빙 검토 ID')
+        self._buttons(panel,[
+            ('주문·환불·배송 예외 실자료 조회',lambda:self._perform(
+                '주문 예외 및 고객지원 업무 연결 필요 현황',
+                lambda:self.store.scan_local_order_exceptions(100))),
+            ('예외 → 실제 고객지원 업무 등록',lambda:self._perform(
+                '기존 고객지원부 업무 생성 및 주문 연결',
+                lambda:self.store.escalate_local_order_exception(
+                    self._id('local_order_id'),self._get('order_exception_kind'),
+                    self._get('order_exception_case_ref'),self._get('local_order_note')),
+                '실제 주문 예외를 기존 고객지원부의 미실행 업무로 등록하고 원본 감사에 연결합니까? '
+                'AI 모델 실행·고객 발송·실제 환불은 하지 않습니다.')),
+            ('주문 예외 원본·고객지원 조회',lambda:self._perform(
+                '주문 예외와 실제 고객지원 업무 감사',
+                lambda:self.store.read_local_order_exception(self._id('order_exception_id'))))])
+        self._buttons(panel,[
+            ('후속 조사 필요 기록',lambda:self._perform(
+                '주문 예외 후속 조사 관리자 기록',
+                lambda:self.store.review_local_order_exception(
+                    self._id('order_exception_id'),'followup_required',
+                    self._get('local_order_note')),
+                '원본 주문 예외에 관리자 후속 조사 결정을 기록합니까?')),
+            ('고객지원 내부 종료 확인',lambda:self._perform(
+                '고객지원 내부 종료 관리자 감사',
+                lambda:self.store.review_local_order_exception(
+                    self._id('order_exception_id'),'internal_case_closed',
+                    self._get('local_order_note')),
+                '기존 승인된 고객지원 답변의 내부 종료만 기록합니다. '
+                '실제 고객 발송·외부 환불 완료를 의미하지 않습니다. 진행합니까?')),
+            ('주문 예외 연결 전체 이력',lambda:self._perform(
+                '주문 예외·고객지원 업무 연결 이력',
+                lambda:self.store.local_order_exception_history(50)))])
+        self._buttons(panel,[
+            ('로컬 재무 증빙 검토 기록',lambda:self._perform(
+                '서명 정산·은행 CSV·환불·상품·고객지원 로컬 증빙 검토',
+                lambda:self.store.capture_local_finance_evidence(
+                    self._id('local_order_id'),'local_documents_reviewed',
+                    self._get('local_order_note')),
+                '현재 로컬 증빙의 관리자 검토 영수증만 기록합니다. '
+                '독립 은행·PG 확인이나 매출 확정이 아닙니다.')),
+            ('재무 증빙 후속 조사 기록',lambda:self._perform(
+                '로컬 재무 증빙 후속 조사 기록',
+                lambda:self.store.capture_local_finance_evidence(
+                    self._id('local_order_id'),'needs_followup',
+                    self._get('local_order_note')),
+                '현재 원본을 조사 필요로 불변 기록합니다. 외부 결제·환불 실행은 없습니다.'))])
+        self._buttons(panel,[
+            ('재무 검토 원본/변경 감사',lambda:self._perform(
+                '재무 증빙 검토 원본 SHA 및 현재 변경 여부',
+                lambda:self.store.read_local_finance_evidence(
+                    self._id('order_finance_review_id')))),
+            ('재무 증빙 검토 이력',lambda:self._perform(
+                '관리자 로컬 재무 검토 이력',
+                lambda:self.store.local_finance_evidence_history(50)))])
+
     def _create_local_order(self):
         def work():
             result=self.store.create_local_order_intake(

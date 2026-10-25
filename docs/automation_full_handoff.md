@@ -1725,3 +1725,13 @@ CI 마지막 확정 실패: b9a09e88 커밋의 루트 138 PASS, 네이티브 335
 - 기존 `storage.py`에 API 4개, `company_native_owner_workflows.py` 주문 탭에 한국어 버튼 4개, `build_windows_exe.bat`에 PyInstaller hidden-import 2개 누적. 상세: `docs/AIWACK_20261025_2344_로컬상품준비_재무대조_전체누적_인수인계.md`.
 - 전체 원본 기능 개발은 아직 미완료. 원본 1,099/후속 1,171개 ZIP 원본 바이트 미확보, 52개 수정/73개 추가 내용 전수 3-way 확인 및 역사 잔여 32개 복원 미완료. 과거 4개 테스트 브랜치 조회상 존재, 삭제 Actions #40190196239 queued.
 - **검증 NOT_RUN**: 전체 개발 완료 전 Windows 10/11 네이티브 EXE·실 GGUF·T01~T20 통합검증/오류 수정·재검증 미실시. 실제 결제·환불·매출·고객 전송 없음. 다음 회차는 원격 HEAD 재조회 후 원본 잔여 개발부터 계속.
+
+## 2026-10-26 00:44 KST — 주문 예외 고객지원 실업무 연결·재무 원본 검토 개발 (append-only)
+
+- 시작 원격 main HEAD: `6808dbeb67f54f5b1c7e5177f5f0c8cf7821dd21`. 원본 15장 기획·100단계·T01~T20 및 최신 누적 인수인계 기준. 원본 ZIP 1,099/1,171개 재확보는 이번 Library 검색에서 실패; 기존 SHA 비교 기록은 유지, GitHub 전체 3-way 완료 주장 금지.
+- 신규 `windows-integrated-src/desktop/company_order_exception_queue.py`: 주문·승인 환불 증빙 연결 누락, 내부 취소 요청, 승인 주문 로컬 상품 준비 미완료를 실제 주문/환불/파일/SQLite에서 판정. 소유자 개별 승인으로 고객지원부 실제 미실행 회사 업무+기존 고객 문의+주문 링크를 한 SQLite 트랜잭션에서 생성. 예외/관리자 결정 불변 SHA 감사 체인, 중복 방지, 비상정지, 고객지원 승인 답변 내부 종료 확인. 고객에게 실제 전송하거나 환불하지 않음.
+- 신규 `windows-integrated-src/desktop/company_order_finance_receipts.py`: 기존 정산 서명·소유자 은행 CSV·환불·상품 준비 실제 파일 SHA·고객지원 상태를 교차 읽고 관리자 승인형 불변 검토 영수증 저장. 동일 증빙 중복 검토 차단, 재조회 시 변경 탐지, 미확인 매출과 독립 PG/은행 검증을 명시적으로 false 유지.
+- 기존 `windows-integrated-src/desktop/storage.py`에 8개 실제 API, 기존 한국어 Tkinter `company_native_owner_workflows.py` 주문 탭에 예외 조회/고객지원 생성/관리자 검토/재무 증빙 감사 UI, 기존 `build_windows_exe.bat` PyInstaller hidden-import 2개 추가. 기존 원본/DB/이력 삭제·강제 갱신 없음.
+- 전체 개발 미완료: 15부서31AI30업무 장기 자율 GGUF 운영·24시간 중단 복구, 독립 외부 PG/은행/판매·고객 전송/환불, 역사 원본 1,099개 원격 3-way 및 잔여 자료 보존형 복원, T01~T20 전 항목.
+- 검증 `NOT_RUN`: 사용자 지정 전체 개발→전체 Windows EXE/실 GGUF/T01~T20 검증→일괄 수정→재검증 순서 준수. 실제 거래·발송·매출·테스트 PASS 주장 없음.
+- 과거 4개 브랜치 존재, 삭제 Actions #40190196239 조회 당시 `queued`. 이번 회차 브랜치 생성/삭제 없음.
