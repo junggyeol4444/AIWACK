@@ -1132,6 +1132,14 @@ class CompanyOffice:
             from desktop import company_continuity
             gui=company_continuity.observed_gui_continuity(self.store)
             recovery=company_continuity.read_recovery_audit(self.store,limit=20)
+            skipped=company_autopilot.skipped_tick_windows(self.store,limit=100)
+            if skipped:
+                detail.append('--- 실제 자동 운영 실행에서 빠진 예약 주기 ---')
+                detail.extend(
+                    f"실행 #{row['observed_run_id']} / 건너뛴 {row['skipped_cycles']}회 / "
+                    f"{row['first_skipped_due']}~{row['last_skipped_due']} (Unix 초)"
+                    for row in skipped[:20])
+                detail.append('누락된 주기는 성공·실행으로 처리하지 않습니다.')
             detail.extend([
                 '--- 실제 SQLite 운영 지속성 진단 ---',
                 f"자동 운영 허용: {diag['enabled']} / 모델 별도 허용: {diag['model_policy_enabled']}",
