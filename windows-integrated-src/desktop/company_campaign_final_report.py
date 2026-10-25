@@ -295,6 +295,34 @@ def find_by_campaign(store,campaign_id:int):
     return read(store,int(row[0])) if row is not None else None
 
 
+def remaining_final_report_model_attempts(store, campaign_id: int) -> dict:
+    """Read-only lifetime retry allowance bound to the approved 30-step evidence.
+
+    Limits genuine FORMAT failures; a failed invocation is NOT retried here.
+    A previous success linked to a saved report is never re-invoked.
+    """
+    store.require_permission('company:manage')
+    if type(campaign_id) is not int or campaign_id <= 0:
+        raise ValueError('30업무 최종보고 협업 번호 오류')
+    proof = inspect_final_model_attempt_chain(store, campaign_id)
+    total = proof['attempt_count']
+    if (type(total) is not int or total < 0 or total > 3
+            or proof['status'] not in ('no_model_attempt',
+                                       'format_failures_only',
+                                       'report_saved')):
+        raise ValueError('기존 실제 모델 호출 감사가 손상됐거나 허용 횟수를 초과했습니다.')
+    remaining = 0 if proof['status'] == 'report_saved' else 3 - total
+    return {'campaign_id': campaign_id,
+            'immutable_attempt_count': total,
+            'failed_format_count': proof['failed_format_count'],
+            'remaining_real_model_format_attempts': remaining,
+            'report_already_saved': proof['status'] == 'report_saved',
+            'automatic_retries_executed': False,
+            'manager_review_needed': remaining == 0,
+            'read_only': True,
+            'actual_gguf_binary_verified': False}
+
+
 def _propose_under_lease(store,campaign_id:int,*,cancel:threading.Event|None=None):
     store.require_permission('company:manage')
     store.require_permission('agents:manage')
@@ -321,14 +349,14 @@ def _propose_under_lease(store,campaign_id:int,*,cancel:threading.Event|None=Non
     # sessions, not only this one Python invocation. The immutable journal
     # remains authoritative even when a previous model-run was interrupted.
     # A completed (but unsaved) success is not reconstructed or retried.
+    budget = remaining_final_report_model_attempts(store, campaign_id)
     prior = inspect_final_model_attempt_chain(store, campaign_id)
-    if (prior['status'] not in ('no_model_attempt', 'format_failures_only')
-            or prior['attempt_count'] < 0 or prior['attempt_count'] > 3):
-        raise ValueError('총괄 최종보고 과거 모델 감사 상태 오류: 재호출 금지')
+    if prior['status'] not in ('no_model_attempt', 'format_failures_only'):
+        raise ValueError('총괄 최종보고 이미 저장된 원본의 재호출 금지')
     if (prior['attempt_count'] > 0
             and prior.get('evidence_sha256') != seal):
         raise ValueError('총괄 최종보고 과거 모델 시도 원본 증빙 불일치')
-    remaining = 3 - prior['attempt_count']
+    remaining = budget['remaining_real_model_format_attempts']
     if remaining == 0:
         raise ValueError('총괄 최종보고 실제 모델 형식 실패 누적 3회: 관리자 검토 필요')
     # Retry only malformed REAL completions; an entire app restart never
