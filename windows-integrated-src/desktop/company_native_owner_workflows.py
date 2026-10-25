@@ -48,6 +48,8 @@ class CompanyOwnerWorkflows:
         tabs.add(delivery, text='사업 조사·제작 업무')
         continuity = ttk.Frame(tabs)
         tabs.add(continuity, text='운영 기록 · 중단 복구')
+        failure_ai = ttk.Frame(tabs)
+        tabs.add(failure_ai, text='실패 업무 총괄 AI 원인 분석')
         staff = ttk.Frame(tabs)
         tools = ttk.Frame(tabs)
         tabs.add(staff, text='실제 직원 평가 · 조직 개편')
@@ -59,6 +61,7 @@ class CompanyOwnerWorkflows:
         self._business_ideas(business)
         self._business_delivery(delivery)
         self._continuity(continuity)
+        self._failure_model_review(failure_ai)
         summary = ttk.Frame(tabs)
         tabs.add(summary, text='전체 운영 원본 통합 조회')
         self._operations_summary(summary)
@@ -136,6 +139,11 @@ class CompanyOwnerWorkflows:
                     raise ValueError('사업 고객 범위와 해결할 문제를 입력하세요.')
                 campaign_id = None
                 source_id = None
+            elif action == 'failure_analysis':
+                self.store.require_permission('agents:manage')
+                failure_proposal_id = self._id('failure_model_followup_id')
+                campaign_id = None
+                source_id = None
             elif action == 'plan':
                 # New campaign planning still uses the ORIGINAL real GGUF path.
                 # This action only creates a draft; owner review is separate.
@@ -180,6 +188,10 @@ class CompanyOwnerWorkflows:
                     if action == 'business':
                         result = self.store.propose_chief_business_idea(
                             audience, problem, cancel=self._campaign_cancel)
+                    elif action == 'failure_analysis':
+                        from desktop.company_failure_ai_analysis import analyze
+                        result = analyze(self.store,failure_proposal_id,
+                                         cancel=self._campaign_cancel)
                     elif action == 'plan':
                         self.store.require_permission('company:manage')
                         self.store.require_permission('agents:manage')
@@ -981,6 +993,25 @@ class CompanyOwnerWorkflows:
             return result
         self._perform('승인 답변 로컬 파일 저장',work,
             '승인된 결과만 로컬 파일로 생성하고 고객에게 자동 발송하지 않습니다. 진행합니까?')
+
+    def _failure_model_review(self, panel):
+        ttk.Label(panel,text='실제 직원 GGUF 실패 감사가 있는 대기 제안을 총괄 로컬 GGUF로 '
+            '딱 1회 분석합니다. 결과는 관리자 검토용이며 모델 자동 재시도·업무 승인·결제·외부 전송이 없습니다.',
+            wraplength=870).pack(anchor='w',padx=12,pady=8)
+        self._field(panel,'failure_model_followup_id','실제 실패 후속 제안 번호')
+        self._buttons(panel,[
+            ('기존 실패 후속 제안 목록',lambda:self._perform(
+                '실제 직원 실행 실패 후속 제안',
+                lambda:__import__('desktop.company_failure_followups',
+                    fromlist=['pending']).pending(self.store,limit=80))),
+            ('실제 총괄 GGUF 원인 1회 분석',lambda:self._start_real_model_action(
+                '실제 총괄 GGUF 실패 원인 분석','failure_analysis',
+                '실제 실패 직원 업무 1건을 총괄 로컬 GGUF로 1회 분석합니다. '
+                '같은 실패 원본의 중복·자동 재실행은 허용하지 않습니다. 실행합니까?')),
+            ('실제 모델 분석·중단 원본 감사',lambda:self._perform(
+                '총괄 모델 실패 분석 원본',
+                lambda:__import__('desktop.company_failure_ai_analysis',
+                    fromlist=['history']).history(self.store,limit=100)))])
 
     def _business_ideas(self, panel):
         ttk.Label(panel,text='실제 연결된 로컬 총괄 GGUF 모델의 미검증 사업 가설 1건을 만듭니다. '
