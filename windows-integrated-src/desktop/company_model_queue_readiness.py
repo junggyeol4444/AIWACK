@@ -29,6 +29,12 @@ def _ready_in_tx(con, task_id: int) -> dict:
         return {"ready": False, "reason": "승인 지시와 실제 모델 연결 직원 배정이 일치하지 않습니다."}
     if con.execute("SELECT 1 FROM company_task_runs WHERE task_id=? LIMIT 1", (task_id,)).fetchone():
         return {"ready": False, "reason": "직원 실행 감사가 이미 있습니다. 자동 재실행 금지."}
+    if con.execute("""SELECT 1 FROM company_task_runs
+        WHERE employee_id=? AND status='running' LIMIT 1""", (worker[0],)).fetchone():
+        return {"ready": False, "reason": "담당 직원의 다른 실제 모델 업무가 실행 중입니다."}
+    active = con.execute("SELECT COUNT(*) FROM company_task_runs WHERE status='running'").fetchone()[0]
+    if active >= 2:
+        return {"ready": False, "reason": "기존 실제 직원 모델 동시 실행 한도(2건) 도달."}
     if con.execute("SELECT 1 FROM company_task_artifacts WHERE task_id=? LIMIT 1", (task_id,)).fetchone():
         return {"ready": False, "reason": "기존 직원 결과물이 있어 자동 재실행 금지."}
     if con.execute("SELECT 1 FROM aiwack_autopilot_model_runs WHERE task_id=? LIMIT 1",
@@ -85,5 +91,5 @@ def inspect(store, limit: int = 100) -> list[dict]:
                          else {"ready": False, "reason": "현재 대기 상태가 아닙니다."})
             result.append({"queue_id": int(queue_id), "task_id": int(task_id),
                            "state": state, "created_at": created_at, **readiness,
-                           "model_called": False, "owner_final_approval_required": True})
+                           "model_invoked_by_read": False, "owner_final_approval_required": True})
     return result
