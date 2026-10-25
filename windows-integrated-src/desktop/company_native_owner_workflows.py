@@ -421,6 +421,10 @@ class CompanyOwnerWorkflows:
         self._field(panel,'summary_business','사업 번호 (선택)')
         self._field(panel,'summary_final_report','총괄 최종보고 번호')
         self._field(panel,'summary_final_reason','관리자 최종 검토 사유 (5~200자)')
+        self.values['chief_plan_process_checked'] = tk.BooleanVar(value=False)
+        ttk.Checkbutton(panel,
+            text='총괄 5그룹 계획 중단 잠금 해제 전 다른 Windows 창·실제 모델 프로세스 종료를 직접 확인했습니다.',
+            variable=self.values['chief_plan_process_checked']).pack(anchor='w',padx=12,pady=5)
         self.values['final_model_process_checked'] = tk.BooleanVar(value=False)
         ttk.Checkbutton(panel,
             text='총괄 최종보고 중단 잠금 해제 전 다른 Windows 창·모델 프로세스 종료를 직접 확인했습니다.',
@@ -475,6 +479,11 @@ class CompanyOwnerWorkflows:
             ('5그룹·15부서 GGUF 누적 재시도 잔여 횟수',lambda:self._perform(
                 'Windows 중단·재시작 포함 실제 총괄 모델 형식 오류 감사 (읽기 전용)',
                 self._read_chief_plan_retry_budget)),
+            ('총괄 5그룹 GGUF 동시 실행 잠금 조회',lambda:self._perform(
+                '총괄 계획 생성 중단 잠금과 관리자 복구 감사 (읽기 전용)',
+                self._chief_plan_leases)),
+            ('중단 총괄 5그룹 GGUF 잠금 관리자 확인 후 해제',
+                self._clear_chief_plan_lease),
             ('실제 총괄 30업무 초안 원본 조회',lambda:self._perform(
                 '승인 전 15부서 30업무 배정·원본',
                 lambda:self.store.read_full_company_campaign(
@@ -533,6 +542,29 @@ class CompanyOwnerWorkflows:
         from desktop.company_wide_campaign import genuine_chief_retry_progress
         return genuine_chief_retry_progress(
             self.store, self._id('summary_source_task'))
+
+    def _chief_plan_leases(self):
+        from desktop import company_campaign_plan_leases as leases
+        return {'active_or_interrupted':leases.snapshot(self.store,100),
+                'manual_recoveries':leases.recovery_history(self.store,30),
+                'live_process_state_verified':False,
+                'automatic_model_reinvocation':False}
+
+    def _clear_chief_plan_lease(self):
+        from desktop import company_campaign_plan_leases as leases
+        def action():
+            if self._campaign_running:
+                raise PermissionError('이 창의 실제 총괄 모델 작업이 종료되기 전에는 잠금을 해제할 수 없습니다.')
+            if self.values['chief_plan_process_checked'].get() is not True:
+                raise PermissionError('다른 Windows 창과 모델 프로세스 종료를 직접 확인해야 합니다.')
+            result=leases.clear_after_owner_inspection(
+                self.store,self._id('summary_source_task'),owner_confirmed=True)
+            self.values['chief_plan_process_checked'].set(False)
+            return result
+        self._perform('총괄 5그룹 모델 중단 잠금 수동 복구',action,
+            '3분 이상 지난 잠금만 해제합니다. 다른 Windows 창과 실제 GGUF 모델 프로세스가 '
+            '종료됐음을 직접 확인했으며 기존 모델을 재실행하거나 업무를 승인하지 않습니다. '
+            '계속합니까?')
 
     def _final_model_attempt_budget(self):
         from desktop.company_campaign_final_report import (
