@@ -334,7 +334,7 @@ def propose(store,campaign_id:int,*,cancel:threading.Event|None=None):
                 raise ValueError('실제 총괄 모델 최종 보고 내용이 문자열이 아닙니다.')
             if raw.strip()==prompt.strip():
                 raise ValueError('실제 총괄 모델이 요청 프롬프트를 복사했습니다.')
-            body='\\n'.join(wide._generated_chief_lines(raw,prompt)).strip()
+            body='\n'.join(wide._generated_chief_lines(raw,prompt)).strip()
             if not 30<=len(body)<=15000:
                 raise ValueError('실제 총괄 모델 최종 보고가 비어 있거나 내용이 부족합니다.')
             if body==prompt.strip() or source_excerpts in body:
