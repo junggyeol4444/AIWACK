@@ -24,6 +24,7 @@ class CompanyOwnerWorkflows:
         self.window.minsize(750, 590)
         self.values = {}
         self._campaign_running = False
+        self._close_requested = False
         self._campaign_cancel = threading.Event()
         self._campaign_results = queue.Queue()
         self.window.protocol('WM_DELETE_WINDOW', self._close)
@@ -102,8 +103,12 @@ class CompanyOwnerWorkflows:
             messagebox.showerror('AIWACK | 실행 거부', str(exc), parent=self.window)
 
     def _close(self):
-        """Closing a window requests cancellation; it never approves work."""
+        """Do not destroy the Tk window while a real model worker still runs."""
         self._campaign_cancel.set()
+        if self._campaign_running:
+            self._close_requested = True
+            self.notice.set('실제 모델 취소 요청됨 — 실행이 끝난 뒤 창을 닫습니다. 승인·재호출 없음.')
+            return
         self.window.destroy()
 
     def _start_real_model_action(self, title, action, approval):
@@ -115,17 +120,25 @@ class CompanyOwnerWorkflows:
             self.store.require_permission('company:manage')
             if self._campaign_running:
                 raise ValueError('이미 실제 모델 업무가 진행 중입니다. 중복 실행을 차단합니다.')
-            campaign_id = self._id('summary_campaign')
-            gate = self.store.inspect_full_company_resume_gate(campaign_id)
-            if action == 'next':
-                if gate.get('state') != 'ready':
-                    raise ValueError('30업무 재개 원본 검사 거부: ' + str(gate.get('reason')))
-            elif action == 'final':
-                if gate.get('state') != 'completed':
-                    raise ValueError('30업무 완료 증빙 확인 전 최종 보고 생성 금지: ' +
-                                     str(gate.get('reason')))
-                if self.store.find_campaign_final_report(campaign_id) is not None:
-                    raise ValueError('이미 존재하는 최종 보고를 중복 생성하지 않습니다.')
+            if action == 'plan':
+                # New campaign planning still uses the ORIGINAL real GGUF path.
+                # This action only creates a draft; owner review is separate.
+                self.store.require_permission('agents:manage')
+                source_id = self._id('summary_source_task')
+                campaign_id = None
+            elif action in ('next', 'final'):
+                campaign_id = self._id('summary_campaign')
+                source_id = None
+                gate = self.store.inspect_full_company_resume_gate(campaign_id)
+                if action == 'next':
+                    if gate.get('state') != 'ready':
+                        raise ValueError('30업무 재개 원본 검사 거부: ' + str(gate.get('reason')))
+                else:
+                    if gate.get('state') != 'completed':
+                        raise ValueError('30업무 완료 증빙 확인 전 최종 보고 생성 금지: ' +
+                                         str(gate.get('reason')))
+                    if self.store.find_campaign_final_report(campaign_id) is not None:
+                        raise ValueError('이미 존재하는 최종 보고를 중복 생성하지 않습니다.')
             else:
                 raise ValueError('지원하지 않는 실제 모델 실행 요청')
             if not messagebox.askyesno('AIWACK | 관리자 직접 실행', approval, parent=self.window):
@@ -135,20 +148,28 @@ class CompanyOwnerWorkflows:
             self.notice.set(title + ' — 실제 GGUF 모델 실행 중 (자동 승인 없음)')
             def work():
                 try:
-                    # Recheck the source after confirmation, before real execution.
-                    fresh = self.store.inspect_full_company_resume_gate(campaign_id)
-                    required = 'ready' if action == 'next' else 'completed'
-                    if fresh.get('state') != required:
-                        raise ValueError('실행 직전 30업무 원본이 변경됐습니다: ' +
-                                         str(fresh.get('reason')))
                     if self._campaign_cancel.is_set():
                         raise InterruptedError('관리자가 실행을 취소했습니다.')
-                    if action == 'next':
-                        result = self.store.run_full_company_next(
-                            campaign_id, cancel=self._campaign_cancel)
+                    if action == 'plan':
+                        self.store.require_permission('company:manage')
+                        self.store.require_permission('agents:manage')
+                        result = self.store.propose_full_company_campaign(
+                            source_id, cancel=self._campaign_cancel)
                     else:
-                        result = self.store.propose_campaign_final_report(
-                            campaign_id, cancel=self._campaign_cancel)
+                        # Recheck the source after confirmation, before execution.
+                        fresh = self.store.inspect_full_company_resume_gate(campaign_id)
+                        required = 'ready' if action == 'next' else 'completed'
+                        if fresh.get('state') != required:
+                            raise ValueError('실행 직전 30업무 원본이 변경됐습니다: ' +
+                                             str(fresh.get('reason')))
+                        if self._campaign_cancel.is_set():
+                            raise InterruptedError('관리자가 실행을 취소했습니다.')
+                        if action == 'next':
+                            result = self.store.run_full_company_next(
+                                campaign_id, cancel=self._campaign_cancel)
+                        else:
+                            result = self.store.propose_campaign_final_report(
+                                campaign_id, cancel=self._campaign_cancel)
                     self._campaign_results.put(('ok', title, result))
                 except Exception as exc:
                     self._campaign_results.put(('error', title, str(exc)))
@@ -167,7 +188,15 @@ class CompanyOwnerWorkflows:
                 self.window.after(150, self._poll_real_model_action)
             return
         self._campaign_running = False
+        if self._close_requested:
+            # Keep the persisted audit intact; do not show modal dialogs on
+            # a window the owner asked to close.
+            self.window.destroy()
+            return
         if status == 'ok':
+            if title == '총괄 실제 GGUF 30업무 초안 생성' and isinstance(payload, dict):
+                if type(payload.get('id')) is int and payload['id'] > 0:
+                    self.values['summary_campaign'].set(str(payload['id']))
             self._display(title + ' — SQLite 결과 (실기 전체 검증과 별개)', payload)
         else:
             self.notice.set(title + ' 실패: ' + payload)
@@ -177,6 +206,18 @@ class CompanyOwnerWorkflows:
         if self._campaign_running:
             self._campaign_cancel.set()
             self.notice.set('실제 GGUF 작업 취소 요청됨 — 실행 기록은 삭제하지 않습니다.')
+
+    def _approve_full_campaign(self):
+        """Owner-only explicit review of a REAL chief-produced 30-task draft."""
+        def work():
+            self.store.require_permission('agents:manage')
+            return self.store.approve_full_company_campaign(
+                self._id('summary_campaign'))
+        self._perform(
+            '관리자 15부서 30업무 초안 승인', work,
+            '실제 총괄 GGUF 생성 원본 5그룹·15부서·31AI 배정과 감사 기록을 검토했습니까? '
+            '승인 시 기존 로컬 SQLite에 선행 순서가 있는 30업무가 등록되며 '
+            '실제 모델 실행이나 외부 결제·게시·전송은 시작하지 않습니다. 승인합니까?')
 
     def _decide_final_report(self, decision):
         def work():
@@ -196,6 +237,7 @@ class CompanyOwnerWorkflows:
 
     def _operations_summary(self,panel):
         """기존 실제 총괄/직원/관리자/금융 원본의 읽기 전용 연결."""
+        self._field(panel,'summary_source_task','원본 기준 업무 번호 (초안 생성)')
         self._field(panel,'summary_campaign','30업무 협업 번호')
         self._field(panel,'summary_business','사업 번호 (선택)')
         self._field(panel,'summary_final_report','총괄 최종보고 번호')
@@ -230,6 +272,21 @@ class CompanyOwnerWorkflows:
                     self._id('summary_campaign')))),
             ('5그룹 총괄 호출 불변 출처',lambda:self._perform(
                 '실제 총괄 5그룹 호출 원본·SHA256',self._read_plan_provenance))])
+        self._buttons(panel,[
+            ('총괄 실제 GGUF 5그룹·30업무 초안 생성',lambda:self._start_real_model_action(
+                '총괄 실제 GGUF 30업무 초안 생성', 'plan',
+                '총괄 AI가 실제 로컬 GGUF를 호출해 15부서 31AI의 30업무 초안을 구성합니다. '
+                '성공한 실제 모델 호출 감사가 없으면 계획을 만들지 않으며 '
+                '실행·자동 승인·외부 거래는 하지 않습니다. 진행합니까?')),
+            ('5그룹 총괄 모델 초안 생성·재개 현황',lambda:self._perform(
+                '원본 업무별 실제 총괄 호출·실패 감사·중단 재개',
+                lambda:self.store.staged_full_company_progress(
+                    self._id('summary_source_task')))),
+            ('실제 총괄 30업무 초안 원본 조회',lambda:self._perform(
+                '승인 전 15부서 30업무 배정·원본',
+                lambda:self.store.read_full_company_campaign(
+                    self._id('summary_campaign')))),
+            ('관리자 30업무 전체 초안 승인',self._approve_full_campaign)])
         self._buttons(panel,[
             ('실제 30업무 승인·진행 현황',lambda:self._perform(
                 '15부서 30업무 직원·총괄·관리자 승인 진행 원본',
