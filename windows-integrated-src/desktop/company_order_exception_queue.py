@@ -11,6 +11,7 @@ import sqlite3
 
 from desktop import company_local_order_fulfillment as orders
 from desktop import company_order_support as support
+from desktop import company_local_delivery_packets as packets
 from desktop import company_customer_cases as cases
 from desktop.stage87_90_management import stopped
 
@@ -29,6 +30,7 @@ def _sha(value):
 
 def initialize(con):
     support.initialize(con)
+    packets.initialize(con)
     con.execute("""CREATE TABLE IF NOT EXISTS aiwack_order_exception_escalations(
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       order_id INTEGER NOT NULL REFERENCES aiwack_local_order_intakes(id),
