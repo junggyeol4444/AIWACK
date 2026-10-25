@@ -111,9 +111,9 @@ def next_pending(store):
     store.require_permission("company:manage")
     with store._connect() as con:
         initialize(con)
-        row = con.execute("""SELECT id,task_id FROM aiwack_owner_model_queue
-            WHERE state='pending' ORDER BY id LIMIT 1""").fetchone()
-    return None if row is None else {"id":int(row[0]),"task_id":int(row[1])}
+        from desktop.company_model_queue_readiness import _first_ready_in_tx
+        row = _first_ready_in_tx(con)
+    return None if row is None else {"id":row["id"],"task_id":row["task_id"]}
 
 
 def cancel_pending(store, queue_id, owner_note):
@@ -151,11 +151,12 @@ def run_next(store, *, session_token=None, cancel=None):
             WHERE a.id=1 AND b.id=1""").fetchone()
         if not policy or not all(policy):
             raise PermissionError("실행 직전 모델 동의가 해제됐습니다.")
-        row = con.execute("""SELECT id,task_id FROM aiwack_owner_model_queue
-            WHERE state='pending' ORDER BY id LIMIT 1""").fetchone()
+        from desktop.company_model_queue_readiness import _first_ready_in_tx
+        row = _first_ready_in_tx(con)
         if row is None:
-            return {"executed":False,"reason":"empty"}
-        queue_id, task_id = map(int,row)
+            return {"executed":False,"reason":"no_ready_pending",
+                    "model_called":False}
+        queue_id, task_id = row["id"], row["task_id"]
         if con.execute("SELECT 1 FROM aiwack_autopilot_model_runs WHERE task_id=?",
                        (task_id,)).fetchone():
             raise PermissionError("기존 모델 실행 감사가 있어 자동 재실행 금지")

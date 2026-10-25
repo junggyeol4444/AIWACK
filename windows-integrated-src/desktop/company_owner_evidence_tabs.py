@@ -12,6 +12,7 @@ def attach(owner, tabs):
     queue = ttk.Frame(tabs)
     tabs.add(queue, text="관리자 승인 GGUF 영속 대기열")
     owner._field(queue, "owner_queue_task", "기존 승인된 업무 번호")
+    owner._field(queue, "owner_campaign_queue_id", "기존 승인된 15부서·30업무 계획 번호")
     owner._field(queue, "owner_queue_id", "대기열 항목 번호")
     owner._field(queue, "owner_queue_note", "관리자 사유 (5~200자)")
     owner._field(queue, "owner_model_run_id", "Windows 종료 모델 실행 번호")
@@ -32,6 +33,8 @@ def attach(owner, tabs):
     owner._buttons(queue, [
         ("실제 대기열·실행 상태 조회", lambda: owner._perform(
             "GGUF 영속 대기열",lambda: owner.store.list_owner_model_queue(50))),
+        ("대기열 선행 업무·인계 준비 상태", lambda: owner._perform(
+            "실제 GGUF 대기열 준비 상태",lambda: owner.store.inspect_owner_model_queue(100))),
         ("Windows 종료 확인 모델 감사", lambda: owner._perform(
             "GUI 소유 프로세스 종료 기록",lambda: owner.store.native_model_exit_history(50))),
         ("하위 모델 확인 후 실패 잠금 해제", lambda: owner._perform(
@@ -41,6 +44,17 @@ def attach(owner, tabs):
             "기존 Windows GUI 소유 프로세스가 종료됐음을 확인한 기록만 대상입니다. "
             "하위 GGUF 실행 프로세스도 관리자가 직접 확인했고 종료됐습니까? "
             "이 버튼은 잠금만 해제하며 해당 업무의 자동 재실행은 영구 차단됩니다. 진행합니까?")),
+    ])
+    owner._buttons(queue, [
+        ("30업무 다음 단계·실원본 확인", lambda: owner._perform(
+            "15부서 30업무 다음 승인 단계", lambda: owner.store.preview_campaign_model_queue(
+                owner._id("owner_campaign_queue_id")))),
+        ("30업무 다음 1건 영속 대기열 등록", lambda: owner._perform(
+            "15부서 30업무 개별 승인 등록", lambda: owner.store.enqueue_campaign_model_step(
+                owner._id("owner_campaign_queue_id"), owner._get("owner_queue_note")),
+            "기존 실제 총괄 GGUF 원본과 앞 단계 관리자 검수 완료가 확인된 "
+            "다음 한 업무만 등록합니다. 실제 모델 실행은 별도 정책/대기열 "
+            "주기에 따르며 결과 자동 승인·실패 재시도는 없습니다. 등록합니까?")),
     ])
     ttk.Label(queue, text=(
         "기존 자율운영 + 실제 모델 실행 별도 동의가 모두 있어야 실행됩니다. "

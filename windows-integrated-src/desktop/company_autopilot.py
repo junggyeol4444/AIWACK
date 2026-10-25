@@ -314,8 +314,13 @@ def run_one_approved_model(store, task_ids: tuple[int, ...], *, cancel=None, ses
     try:
         if signal.is_set():
             raise InterruptedError('승인된 직원 자동 실행이 취소됐습니다.')
-        result=ops.execute_approved_chief_queue(
-            store,limit=1,expected_task_ids=task_ids,cancel=signal)
+        # The owner-pinned durable queue may select a later approved task while
+        # an earlier independent task awaits review. Do not silently substitute
+        # the global first candidate for the explicitly approved task ID.
+        report=ops.execute_approved_chief_cycle(store,tid,cancel=signal)
+        result={'reports':[report],'task_ids':[tid],'completed_cycles':1,
+                'pending_owner_review':1,'auto_approved':False,
+                'tasks_finalized':False}
         if signal.is_set() or not approved_models_enabled(store):
             raise InterruptedError('소유자가 실제 AI 자동 실행 정책을 해제했습니다.')
         if result['completed_cycles']!=1 or result['auto_approved']:

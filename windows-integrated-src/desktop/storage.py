@@ -5419,3 +5419,16 @@ class LocalStore:
     def release_owner_confirmed_model_lease(self, run_id, note):
         from desktop.company_native_model_watch import release_after_owner_inspection
         return release_after_owner_inspection(self,run_id,note,owner_confirmed=True)
+
+    # 기존 15부서·30업무 원본 검수→관리자 개별 승인→영속 GGUF 대기열 연결.
+    def inspect_owner_model_queue(self, limit=100):
+        from desktop.company_model_queue_readiness import inspect
+        return inspect(self,limit)
+
+    def preview_campaign_model_queue(self, campaign_id):
+        from desktop.company_campaign_queue_bridge import preview
+        return preview(self,campaign_id)
+
+    def enqueue_campaign_model_step(self, campaign_id, note):
+        from desktop.company_campaign_queue_bridge import enqueue_next
+        return enqueue_next(self,campaign_id,note)
