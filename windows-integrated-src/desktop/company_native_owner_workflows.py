@@ -30,7 +30,7 @@ class CompanyOwnerWorkflows:
         self._campaign_cancel = threading.Event()
         self._campaign_results = queue.Queue()
         self.window.protocol('WM_DELETE_WINDOW', self._close)
-        self.notice = tk.StringVar(value='외부 결제·송금·게시·고객 발송은 실행하지 않습니다.')
+        self.notice = tk.StringVar(value='실제 외부 작업은 관리자 개별 명시 승인 전에는 실행하지 않습니다.')
         ttk.Label(self.window, textvariable=self.notice, wraplength=900).pack(fill='x', padx=12, pady=8)
         tabs = ttk.Notebook(self.window)
         tabs.pack(fill='both', expand=True, padx=12)
@@ -89,6 +89,8 @@ class CompanyOwnerWorkflows:
         attach_bank_camt(self,tabs)
         from desktop.company_owner_toss_payment_tabs import attach as attach_toss_payment
         attach_toss_payment(self,tabs)
+        from desktop.company_owner_toss_refund_tabs import attach as attach_toss_refund
+        attach_toss_refund(self,tabs)
         from desktop.company_owner_source_preservation_tabs import attach as attach_source_preservation
         attach_source_preservation(self,tabs)
         from desktop.company_owner_dependency_tabs import attach as attach_dep_handoff

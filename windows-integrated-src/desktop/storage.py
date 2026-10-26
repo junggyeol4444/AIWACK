@@ -5804,3 +5804,20 @@ class LocalStore:
     def source_preservation_history(self,limit=30):
         from desktop.company_source_preservation import history
         return history(self,limit)
+
+
+    # 관리자 개별 승인/기존 HMAC+실PG 조회 증빙만으로 실제 토스 환불 1회.
+    # 비밀번호는 함수 인수로만 사용하며 SQLite·설정·로그에 저장하지 않음.
+    def preview_toss_owner_refund(self,event_id,payment_key,order_id,amount):
+        from desktop.company_toss_owner_refund import preview
+        return preview(self,event_id,payment_key,order_id,amount)
+
+    def cancel_toss_payment_once(self,event_id,payment_key,order_id,amount,
+                                 api_secret,cancel_reason,owner_note,confirmation):
+        from desktop.company_toss_owner_refund import cancel_once
+        return cancel_once(self,event_id,payment_key,order_id,amount,
+                           api_secret,cancel_reason,owner_note,confirmation)
+
+    def toss_owner_refund_history(self,limit=30):
+        from desktop.company_toss_owner_refund import history
+        return history(self,limit)
