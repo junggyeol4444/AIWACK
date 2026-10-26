@@ -8,6 +8,7 @@ from __future__ import annotations
 from desktop import company_local_order_fulfillment as orders
 from desktop import company_local_delivery_packets as packets
 from desktop import company_order_support as support
+from desktop import company_real_release_order_handoff as real_handoff
 
 
 def snapshot(store, business_id: int | None = None, limit: int = 100) -> dict:
@@ -37,6 +38,11 @@ def snapshot(store, business_id: int | None = None, limit: int = 100) -> dict:
             packet = con.execute(
                 'SELECT id FROM aiwack_local_order_delivery_packets WHERE order_id=?',
                 (order_id,)).fetchone()
+            has_handoff=bool(con.execute("""SELECT 1 FROM sqlite_master
+                WHERE type='table' AND name='aiwack_real_release_order_handoffs'""").fetchone())
+            handoff_id=(con.execute("""SELECT id FROM aiwack_real_release_order_handoffs
+                WHERE order_id=?""",(order_id,)).fetchone()
+                if has_handoff else None)
             case_ids = [int(row[0]) for row in con.execute(
                 'SELECT case_id FROM aiwack_local_order_support_links '
                 'WHERE order_id=? ORDER BY case_id', (order_id,)).fetchall()]
@@ -44,6 +50,8 @@ def snapshot(store, business_id: int | None = None, limit: int = 100) -> dict:
             prepared = packets.read(store, int(packet[0]))
             if prepared['order_id'] != order_id:
                 raise ValueError('로컬 상품 준비의 주문 번호 불일치')
+        real_ready=(real_handoff.read(store,int(handoff_id[0]))
+                    if handoff_id else None)
         cases = support.read(store, order_id)['customer_cases']
         if {int(case['id']) for case in cases} != set(case_ids):
             raise ValueError('주문·고객지원 원본 연결 감사 불일치')
@@ -56,7 +64,14 @@ def snapshot(store, business_id: int | None = None, limit: int = 100) -> dict:
             local_cancel_requested=order['local_cancel_requested'],
             local_packet_id=int(packet[0]) if packet else None,
             local_packet_verified=bool(packet), linked_customer_case_ids=case_ids,
-            actual_customer_delivery_sent=False))
+            actual_customer_delivery_sent=False,
+            actual_gguf_order_release_handoff_id=(
+                int(handoff_id[0]) if handoff_id else None),
+            actual_gguf_release_id=(
+                real_ready["release_id"] if real_ready else None),
+            local_model_release_prepared=bool(real_ready),
+            currently_eligible_for_local_handoff=(
+                real_ready["current_owner_delivery_ready"] if real_ready else False)))
     gross = sum(int(x['evidence_amount_minor']) for x in entries)
     refunds = sum(int(x['accepted_refund_evidence_minor']) for x in entries)
     return dict(
@@ -66,6 +81,8 @@ def snapshot(store, business_id: int | None = None, limit: int = 100) -> dict:
         local_net_evidence_minor=gross-refunds,
         local_package_approved_count=sum(bool(x['local_package_approved']) for x in entries),
         local_packet_verified_count=sum(bool(x['local_packet_verified']) for x in entries),
+        local_real_gguf_release_handoff_count=sum(
+            bool(x['local_model_release_prepared']) for x in entries),
         pending_cancel_request_count=sum(bool(x['local_cancel_requested']) for x in entries),
         unlinked_refund_event_count=sum(len(x['unlinked_refund_event_ids']) for x in entries),
         linked_customer_case_count=sum(len(x['linked_customer_case_ids']) for x in entries),

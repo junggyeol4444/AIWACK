@@ -5665,3 +5665,13 @@ class LocalStore:
     def actual_model_release_history(self,limit=30):
         from desktop.company_actual_release_bundles import history
         return history(self,limit)
+
+
+    # 실제 승인된 상품 ZIP을 로컬 주문/준비 문서와 감사형 연결.
+    def create_real_release_order_handoff(self,order_id,release_id,packet_id,note):
+        from desktop.company_real_release_order_handoff import create
+        return create(self,order_id,release_id,packet_id,note)
+
+    def real_release_order_handoff_history(self,limit=40):
+        from desktop.company_real_release_order_handoff import history
+        return history(self,limit)

@@ -44,6 +44,27 @@ def attach(owner,tabs):
             "실제 승인 GGUF 다중 파일 ZIP·SHA256 원본 감사",
             lambda:owner.store.actual_model_release_history(30))),
     ])
+    owner._field(panel,"real_order_id","로컬 주문 번호")
+    owner._field(panel,"real_order_release_id","실제 GGUF 다중 제품 번호")
+    owner._field(panel,"real_order_packet_id","해당 주문의 승인 로컬 상품 준비 파일 번호")
+    owner._field(panel,"real_order_note","주문별 AI 제품 전달 준비 사유 (5~200자)")
+    owner._buttons(panel,[
+        ("실제 GGUF 승인 다중 파일을 로컬 주문에 연결",lambda:owner._perform(
+            "실제 로컬 주문·승인 상품·직원 GGUF 다중 ZIP 연결",
+            lambda:owner.store.create_real_release_order_handoff(
+                owner._id("real_order_id"),
+                owner._id("real_order_release_id"),
+                owner._id("real_order_packet_id"),
+                owner._get("real_order_note")),
+            "실제 승인된 주문의 상품 문서가 직원·총괄 GGUF 승인 다중 ZIP의 "
+            "원본 직원 결과물에 포함되는지 확인합니다. 주문의 미취소·미환불 상태, "
+            "준비 파일 SHA256, 직원·총괄 성공 및 최종 승인 증빙을 확인한 뒤 "
+            "고객 개인정보가 없는 로컬 전달 준비 JSON을 기록합니다. "
+            "고객 발송·결제/환불 실행·은행 확인은 하지 않습니다. 진행합니까?")),
+        ("실제 GGUF 제품 주문별 연결·환불 변경 조회",lambda:owner._perform(
+            "로컬 주문별 GGUF 상품 준비 SHA256 및 최신 취소/환불 상태",
+            lambda:owner.store.real_release_order_handoff_history(50))),
+    ])
     owner._field(panel,"real_staff_strategy_id","총괄 실제 GGUF 조직 판단 번호")
     owner._field(panel,"real_staff_note","총괄 조직 판단 관리자 검토 사유 (5~200자)")
     owner._buttons(panel,[

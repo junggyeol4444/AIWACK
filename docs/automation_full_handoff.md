@@ -1933,3 +1933,10 @@ Library에서 원본 ZIP A SHA256 30ee996d7986b85cabd9ae78e6e0ff018eb223f9af731b
 - 신규 windows-integrated-src/desktop/company_actual_release_bundles.py: 기존 직원 실행 성공/실제 총괄 성공 호출 및 관리자 이중 승인 원본을 각 파일마다 검증한 복수 2~20 직원 AI 결과를 실제 바이트 그대로 .py/.md/.txt로 묶는 로컬 ZIP 제작 엔진. JSON 매니페스트에 실제 모델 호출·원본 업무·SHA256·품질/출시/매출 미확인 상태 명확히 기록. ZIP 파일 1MiB 상한, 고정 멤버 경로, open(xb) 덮어쓰기 방지, 불변 SQLite 제작 이력·소스 원문 재검증/멤버 바이트 확인. AST 문법 검사는 제작 단계의 입력 형식 제한이며 코드 실행/품질 합격을 의미하지 않음.
 - 기존 windows-integrated-src/desktop/company_owner_completion_tabs.py 한국어 Tk 관리 화면에 실제 승인 직원 결과 번호/제품 유형 복수 입력·로컬 묶음 제작·SHA256 감사 조회 추가. storage.py LocalStore 신규 API, build_windows_exe.bat PyInstaller 포함. 기존 단일 파일 제품·주문·고객·은행·본래 30업무 소스 유지.
 - 실제 Windows 10/11 EXE·GGUF 및 T01~T20 통합검증/오류 수정 NOT_RUN. 모델 자동 변경·고객 발송·거래·게시·타 프로젝트/예약 변경 없음. 전체 잔여 개발과 1,099·1,171 역사 30개 파일·52충돌 파일 보존형 통합은 미완료.
+
+
+## 2026-10-26 — 실제 GGUF 승인 다중 파일 제품과 주문·로컬 전달·환불/금융 증빙의 보존형 통합 개발
+- 신규 windows-integrated-src/desktop/company_real_release_order_handoff.py: 기존 실제 GGUF 성공 직원/총괄 관리자 이중 승인 다중 ZIP 2~20원본과 기존 상품 카탈로그 30업무 승인 문서·주문 HMAC 정산/은행 CSV 대사·로컬 준비 패킷을 실제 직원 artifact ID+SHA256 기준으로 연결. 관리자 개별 요청 전에는 작동하지 않음. 주문 취소/환불 발생·문서 SHA 불일치·실모델 원본 불일치·ZIP 내 상품 결과 누락이면 새로운 준비 금지. 로컬 JSON 전달 준비 증빙 16KiB, SQLite 불변 감사, 암호학적 SHA·중복 원본 생성 금지, 재조회 때 현재 환불/취소 변경 표시. 파일에는 고객 개인정보/PG 인증정보를 담지 않음.
+- 기존 company_owner_completion_tabs.py 한국어 Windows Tk에서 주문 ID/실 GGUF 다중 제품 ID/로컬 패킷 ID 입력·준비 기록·환불 변경 조회. storage.py LocalStore 두 API 연결. company_local_order_finance.py의 읽기 전용 실증빙 주문 요약에 실제 모델 ZIP 주문 연결 ID 및 미취소·미환불 현재 상태 집계 추가. build_windows_exe.bat 기존 네이티브 PyInstaller 번들 신규 hidden import 추가.
+- **실제 외부 서비스/계정/PG·은행 독립 검증, 고객 전달·게시·결제·환불은 전혀 수행하지 않음.** 파일 준비만으로 매출·배송 완료라고 기록하지 않음. 원본 사용자 DB·제품 코드 덮어쓰기/삭제/모델 임의 변경/브랜치 생성 없음.
+- 전체 원본 개발 미완료, Windows 실제 EXE/실GGUF/T01~T20 전체 통합검증·오류 수정 NOT_RUN. 남은 개발: 자동 장기 15부서31AI30업무 운영, Windows 실제 무중단 복구, 외부 서비스/금융/고객 안전한 실연동, 1,099/1,171 원본 누락 30개 복원과 52충돌 보존형 전체 통합. 개발→전체 통합검증→오류 일괄 수정→재검증.
