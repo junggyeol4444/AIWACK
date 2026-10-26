@@ -5599,3 +5599,44 @@ class LocalStore:
     def head_chief_department_coverage(self,limit=100):
         from desktop.company_head_chief_coverage import report
         return report(self,limit=limit)
+
+
+    # 실제 직원/총괄 GGUF 양측 최종 승인 원본의 로컬 코드·문서 제품화.
+    def export_approved_real_product(self, artifact_id, kind, note):
+        from desktop.company_approved_real_products import export
+        return export(self,artifact_id,kind,note)
+
+    def approved_real_product_history(self,limit=30):
+        from desktop.company_approved_real_products import history
+        return history(self,limit)
+
+    # 실패 직원 원본을 총괄 실제 GGUF로 평가하고 관리자 제안만 전달.
+    def propose_chief_staff_strategy(self, *, cancel=None):
+        from desktop.company_chief_staff_strategy import propose_with_real_chief
+        return propose_with_real_chief(self,cancel=cancel)
+
+    def decide_chief_staff_strategy(self,strategy_id,decision,note):
+        from desktop.company_chief_staff_strategy import decide
+        return decide(self,strategy_id,decision,note)
+
+    def chief_staff_strategy_history(self,limit=30):
+        from desktop.company_chief_staff_strategy import history
+        return history(self,limit)
+
+    # 승인 직원→부서장 전달 승인→총괄 실제 모델 호출을 소유자 1회 실행.
+    def preview_operating_round(self):
+        from desktop.company_owner_operating_rounds import preview
+        return preview(self)
+
+    def run_owner_operating_round(self,employee_limit,chief_limit,note,*,cancel=None):
+        from desktop.company_owner_operating_rounds import run
+        return run(self,max_employee_jobs=employee_limit,
+                   max_chief_reviews=chief_limit,owner_note=note,cancel=cancel)
+
+    def operating_round_history(self,limit=30):
+        from desktop.company_owner_operating_rounds import history
+        return history(self,limit)
+
+    def close_operating_round_after_inspection(self,round_id,note):
+        from desktop.company_owner_operating_rounds import close_after_owner_inspection
+        return close_after_owner_inspection(self,round_id,note,owner_confirmed=True)

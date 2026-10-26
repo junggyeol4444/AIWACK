@@ -1894,3 +1894,11 @@ CI 마지막 확정 실패: b9a09e88 커밋의 루트 138 PASS, 네이티브 335
 - 새 제품 company_head_chief_coverage.py: 현재 존재하는 부서/실모델 연결 직원·부서장 수, 실제 총괄 업무 제안·직원 성공·부서장 실행/관리자 전달·총괄 원본 보고서/수락·업무 완료를 SQLite 원본으로만 읽기 전용 집계. 매출이나 외부 사실을 추정하지 않음.
 - 기존 company_owner_head_review_tabs.py 한국어 Tk 사용자 조회·연속 실행·중단 확인·전사 증빙 버튼 추가, company_native_owner_workflows.py 비동기 실모델 실행·취소, storage.py LocalStore API, build_windows_exe.bat PyInstaller 포함. 기존 누적 소스와 사용자 DB·다른 프로젝트·예약 삭제 없음. 새 브랜치 없음.
 - 전체 개발 미완료. Windows EXE 실행/실제 GGUF 모델 호출/전체 T01~T20 통합검증/오류 수정 NOT_RUN. 15부서31AI30업무 장기 자율 완성/24시간 복구/외부 승인형 PG·환불·은행·고객 연동/과거 1,099·1,171 ZIP 전수 통합은 남아 있음. 전체 개발→전체 검증→오류 일괄 수정→재검증 순서 유지.
+
+
+## 2026-10-26 — 실제 제품 제작/총괄 GGUF 조직 개편 판단/전사 승인 업무 연속운영 제품 코드 개발
+- 신규 company_approved_real_products.py: 실제 직원·총괄 GGUF 성공 호출 및 소유자의 직원 결과물 승인과 총괄 보고 수락을 원본 SQLite에서 교차 확인한 결과만 로컬 Python(.py)·Markdown(.md)·TXT 원문 파일로 최대 32KiB 제작. Python AST 문법 검사(안전성·실제 기능 검증 아님), SQLite 불변 원장, SHA256/중복·덮어쓰기 차단. 코드 실행/외부 출시/실제 결제/전송 없음.
+- 신규 company_chief_staff_strategy.py: SQLite 실제 직원 실패·timeout·중단 실행과 현존 부서 자료로 로컬 총괄 GGUF 1회 판단. 모델 호출 성공 감사·입력 SHA256·엄격 JSON 검증·원본 동일 시 모델 중복 재호출 차단. 소유자 판단 후 기존 직원 부서 이동 검토 큐에 후보만 등록. 모델 교체/직원 소속 변경/권한 확대 자동 수행하지 않음.
+- 신규 company_owner_operating_rounds.py: 소유자 명시 버튼 1회에 기존 개별 승인 GGUF 직원 대기열(최대 30) 및 관리자 부서장 전달 승인된 총괄 실모델 회수 대기열(최대 10)을 차례 실행. SQLite 영속 회차·입력 SHA256·단계별 사건 원장/미종료 회차 자동 재호출 방지·관리자 직접 종료 확인. 개별 직원/부서장/총괄 승인을 자동 통과시키지 않음.
+- 신규 company_owner_completion_tabs.py: 한국어 Tk 실제 제품 제작/원본 감사/총괄 GGUF 직원 전략/관리자 전달/전사 연속 모델 실행·중단 감사 및 기존 로컬 주문·환불·상품·고객 읽기 화면. 기존 company_native_owner_workflows.py 백그라운드 실행/취소 연결, storage.py LocalStore API, build_windows_exe.bat hidden imports 연결.
+- 기존 원본·사용자 DB·모델·다른 프로젝트·예약·브랜치·계정 미변경. 전체 개발 완료하지 않았음. Windows EXE 물리 구동/실제 GGUF/전체 T01~T20 통합검증·오류 일괄수정 이번 NOT_RUN. 미완료: 완전 자율 전사 30업무 장기 협업·24시간 실복구, 독립 외부 결제/환불/은행/고객 통합, 원본 1,099/1,171 ZIP 전수 보존형 병합, 로드맵 54·56~86 미완료. 전체 개발→통합검증→오류 일괄 수정→재검증.

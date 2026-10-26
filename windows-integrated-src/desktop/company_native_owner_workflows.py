@@ -81,6 +81,8 @@ class CompanyOwnerWorkflows:
         self._tool_management(tools)
         from desktop.company_owner_evidence_tabs import attach as attach_owner_evidence_tabs
         attach_owner_evidence_tabs(self, tabs)
+        from desktop.company_owner_completion_tabs import attach as attach_completion
+        attach_completion(self, tabs)
         from desktop.company_owner_head_review_tabs import attach as attach_head_reviews
         attach_head_reviews(self, tabs)
         from desktop.company_owner_peer_consultation_tabs import attach as attach_peer_consultations
@@ -177,6 +179,21 @@ class CompanyOwnerWorkflows:
                 evidence_domain = 'operations' if action == 'operations_evidence_ai' else 'commerce'
                 campaign_id = None
                 source_id = None
+            elif action == 'chief_staff_strategy':
+                self.store.require_permission('agents:manage')
+                campaign_id=None
+                source_id=None
+            elif action == 'operating_round':
+                self.store.require_permission('agents:manage')
+                operating_round_staff=self._id('operating_round_staff')
+                operating_round_chief=self._id('operating_round_chief')
+                operating_round_note=self._get('operating_round_note')
+                from desktop.company_owner_operating_rounds import _positive, _note
+                _positive(operating_round_staff,30,'직원')
+                _positive(operating_round_chief,10,'총괄')
+                _note(operating_round_note)
+                campaign_id=None
+                source_id=None
             elif action == 'head_to_chief_batch':
                 self.store.require_permission('agents:manage')
                 head_chief_limit=self._id('head_to_chief_limit')
@@ -290,6 +307,13 @@ class CompanyOwnerWorkflows:
                     elif action in ('operations_evidence_ai', 'commerce_evidence_ai'):
                         result = self.store.propose_chief_evidence_review(
                             evidence_domain, cancel=self._campaign_cancel)
+                    elif action == 'chief_staff_strategy':
+                        result=self.store.propose_chief_staff_strategy(
+                            cancel=self._campaign_cancel)
+                    elif action == 'operating_round':
+                        result=self.store.run_owner_operating_round(
+                            operating_round_staff,operating_round_chief,
+                            operating_round_note,cancel=self._campaign_cancel)
                     elif action == 'head_to_chief_batch':
                         result=self.store.run_head_chief_handoff_batch(
                             head_chief_limit,head_chief_note,
