@@ -1854,3 +1854,11 @@ CI 마지막 확정 실패: b9a09e88 커밋의 루트 138 PASS, 네이티브 335
 - 기존 company_native_owner_workflows.py 실제 모델 비동기 실행/취소·한국어 GUI company_owner_evidence_tabs.py·storage.py LocalStore API·build_windows_exe.bat PyInstaller 포함 연결.
 - 원본 코드/DB/계획/다른 프로젝트 삭제 없음. 전체 기능 개발 전이므로 Windows EXE/실제 GGUF/T01~T20 통합검증 및 일괄 오류수정 NOT_RUN.
 - 남은 개발: 15부서31AI30업무 전체 장기 자율 실행, 중단 복구·외부 금융·고객·사업 실행, 과거 1,099/1,171 ZIP 3-way 보존 통합. 전체 개발→검증→일괄 수정→재검증.
+
+
+## 2026-10-26 — 실 총괄 GGUF 회사 현황 기반 자발적 부서 업무 발견·관리자 승인 직원 배정 개발
+- 기존 AIWACK Windows 한국어 Tkinter/SQLite/실 GGUF 총괄 실행기 유지. 신규 company_chief_department_discovery.py: 실제 부서/모델 연결 직원/회사 목표/업무 SQLite 원본으로 총괄 모델 호출. 최대 5건 엄격 JSON 제안, 등록된 부서/업무 원본 ID 확인, 입력 증빙·모델 호출 성공/실패/취소·출력 SHA256 영속 감사. 동일 원본 모델 자동 재시도 금지.
+- 신규 company_chief_department_dispatch.py: 관리자 개별 승인 한 건마다 SQLite 원자 트랜잭션으로 실제 todo 업무 생성, 동일 부서 실제 모델 연결 직원 업무량 기준 배정, 지시/상태/배정 원장 보존. 모델 직원 재실행이나 결제/환불/고객 발송/게시 자동 승인 없음.
+- 신규 company_owner_chief_discovery_tabs.py: 한국어 Tk 관리자 총괄 실 GGUF 제안·모델 호출 감사·부서별 업무 배분·개별 승인/반려 화면. 기존 company_native_owner_workflows.py 비동기 모델 실행/취소 연결, storage.py LocalStore API, build_windows_exe.bat PyInstaller hidden-import 연동.
+- 이번 단계는 기능 개발. Windows EXE 실행/실 GGUF 모델 호출/T01~T20 전체 통합검증, 오류 수정은 **NOT_RUN**. 15부서31AI30업무 전체 완성·24시간 안정화·실제 매출을 주장하지 않음.
+- 남은 원본: 전체 자율 GGUF 30업무 협업/회복/최종 보고, 24시간 운영, 외부 거래/환불/은행/고객 연동, 과거 원본 1,099/누적 1,171개 ZIP 보존형 3-way 통합. 전체 개발→통합검증→일괄 수정→재검증 순서 고정.

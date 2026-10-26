@@ -81,6 +81,8 @@ class CompanyOwnerWorkflows:
         self._tool_management(tools)
         from desktop.company_owner_evidence_tabs import attach as attach_owner_evidence_tabs
         attach_owner_evidence_tabs(self, tabs)
+        from desktop.company_owner_chief_discovery_tabs import attach as attach_chief_discovery
+        attach_chief_discovery(self, tabs)
         self.output = tk.Text(self.window, height=12, wrap='word')
         self.output.pack(fill='both', expand=True, padx=12, pady=10)
         self.output.insert('end','기존 SQLite 원본 결과와 관리자 승인 기록만 조회·연결합니다.')
@@ -171,6 +173,10 @@ class CompanyOwnerWorkflows:
                 evidence_domain = 'operations' if action == 'operations_evidence_ai' else 'commerce'
                 campaign_id = None
                 source_id = None
+            elif action == 'department_discovery':
+                self.store.require_permission('agents:manage')
+                campaign_id = None
+                source_id = None
             elif action == 'approved_queue_batch':
                 self.store.require_permission('agents:manage')
                 batch_limit = self._id('owner_queue_batch_limit')
@@ -256,6 +262,9 @@ class CompanyOwnerWorkflows:
                     elif action in ('operations_evidence_ai', 'commerce_evidence_ai'):
                         result = self.store.propose_chief_evidence_review(
                             evidence_domain, cancel=self._campaign_cancel)
+                    elif action == 'department_discovery':
+                        result = self.store.discover_chief_department_tasks(
+                            cancel=self._campaign_cancel)
                     elif action == 'approved_queue_batch':
                         from desktop.company_approved_queue_batch import run_batch
                         result = run_batch(self.store, max_jobs=batch_limit,

@@ -5488,3 +5488,25 @@ class LocalStore:
     def close_owner_model_batch_after_inspection(self, batch_id, note):
         from desktop.company_approved_queue_batch import close_after_owner_inspection
         return close_after_owner_inspection(self, batch_id, note, owner_confirmed=True)
+
+
+    # 총괄 실제 GGUF의 현재 회사 원본 기반 부서별 신규 업무 발견·배정.
+    def discover_chief_department_tasks(self, *, cancel=None):
+        from desktop.company_chief_department_discovery import discover
+        return discover(self, cancel=cancel)
+
+    def chief_department_discovery_proposals(self, limit=50):
+        from desktop.company_chief_department_discovery import list_proposals
+        return list_proposals(self, limit=limit)
+
+    def chief_department_discovery_attempts(self, limit=30):
+        from desktop.company_chief_department_discovery import list_attempts
+        return list_attempts(self, limit=limit)
+
+    def decide_chief_department_proposal(self, proposal_id, decision, note):
+        from desktop.company_chief_department_dispatch import decide
+        return decide(self, proposal_id, decision, note)
+
+    def chief_department_handoffs(self, department_id=None, limit=100):
+        from desktop.company_chief_department_dispatch import pending_by_department
+        return pending_by_department(self, department_id, limit)
