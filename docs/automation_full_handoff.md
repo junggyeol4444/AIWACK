@@ -2059,3 +2059,9 @@ Library에서 원본 ZIP A SHA256 30ee996d7986b85cabd9ae78e6e0ff018eb223f9af731b
 - 기존 storage.py에 LocalStore API 3개, company_native_owner_workflows.py 탭 연결, company_real_release_order_handoff.py 로컬 상품 인계 검문, company_owner_smtp_delivery.py 외부 발송 직전과 SQLite 송신 claim 안에서 환불 보류 검사, build_windows_exe.bat PyInstaller 포함. 기존 코드를 덮어쓰지 않고 해당 연결부만 추가.
 - 기존 HMAC 승인/은행 CSV 원본 및 provider 상태는 독립 실제 은행 입금의 증명이 아님. 이번 회차에 실제 외부 PG/환불/이체/SMTP 발송·Windows10/11 EXE·실GGUF·T01~T20 전체 통합검증·오류 수정 수행하지 않음. 가짜 모델/실매출/발송 성공 주장 금지.
 - 아직 역사 ZIP의 29경로 미복원·52경로 의미 병합, 부분취소/가상계좌 후속조회, 회사 전체 15부서31AI30업무 실제 24시간 운용 완성 및 전체 통합검증 전부 남음. 사용자 데이터/원본 ZIP·로그·모델·다른 프로젝트/브랜치/예약 변경 금지. 원본 기능 개발 완료 → 통합검증 → 오류 일괄 수정 → 전체 재검증 고정.
+
+### 2026-10-26 20시 개발 커밋·인수인계 후속 증빙
+- 이번 기능 코드 커밋: `753c115bb8ee95ec1e745f8958643d319a05fe2c`, 기존 원격 main `f6f55d9ad41d200912bad12f31b00666050f9518`을 부모로 하는 비강제 expected_sha fast-forward. 브랜치 생성·삭제/사용자 소스 덮어쓰기 없음.
+- 변경 8파일: 신규 `desktop/company_order_delivery_holds.py`, `desktop/company_owner_delivery_hold_tabs.py`; 수정 `desktop/storage.py`, `desktop/company_native_owner_workflows.py`, `desktop/company_owner_smtp_delivery.py`, `desktop/company_real_release_order_handoff.py`, `build_windows_exe.bat`, `docs/automation_full_handoff.md`.
+- 실제 승인/환불/SMTP/금전/게시 외부 부작용 수행 없음. 로컬 Windows EXE 실기기 및 T01~T20 전체 검증·오류 수정은 전체 개발 이후 실시(현재 NOT_RUN).
+- 진짜 GGUF 완료·24시간 정상·고객 입금/수령·실매출 주장은 하지 않음. 원본 1,099/1,171 ZIP의 실제 원문 29경로 미복원과 52경로 의미 병합은 아직 미완료.
