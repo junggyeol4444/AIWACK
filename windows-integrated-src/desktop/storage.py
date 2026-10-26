@@ -5789,3 +5789,18 @@ class LocalStore:
     def toss_payment_lookup_history(self,limit=50):
         from desktop.company_toss_payment_lookup import history
         return history(self,limit)
+
+
+    # 원본 preservation/ 3-way 도구 재사용: 관리자 직접 선택 ZIP 후보만 별도 경로에 생성.
+    def preview_source_preservation(self,original_zip,cumulative_zip,checkout,stage):
+        from desktop.company_source_preservation import preview
+        return preview(self,original_zip,cumulative_zip,checkout,stage)
+
+    def stage_source_preservation_candidates(self,original_zip,cumulative_zip,
+                                             checkout,stage,owner_note):
+        from desktop.company_source_preservation import stage_candidates
+        return stage_candidates(self,original_zip,cumulative_zip,checkout,stage,owner_note)
+
+    def source_preservation_history(self,limit=30):
+        from desktop.company_source_preservation import history
+        return history(self,limit)
