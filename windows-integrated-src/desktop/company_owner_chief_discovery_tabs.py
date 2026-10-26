@@ -10,6 +10,8 @@ def attach(owner,tabs):
     owner._field(panel,"chief_dept_proposal_id","총괄 실제 GGUF 신규 업무 제안 번호")
     owner._field(panel,"chief_dept_note","관리자 승인/반려 사유 (5~200자)")
     owner._field(panel,"chief_dept_filter","부서 번호 (비워두면 전체)")
+    owner._field(panel,"chief_autodiscovery_run_id","중단된 자동 총괄 모델 회차 번호")
+    owner._field(panel,"chief_autodiscovery_note","중단 회차 확인 사유 (5~200자)")
     owner._buttons(panel,[
         ("실제 회사 원본 기반 신규 업무 GGUF 생성",lambda: owner._start_real_model_action(
             "총괄 GGUF 부서별 실제 신규 업무 제안","department_discovery",
@@ -46,6 +48,36 @@ def attach(owner,tabs):
                 owner._id("chief_dept_proposal_id"),"rejected",
                 owner._get("chief_dept_note")),
             "실제 모델 제안의 반려 원본 감사만 추가하며 이미 생성한 업무를 삭제하지 않습니다. 반려합니까?")),
+    ])
+    owner._buttons(panel,[
+        ("총괄 GGUF 60분 주기 업무 발견 별도 허용",lambda: owner._perform(
+            "총괄 GGUF 자율 신규업무 발견 활성화",
+            lambda:owner.store.configure_chief_autodiscovery(True,60),
+            "기존 회사 자동 운영·실제 모델 실행 두 동의가 켜져 있을 때만 "
+            "현재 로그인 GUI의 5분 자동 운영 중 최대 60분마다 실제 총괄 "
+            "GGUF를 호출해 미승인 신규 업무 초안만 생성합니다. "
+            "기존 승인 직원 업무가 있으면 우선 실행합니다. 허용합니까?")),
+        ("총괄 GGUF 정기 업무 발견 해제",lambda: owner._perform(
+            "총괄 자동 신규업무 발견 비활성화",
+            lambda:owner.store.configure_chief_autodiscovery(False,60),
+            "추가 GGUF 자동 호출을 차단하며 현재 실행 중인 호출에도 "
+            "취소 신호를 전달합니다. 이전 감사와 초안은 보존합니다.")),
+    ])
+    owner._buttons(panel,[
+        ("총괄 GGUF 자동 발견 상태",lambda: owner._perform(
+            "총괄 정기 모델 발견 설정·미완료 이력",
+            lambda:owner.store.chief_autodiscovery_status())),
+        ("총괄 GGUF 정기 발견 실제 호출 기록",lambda: owner._perform(
+            "총괄 주기별 실제 모델 호출/실패 감사",
+            lambda:owner.store.chief_autodiscovery_history(50))),
+        ("중단 모델 회차 관리자 직접 확인 종료",lambda: owner._perform(
+            "실제 모델 종료 확인 후 중단 회차 감사 종결",
+            lambda:owner.store.close_interrupted_chief_autodiscovery(
+                owner._id("chief_autodiscovery_run_id"),
+                owner._get("chief_autodiscovery_note")),
+            "중단 모델의 실제 프로세스 종료를 직접 확인했습니까? "
+            "기존 모델 호출·실패·초안은 보존하고 같은 호출을 "
+            "자동 재실행하지 않은 채 감사 회차만 종료합니다.")),
     ])
     ttk.Label(panel,text=(
         "이 기능은 기존 총괄/직원 모델 설정을 임의로 바꾸지 않습니다. "

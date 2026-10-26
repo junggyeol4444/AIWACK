@@ -573,6 +573,10 @@ class CompanyOffice:
                 self._text_dialog('로컬 AI 직원 모델 호출 진단', str(result))
             elif self.after_action == 'chief_queue_auto':
                 self._say('소유자가 미리 승인한 직원 업무 1건·총괄 AI 검토 완료 · 결과물 승인/완료는 관리자 대기')
+            elif self.after_action == 'chief_discovery_auto':
+                self._say('총괄 실제 GGUF 신규 부서 업무 초안 '
+                          +str(result.get('proposed_tasks',0))
+                          +'건 저장 · 직원 업무 실행은 관리자 승인 대기')
             elif self.after_action == 'chief_queue':
                 self.set_view('results')
                 n=int(result['completed_cycles'])
@@ -1037,6 +1041,14 @@ class CompanyOffice:
                             self._start(lambda:company_autopilot.run_one_approved_model(
                                 self.store,pinned,cancel=self.cancel,
                                 session_token=self._continuity_session_id if tracked else None),after='chief_queue_auto')
+                        else:
+                            # The owner's separate opt-in enables a real chief
+                            # GGUF to propose new, nonexecuting department work.
+                            from desktop import company_chief_autodiscovery as discovery
+                            if discovery.due(self.store):
+                                self._start(
+                                    lambda:discovery.run_due(self.store,cancel=self.cancel),
+                                    after='chief_discovery_auto')
             state=company_autopilot.settings(self.store)
             self.monitor_status.set(f"사내 자율 운영 {'켜짐' if state['enabled'] else '꺼짐'} · "
                                     f"{state['interval_seconds']//60}분 주기 · 실행 감사 {state['runs']}건")
@@ -1071,7 +1083,7 @@ class CompanyOffice:
         try:
             company_autopilot.configure(self.store,False)
             self.monitor_status.set('사내 자율 운영 사용 안 함')
-            if self.after_action=='chief_queue_auto' and self.worker and self.worker.is_alive():
+            if self.after_action in ('chief_queue_auto','chief_discovery_auto') and self.worker and self.worker.is_alive():
                 self.cancel.set()
             self._say('자동 운영 해제 · 기존 감사 보존')
         except (ValueError,PermissionError) as exc:
@@ -1095,9 +1107,9 @@ class CompanyOffice:
         from desktop import company_autopilot
         try:
             company_autopilot.configure_approved_models(self.store,False)
-            if self.after_action=='chief_queue_auto' and self.worker and self.worker.is_alive():
+            if self.after_action in ('chief_queue_auto','chief_discovery_auto') and self.worker and self.worker.is_alive():
                 self.cancel.set()
-            self._say('실제 직원 AI 자동 실행 해제, 진행 중 모델에 취소 요청')
+            self._say('실제 직원/총괄 AI 자동 실행 해제, 진행 중 모델에 취소 요청')
         except (ValueError,PermissionError) as exc:
             self._say('실제 AI 자동 실행 해제 실패: '+str(exc))
 

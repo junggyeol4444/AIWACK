@@ -1862,3 +1862,11 @@ CI 마지막 확정 실패: b9a09e88 커밋의 루트 138 PASS, 네이티브 335
 - 신규 company_owner_chief_discovery_tabs.py: 한국어 Tk 관리자 총괄 실 GGUF 제안·모델 호출 감사·부서별 업무 배분·개별 승인/반려 화면. 기존 company_native_owner_workflows.py 비동기 모델 실행/취소 연결, storage.py LocalStore API, build_windows_exe.bat PyInstaller hidden-import 연동.
 - 이번 단계는 기능 개발. Windows EXE 실행/실 GGUF 모델 호출/T01~T20 전체 통합검증, 오류 수정은 **NOT_RUN**. 15부서31AI30업무 전체 완성·24시간 안정화·실제 매출을 주장하지 않음.
 - 남은 원본: 전체 자율 GGUF 30업무 협업/회복/최종 보고, 24시간 운영, 외부 거래/환불/은행/고객 연동, 과거 원본 1,099/누적 1,171개 ZIP 보존형 3-way 통합. 전체 개발→통합검증→일괄 수정→재검증 순서 고정.
+
+
+## 2026-10-26 — 실제 총괄 GGUF 주기적 자발 업무 발견 개발 (기능 코드, 통합검증 전)
+- 기존 Windows 10/11 Tkinter/SQLite/PyInstaller 제품에 신규 company_chief_autodiscovery.py 개발. 이전 회차 기존 company_chief_department_discovery.discover의 실제 총괄 GGUF 호출을 재사용, 가짜 AI 출력/매출 없음.
+- 기존 회사 자율 운영 + 실제 GGUF 모델 동의 + 신규 총괄 업무 자동 발견 제3 정책이 모두 켜져야 실행. 소유자 한 번 설정 이후 GUI 로그인 실행 중 60분 주기 제한으로 모델을 호출하여 미승인 내부 업무 초안 1~5개만 생성. 기존 승인된 직원 실행 우선, 미검수 초안이 있으면 추가 발견 금지. 승인 전 직원 자동 배정/업무 실행/결제/게시 없음.
+- SQLite 원자적 주기 선점/불변 이벤트 감사/실행 중복 차단/과거 미종료 회차 자동 재실행 금지. 모델 정책 변경 watcher의 취소 이벤트, 모델 종료 소유자 직접 확인 후 원장만 닫기. 외부 고객 연락·송금·환불 불가.
+- 기존 company_office_gui.py tick 비동기 실제 모델 실행/완료 메시지, 해제 취소 연동. company_owner_chief_discovery_tabs.py 한국어 GUI 정책 허용/해제/상태/미종료 확인, storage.py LocalStore API, build_windows_exe.bat hidden import 추가. 원본 데이터 삭제·모델 임의 변경/새 브랜치 없음.
+- 모든 원본 기능 개발 미완료. Windows EXE 실제 실행/진짜 GGUF/T01~T20 전체 검증, 오류 수정, 24시간 연속 실운영 NOT_RUN. 원본 1,099/1,171 ZIP 전수 보존형 통합 미완료. 다음에는 15부서31AI30업무 장기 협업/복구/실거래 승인 연동 등 남은 원본 개발 계속.

@@ -5510,3 +5510,21 @@ class LocalStore:
     def chief_department_handoffs(self, department_id=None, limit=100):
         from desktop.company_chief_department_dispatch import pending_by_department
         return pending_by_department(self, department_id, limit)
+
+
+    # 기존 Windows 자율 운영과 별도 동의를 요구하는 총괄 GGUF 주기적 신규업무 발견.
+    def configure_chief_autodiscovery(self, enabled, interval_minutes=60):
+        from desktop.company_chief_autodiscovery import configure
+        return configure(self, enabled, interval_minutes=interval_minutes)
+
+    def chief_autodiscovery_status(self):
+        from desktop.company_chief_autodiscovery import status
+        return status(self)
+
+    def chief_autodiscovery_history(self, limit=50):
+        from desktop.company_chief_autodiscovery import history
+        return history(self, limit=limit)
+
+    def close_interrupted_chief_autodiscovery(self, run_id, note):
+        from desktop.company_chief_autodiscovery import close_interrupted
+        return close_interrupted(self, run_id, note, owner_confirmed=True)
