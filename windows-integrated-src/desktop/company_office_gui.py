@@ -576,6 +576,14 @@ class CompanyOffice:
                     self._say('실제 직원·부서장 GGUF 검토 기록 저장 · 관리자 개별 부서장 승인 후 총괄 보고 대기')
                 else:
                     self._say('소유자가 미리 승인한 직원 업무 1건·총괄 AI 검토 완료 · 결과물 승인/완료는 관리자 대기')
+            elif self.after_action == 'long_company_auto':
+                self._say('관리자 허용 장기 GGUF 배치 회차 '
+                          +str(result.get('long_attempt_id','없음'))
+                          +' · 실제 직원 모델 '
+                          +str(result.get('staff_model_jobs',0))
+                          +'건 · 총괄 모델 회수 '
+                          +str(result.get('actual_chief_reports',0))
+                          +'건 · 관리자 최종 검수 대기')
             elif self.after_action == 'chief_discovery_auto':
                 self._say('총괄 실제 GGUF 신규 부서 업무 초안 '
                           +str(result.get('proposed_tasks',0))
@@ -1028,13 +1036,23 @@ class CompanyOffice:
                 self._say('Windows GUI 종료 확인된 모델 실행 감사: '+str(model_recovered))
             result=company_autopilot.run_once(
                 self.store,session_token=self._continuity_session_id if tracked else None)
+            # Additional owner opt-in starts one genuine approved GGUF batch
+            # per due interval; ordinary single-task auto-start is skipped.
+            long_started=False
+            if (company_autopilot.approved_models_enabled(self.store)
+                    and not (self.worker and self.worker.is_alive())):
+                from desktop import company_long_running_batch as long_batch
+                if long_batch.due(self.store):
+                    self._start(lambda:long_batch.run_due(
+                        self.store,cancel=self.cancel),after='long_company_auto')
+                    long_started=True
             if result.get('executed'):
                 self.refresh()
                 self._say(f"자율 운영 제안 {result['proposal_created']}·일정 "
                           f"{result['schedule_created']}·이벤트 {result['event_created']}건 생성 (승인 대기)")
                 # A separate owner opt-in enables REAL GGUF staff+chief calls.
                 # The existing safe worker thread prevents Tk freezing.
-                if (company_autopilot.approved_models_enabled(self.store)
+                if (not long_started and company_autopilot.approved_models_enabled(self.store)
                         and not (self.worker and self.worker.is_alive())):
                     from desktop import company_owner_model_queue as model_queue
                     pending=model_queue.next_pending(self.store)
@@ -1091,7 +1109,7 @@ class CompanyOffice:
         try:
             company_autopilot.configure(self.store,False)
             self.monitor_status.set('사내 자율 운영 사용 안 함')
-            if self.after_action in ('chief_queue_auto','chief_discovery_auto') and self.worker and self.worker.is_alive():
+            if self.after_action in ('chief_queue_auto','chief_discovery_auto','long_company_auto') and self.worker and self.worker.is_alive():
                 self.cancel.set()
             self._say('자동 운영 해제 · 기존 감사 보존')
         except (ValueError,PermissionError) as exc:
@@ -1115,7 +1133,7 @@ class CompanyOffice:
         from desktop import company_autopilot
         try:
             company_autopilot.configure_approved_models(self.store,False)
-            if self.after_action in ('chief_queue_auto','chief_discovery_auto') and self.worker and self.worker.is_alive():
+            if self.after_action in ('chief_queue_auto','chief_discovery_auto','long_company_auto') and self.worker and self.worker.is_alive():
                 self.cancel.set()
             self._say('실제 직원/총괄 AI 자동 실행 해제, 진행 중 모델에 취소 요청')
         except (ValueError,PermissionError) as exc:

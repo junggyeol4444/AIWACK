@@ -5675,3 +5675,23 @@ class LocalStore:
     def real_release_order_handoff_history(self,limit=40):
         from desktop.company_real_release_order_handoff import history
         return history(self,limit)
+
+
+    # 로그인된 Windows GUI 자동 tick에서 사용자 별도 동의된 승인 GGUF 연속 배치.
+    def configure_long_company_batch(self,enabled,interval_minutes=60,
+                                     max_staff=5,max_chief=5,note=""):
+        from desktop.company_long_running_batch import configure
+        return configure(self,enabled,interval_minutes=interval_minutes,
+                         max_staff=max_staff,max_chief=max_chief,note=note)
+
+    def long_company_batch_status(self):
+        from desktop.company_long_running_batch import status
+        return status(self)
+
+    def long_company_batch_history(self,limit=50):
+        from desktop.company_long_running_batch import history
+        return history(self,limit)
+
+    def close_long_company_batch_after_inspection(self,attempt_id,note):
+        from desktop.company_long_running_batch import close_after_owner_inspection
+        return close_after_owner_inspection(self,attempt_id,note,owner_confirmed=True)

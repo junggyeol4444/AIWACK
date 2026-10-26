@@ -126,6 +126,38 @@ def attach(owner,tabs):
             "기존 업무·결제·고객 전송·모델 호출 재실행 없이 "
             "중단 회차 기록만 종료합니다.")),
     ])
+    owner._field(panel,"long_gguf_note","장기 실GGUF 승인·중단 사유 (5~200자)")
+    owner._field(panel,"long_gguf_attempt_id","중단된 장기 GGUF 회차 번호")
+    owner._buttons(panel,[
+        ("승인 업무 장기 GGUF 배치 60분 주기 별도 허용",lambda:owner._perform(
+            "장기 실제 GGUF 직원·총괄 승인 업무 자동 실행 허용",
+            lambda:owner.store.configure_long_company_batch(
+                True,60,5,5,owner._get("long_gguf_note")),
+            "기존 사내 자동 운영과 실제 GGUF 실행 동의가 먼저 필요합니다. "
+            "현재 Windows GUI 로그인 실행 중 주기마다 기존 승인 직원 "
+            "업무 최대 5개와 부서장 승인된 총괄 회수 최대 5건만 실행합니다. "
+            "새 업무/재무/고객/결과물은 자동 승인하지 않습니다. 허용합니까?")),
+        ("장기 GGUF 주기 실행 해제",lambda:owner._perform(
+            "장기 승인 GGUF 자동 모델 실행 해제",
+            lambda:owner.store.configure_long_company_batch(
+                False,60,5,5,owner._get("long_gguf_note")),
+            "실행 중 실모델에도 취소 신호를 전달합니다. 이전 원본은 보존합니다.")),
+    ])
+    owner._buttons(panel,[
+        ("장기 GGUF 설정·미종료 회차 확인",lambda:owner._perform(
+            "실제 회사 장기 모델 동의 및 회차 현황",
+            lambda:owner.store.long_company_batch_status())),
+        ("장기 GGUF 모델 배치 실행 감사",lambda:owner._perform(
+            "실제 장기 GGUF 직원·총괄 모델 감사 원장",
+            lambda:owner.store.long_company_batch_history(50))),
+        ("장기 GGUF 중단 회차 관리자 직접 확인 종료",lambda:owner._perform(
+            "이전 실GGUF 프로세스 종료 확인·장기 회차 중단 감사",
+            lambda:owner.store.close_long_company_batch_after_inspection(
+                owner._id("long_gguf_attempt_id"),
+                owner._get("long_gguf_note")),
+            "자식 GGUF 프로세스와 기존 하위 회차 및 총괄 lease가 종료됐는지 "
+            "직접 확인해야 합니다. 자동 모델 재시도 없이 회차만 닫습니다.")),
+    ])
     owner._field(panel,"native_round_kind","원본 회차 종류 operating 또는 chief")
     owner._field(panel,"native_round_run_id","중단된 원본 GGUF 회차 번호")
     owner._field(panel,"native_round_interruption_id","Windows 커널 종료 관측 감사 번호")

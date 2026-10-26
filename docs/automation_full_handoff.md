@@ -1948,3 +1948,10 @@ Library에서 원본 ZIP A SHA256 30ee996d7986b85cabd9ae78e6e0ff018eb223f9af731b
 - 기존 history 73개 신규 항목 중 처음 main에 없던 32개에서 이전 회차 2개, 이번 2개 실제 복원하여 미복원 원문 28개(현재 main 기준 이름 대조; 52개 수정 충돌의 의미 단위 보존형 병합은 여전히 별도 미완료). 개인 dev_company.sqlite3는 절대 삭제/업로드/덮어쓰지 않음.
 - 이번 제품 개발 커밋 3fd46e2fd60c20fb87c9a95b3f97cdc5e7aa7908: 주문별 실제 GGUF 승인 다중 파일 ZIP·로컬 주문 승인 문서 artifact SHA/제품 준비 파일·환불 상태 실증빙 연결, 한국어 Tk·SQLite·EXE 포함. 고객 발송/실제 PG/독립 은행 확인 및 모델 실행/상용 성공 주장 금지.
 - 모든 잔여 원본 기능 개발 먼저→Windows EXE/실GGUF/T01~T20 전체 통합검증→오류 일괄 수정→전체 재검증. 이번은 개발·원본 보존 작업, 전체 Windows/모델 검증 NOT_RUN.
+
+
+## 2026-10-26 — 실제 15부서·31AI·30업무 연속 운영용 장기 승인 GGUF 모델 배치 개발
+- 신규 windows-integrated-src/desktop/company_long_running_batch.py. 기존 company_owner_operating_rounds.run(이미 승인된 직원 업무 최대 30개 + 관리자가 따로 부서장 의견 전달 승인한 총괄 실제 회수 최대 10개)를 소유자 별도 opt-in 정책 하에 15~1440분 간격으로 실행. SQLite 단일 트랜잭션 주기 선점, 실행/실패/중단·관리자 수동 종결 영속 감사, 미종료 GGUF 회차 자동 재호출 차단, 기존 실제 모델/lease/원본 업무 감사 재사용.
+- company_office_gui.py 기존 30초 자동운영 tick에 장기 batch due 독립 조회/기존 단건 작업 중복 출발 차단·백그라운드 실제 모델 실행 및 완료 알림 통합. 로그인 GUI가 살아있는 동안에만 동작, 24시간 무중단/Windows 서비스 보장 아님. 원래 사내 운영+실GGUF 동의+장기 batch 별도 동의 모두 필수. 기존 동의 해제 시 실제 진행 모델 취소 watcher.
+- company_owner_completion_tabs.py 한국어 관리자 장기 실행 60분 허용/해제/상태/감사/중단 확인. storage.py LocalStore API 추가, build_windows_exe.bat 신규 모듈 PyInstaller 포함. 모델 임의 변경, 실제 매출/환불/고객/최종 결과 자동 승인 없음.
+- 이번 전체 통합검증 NOT_RUN. 15부서31AI30업무 실제 24시간 장기 운영/실Windows 모델 성공 미확정, 외부 거래/고객 전달/은행 확인·누락 역사 원본 28개 복원 및 변경 원본 52개 의미단위 3-way 통합은 미완료. 전체 개발→전체 검증→오류 수정→전체 재검증 순서 고정.
