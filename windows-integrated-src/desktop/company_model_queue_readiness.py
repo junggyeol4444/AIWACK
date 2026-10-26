@@ -59,6 +59,13 @@ def _ready_in_tx(con, task_id: int) -> dict:
         assert_handoff_ready(con, task_id)
     except (ValueError, PermissionError, RuntimeError) as exc:
         return {"ready": False, "reason": "협업 인계 원본 검토 필요: " + str(exc)[:240]}
+    # Optional immutable, owner-sealed evidence for cross-department real
+    # GGUF handoffs. Legacy unsealed tasks preserve their existing gates.
+    try:
+        from desktop.company_dependency_evidence_seal import assert_current_in_tx
+        assert_current_in_tx(con,task_id)
+    except (ValueError,PermissionError,RuntimeError) as exc:
+        return {"ready":False,"reason":"인계 실제 GGUF 승인 증빙 변경: "+str(exc)[:230]}
     return {"ready": True, "reason": "관리자 승인·선행 업무·협업 인계 준비 확인",
             "employee_id": int(worker[0]), "pending_prerequisites": []}
 

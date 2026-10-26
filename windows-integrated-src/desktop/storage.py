@@ -1602,6 +1602,10 @@ class LocalStore:
                 if len(prompt)>3000:
                     raise ValueError('승인된 지시가 로컬 모델 입력 한도를 초과했습니다.')
             # An earlier worker's result is context, never a new instruction.
+            from desktop.company_dependency_evidence_seal import assert_current_in_tx
+            # Recheck in the original BEGIN IMMEDIATE model-run transaction:
+            # a queue preview cannot authorize a changed predecessor result.
+            assert_current_in_tx(con,task_id)
             from desktop.company_handoffs import dependency_context
             dependency_text=dependency_context(con,task_id,budget=min(700,max(0,3000-len(prompt))))
             if handoff_proof is not None:
@@ -5709,3 +5713,17 @@ class LocalStore:
     def close_dead_long_native_process(self,crash_id,note):
         from desktop.company_long_native_process import close_after_owner_inspection
         return close_after_owner_inspection(self,crash_id,note,owner_confirmed=True)
+
+
+    # 부서간 실제 직원·총괄 GGUF 선행 업무 완료 및 사용자 승인 불변 인계.
+    def seal_dependency_handoff(self,task_id,note):
+        from desktop.company_dependency_evidence_seal import seal
+        return seal(self,task_id,note)
+
+    def inspect_dependency_handoff(self,task_id):
+        from desktop.company_dependency_evidence_seal import inspect
+        return inspect(self,task_id)
+
+    def dependency_handoff_history(self,limit=50):
+        from desktop.company_dependency_evidence_seal import history
+        return history(self,limit)

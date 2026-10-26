@@ -1962,3 +1962,11 @@ Library에서 원본 ZIP A SHA256 30ee996d7986b85cabd9ae78e6e0ff018eb223f9af731b
 - company_long_running_batch.py 실제 GGUF 모델 승인 due claim과 네이티브 PID 바인딩을 같은 SQLite 트랜잭션에 결합. Windows PID 확인 실패 시 실행 출발 거부, 비Windows 환경에서는 Windows 안전 기록/검증된 복구라고 주장하지 않음. 부서장·직원 GGUF subprocess가 GUI 종료 이후 남을 수 있으므로 개별 자식 모델·거래·실행 lease는 절대 자동 종료·해제·재시도하지 않음.
 - company_owner_completion_tabs.py 한국어 Tk 장기 커널 회차/종료 증빙/소유자 모델 종료 확인 GUI, storage.py LocalStore 조회·기록·확인 API, build_windows_exe.bat PyInstaller 포함.
 - 개발 코드 누적 main, 사용자 DB/기존 원본/모델/인수인계 삭제 없음. 실제 Windows 10/11 EXE, 진짜 GGUF 모델 31AI·30업무, T01~T20 통합검증·오류 수정 NOT_RUN. 24시간/재부팅 자율 실제 완료를 주장하지 않음. 원본 ZIP 역사 원문 28개와 변경 52개 보존형 충돌 병합, 실외부 PG/은행/고객 계정 연동 미완료. 개발→전체 검증→일괄 수정→전면 재검증 고정.
+
+
+## 2026-10-26 — 15부서·31AI 실제 GGUF 선행 업무 인계 SHA256 근거 원장 제품 개발 (전체 통합검증 전)
+- 신규 windows-integrated-src/desktop/company_dependency_evidence_seal.py: 15부서/30업무 기존 선행 dependency의 실제 직원 GGUF 모델 호출 성공, 실제 총괄 GGUF 회수 성공/관리자 수락, 직원 저장 결과물 관리자 승인, 원본 직원·총괄 결과물 SHA256, 승인 총괄 지시/후속 직원 배정/모델·업무 제목·설명을 관리자 선택 시 한 번만 SQLite 고정. 불변 감사 테이블 2개, 동일 업무 재서명/기존 원본 교체 차단. 수동 done 표시만으로 후속 업무 인계 승인 금지. 기존 모델 재호출/승인 자동 변경/돈 거래·고객 전송 없음.
+- 신규 company_owner_dependency_tabs.py: 한국어 네이티브 Tk 관리자 후속 업무 번호·사유 입력, 실제 GGUF 선행 근거 불변 서명, 선행 모델/결과 변경 조회, 감사 이력 표시. 기존 company_native_owner_workflows.py 탭 추가.
+- 기존 company_model_queue_readiness.py 대기열 실행 가능 판정과 storage.py begin_task_execution 실제 모델-run SQLite BEGIN IMMEDIATE 경계 모두 소유자가 고정한 인계 SHA256 증빙의 현재 원본 동일성 확인. 관리자 서명 없는 기존 원본 30업무에는 추가 상태 제약을 적용하지 않으며 기존 모든 협업/완료/승인 검사를 우회하지 않음.
+- 기존 storage.py LocalStore API 3개, build_windows_exe.bat PyInstaller 모듈 포함. 기존 원본 소스·DB·계정/모델·브랜치·예약 미변경, 검증 선행 및 임의 오류수정 없음.
+- 미완료: 모든 핵심 기능/원본 역사 ZIP B 누락 28개 실제 byte 복원 및 변경 원본 52개 의미 단위 3-way 병합, 장기 운영 실제 24시간·Windows10/11 EXE·31AI30업무 실 GGUF 실사용, 외부 금융/고객 실연동. **전체 개발→전체 통합검증→오류 일괄 수정→재검증**, 이번 기능 실제 Windows·GGUF·T01~T20 검증 NOT_RUN.

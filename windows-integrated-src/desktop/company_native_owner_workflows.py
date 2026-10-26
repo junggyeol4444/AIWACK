@@ -81,6 +81,8 @@ class CompanyOwnerWorkflows:
         self._tool_management(tools)
         from desktop.company_owner_evidence_tabs import attach as attach_owner_evidence_tabs
         attach_owner_evidence_tabs(self, tabs)
+        from desktop.company_owner_dependency_tabs import attach as attach_dep_handoff
+        attach_dep_handoff(self,tabs)
         from desktop.company_owner_completion_tabs import attach as attach_completion
         attach_completion(self, tabs)
         from desktop.company_owner_head_review_tabs import attach as attach_head_reviews
