@@ -1446,6 +1446,8 @@ class CompanyOwnerWorkflows:
             '딱 1회 분석합니다. 결과는 관리자 검토용이며 모델 자동 재시도·업무 승인·결제·외부 전송이 없습니다.',
             wraplength=870).pack(anchor='w',padx=12,pady=8)
         self._field(panel,'failure_model_followup_id','실제 실패 후속 제안 번호')
+        self._field(panel,'failure_model_claim_id','총괄 실제 분석 감사 번호')
+        self._field(panel,'failure_model_owner_note','관리자 검토 사유 (5~200자)')
         self._buttons(panel,[
             ('기존 실패 후속 제안 목록',lambda:self._perform(
                 '실제 직원 실행 실패 후속 제안',
@@ -1458,7 +1460,28 @@ class CompanyOwnerWorkflows:
             ('실제 모델 분석·중단 원본 감사',lambda:self._perform(
                 '총괄 모델 실패 분석 원본',
                 lambda:__import__('desktop.company_failure_ai_analysis',
-                    fromlist=['history']).history(self.store,limit=100)))])
+                    fromlist=['history']).history(self.store,limit=100))),
+            ('총괄 실패 분석 출처·호출 무결성 대조',lambda:self._perform(
+                '실제 실패 원본·총괄 GGUF 호출 메타데이터 무결성',
+                lambda:__import__('desktop.company_failure_ai_analysis',
+                    fromlist=['audit_history']).audit_history(self.store,limit=100)))])
+        self._buttons(panel,[
+            ('실제 GGUF 분석 기반 개선 업무 승인',lambda:self._perform(
+                '실패 분석 원본 확인 후 관리자 승인',
+                lambda:__import__('desktop.company_failure_ai_analysis',
+                    fromlist=['decide_from_analysis']).decide_from_analysis(
+                        self.store,self._id('failure_model_claim_id'),
+                        'approved',self._get('failure_model_owner_note')),
+                '총괄 실제 모델 성공 출처와 실패 원본을 확인하고 개선 todo 업무만 만듭니다. '
+                '실패 업무·모델 재실행 및 외부 작업은 없습니다. 승인합니까?')),
+            ('실제 GGUF 분석 기반 개선 제안 반려',lambda:self._perform(
+                '실패 분석 원본 확인 후 관리자 반려',
+                lambda:__import__('desktop.company_failure_ai_analysis',
+                    fromlist=['decide_from_analysis']).decide_from_analysis(
+                        self.store,self._id('failure_model_claim_id'),
+                        'rejected',self._get('failure_model_owner_note')),
+                '실제 모델 분석 원본에 대한 관리자 반려를 불변 기록합니다. '
+                '개선 업무·모델 실행·외부 작업은 생성하지 않습니다. 반려합니까?'))])
 
     def _business_ideas(self, panel):
         ttk.Label(panel,text='실제 연결된 로컬 총괄 GGUF 모델의 미검증 사업 가설 1건을 만듭니다. '

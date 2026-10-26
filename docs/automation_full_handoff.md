@@ -2065,3 +2065,16 @@ Library에서 원본 ZIP A SHA256 30ee996d7986b85cabd9ae78e6e0ff018eb223f9af731b
 - 변경 8파일: 신규 `desktop/company_order_delivery_holds.py`, `desktop/company_owner_delivery_hold_tabs.py`; 수정 `desktop/storage.py`, `desktop/company_native_owner_workflows.py`, `desktop/company_owner_smtp_delivery.py`, `desktop/company_real_release_order_handoff.py`, `build_windows_exe.bat`, `docs/automation_full_handoff.md`.
 - 실제 승인/환불/SMTP/금전/게시 외부 부작용 수행 없음. 로컬 Windows EXE 실기기 및 T01~T20 전체 검증·오류 수정은 전체 개발 이후 실시(현재 NOT_RUN).
 - 진짜 GGUF 완료·24시간 정상·고객 입금/수령·실매출 주장은 하지 않음. 원본 1,099/1,171 ZIP의 실제 원문 29경로 미복원과 52경로 의미 병합은 아직 미완료.
+
+## 2026-10-25 20:55 KST 실제 개발 누적 추가 (기존 원문 보존)
+- **최신 재조회:** 원격 main `012dd5f66af1dc07d4ae6cd3f147b3c9b724a0d1`; PR #9은 20:26 KST 이미 병합/종료(이번 회차 병합 아님). 기존 테스트 HEAD `46ed5c1886ac04a45cc674c6c5b924766b369ea1`은 main 대비 4커밋 뒤처져 있어, 기존 지정 테스트 브랜치만 expected-SHA/비강제 fast-forward 후 개발. main 직접 변경 없음.
+- **실제 기능 개발:** 기존 실패 GGUF 분석 원본·실제 모델 호출 감사 읽기 전용 `audit_history` (`4a9d8814`), 기존 한국어 Tk 출처 조회 버튼 (`315f0059`), 실제 모델 성공·실패 원본 확인 후 관리자 승인/반려·새 todo 개선 업무·불변 결정 감사 `decide_from_analysis` (`6a7fd3ab`), 기존 Tk 승인/반려 버튼 (`3a4d8258`), 실패 분석·후속 제안 원본 실행 ID 추가 대조 (`7671a83e`). 기존 원본·앱/GUI/SQLite 보존, 외부 전송·결제·재시도 없음.
+- **검증:** 신규 전체 pytest/Windows10·11 실기 EXE·GUI·30업무 실 GGUF·24시간·T01~T20·실거래 **NOT_RUN**. 과거 `39896550108` 실제 GGUF **FAILURE**. 신규 `40189885109` CI/`40189885128` EXE/`40189885121` GGUF/`40190535569` CI는 조회 시 **QUEUED**, PASS 아님. 원본 1,099개 원격 3-way SHA 전수 대조·52변경/73추가 원본 보존형 전체 병합·역사 원문 28+매니페스트2 개별 복원 최종 확인 **미완료**.
+- **다음:** 사용자 원문대로 잔여 모든 기능·원본 보존형 병합 먼저 개발 → 전체 통합검증 → 실패 수정 → 재검증 → main 최종 안전 병합. HTML/WebUI·가짜 모델·원본 삭제/덮어쓰기·Drive 강제·보안 우회·임의 실거래·임의 브랜치 삭제/force push·다른 프로젝트/예약 변경 금지. 상세 신규 인수인계 `docs/AIWACK_20261025_2055_실개발_실패GGUF원본감사_관리자결정_전체누적인수인계.md`.
+
+
+## 2026-10-26 — 삭제 대비 두 테스트 브랜치 보존형 main 누적 병합
+- 병합 전 원격 main SHA `69d8967ebb47191b6105f9f9f7fa6e63abbcac78`, 보존 대상 테스트 브랜치 tip SHA `a537a304d15c257c90985807c1da74d43d9f9897` (기존 main에서 앞선 별도 15개 커밋). 추가 부모를 포함한 일반 병합 커밋으로 전체 15개 커밋 이력 보존; 기존 main 코드·로그·모델·DB/ZIP 덮어쓰기 없음.
+- 테스트 브랜치 신규 실제 기능 `company_failure_ai_analysis.py`의 읽기 전용 `audit_history`, 관리자 `decide_from_analysis`와 불변 결정 테이블을 현재 main으로 보존 병합. 한국어 Tk `company_native_owner_workflows.py` GUI에 출처 조회와 관리자의 명시 승인/반려 버튼을 기존 최신 탭 유지하며 추가. 신규 이전 회차 원본 20:55 인수인계 문서 `docs/AIWACK_20261025_2055_실개발_실패GGUF원본감사_관리자결정_전체누적인수인계.md` 복원.
+- 이전 8개 인수인계 파일의 20:55 기록은 원본 append-only로 분리 후속 병합. 다른 테스트 브랜치 `test/aiwack-20261023-cumulative-merge`는 main 대비 ahead=0 확인. 사용자가 삭제하기 전 재확인 필요.
+- 이번 회차는 전체 개발 완료 전 단계이므로 Windows10/11 실제 EXE·실 GGUF·T01~T20 전체 검증/오류 수정 수행하지 않음. 실제 PG/결제/환불/외부 고객 전송 없음. 1,099/1,171 ZIP 29 누락경로·52 충돌원본 의미 병합/모든 기능 개발은 미완료.
