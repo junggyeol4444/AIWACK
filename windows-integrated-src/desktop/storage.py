@@ -5695,3 +5695,17 @@ class LocalStore:
     def close_long_company_batch_after_inspection(self,attempt_id,note):
         from desktop.company_long_running_batch import close_after_owner_inspection
         return close_after_owner_inspection(self,attempt_id,note,owner_confirmed=True)
+
+
+    # Windows 장기 승인 GGUF 배치의 원래 커널 PID/프로세스 생성시각 감사.
+    def inspect_long_native_processes(self,limit=50):
+        from desktop.company_long_native_process import inspect
+        return inspect(self,limit=limit)
+
+    def record_dead_long_native_process(self,attempt_id):
+        from desktop.company_long_native_process import record_verified_crash
+        return record_verified_crash(self,attempt_id)
+
+    def close_dead_long_native_process(self,crash_id,note):
+        from desktop.company_long_native_process import close_after_owner_inspection
+        return close_after_owner_inspection(self,crash_id,note,owner_confirmed=True)

@@ -191,6 +191,8 @@ def run_due(store,*,cancel=None,now=None):
             SET next_due_epoch=? WHERE id=1""",(stamp+policy[1],))
         attempt_id=int(con.execute("""INSERT INTO aiwack_long_operating_attempts
             (due_epoch,state) VALUES(?,'running')""",(stamp,)).lastrowid)
+        from desktop.company_long_native_process import bind_in_transaction
+        bind_in_transaction(con,attempt_id)
         con.execute("""INSERT INTO aiwack_long_operating_events
             (attempt_id,kind) VALUES(?,'claimed')""",(attempt_id,))
     signal=cancel if cancel is not None else threading.Event()

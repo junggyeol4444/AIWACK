@@ -1955,3 +1955,10 @@ Library에서 원본 ZIP A SHA256 30ee996d7986b85cabd9ae78e6e0ff018eb223f9af731b
 - company_office_gui.py 기존 30초 자동운영 tick에 장기 batch due 독립 조회/기존 단건 작업 중복 출발 차단·백그라운드 실제 모델 실행 및 완료 알림 통합. 로그인 GUI가 살아있는 동안에만 동작, 24시간 무중단/Windows 서비스 보장 아님. 원래 사내 운영+실GGUF 동의+장기 batch 별도 동의 모두 필수. 기존 동의 해제 시 실제 진행 모델 취소 watcher.
 - company_owner_completion_tabs.py 한국어 관리자 장기 실행 60분 허용/해제/상태/감사/중단 확인. storage.py LocalStore API 추가, build_windows_exe.bat 신규 모듈 PyInstaller 포함. 모델 임의 변경, 실제 매출/환불/고객/최종 결과 자동 승인 없음.
 - 이번 전체 통합검증 NOT_RUN. 15부서31AI30업무 실제 24시간 장기 운영/실Windows 모델 성공 미확정, 외부 거래/고객 전달/은행 확인·누락 역사 원본 28개 복원 및 변경 원본 52개 의미단위 3-way 통합은 미완료. 전체 개발→전체 검증→오류 수정→전체 재검증 순서 고정.
+
+
+## 2026-10-26 — 장기 승인 GGUF 배치 Windows 원 커널 PID·생성시각 소유권 및 중단 복구 개발
+- 신규 company_long_native_process.py: 기존 SQLite CHECK(kind operating/chief)의 스키마 호환성을 훼손하지 않도록 별도의 장기 GGUF 배치 네이티브 PID 소유권/Windows 크래시/관리자 종결 감사 3개 SQLite 표 추가. 새 장기 실행 회차 생성 트랜잭션 안에서 실제 Windows 커널 프로세스 PID와 생성시각을 동시에 바인딩. PID 재사용/커널 inaccessible/장기 회차 running 별 구분. 최소 180초 후에 원 GUI가 확실히 죽은 경우에만 불변 감사 생성.
+- company_long_running_batch.py 실제 GGUF 모델 승인 due claim과 네이티브 PID 바인딩을 같은 SQLite 트랜잭션에 결합. Windows PID 확인 실패 시 실행 출발 거부, 비Windows 환경에서는 Windows 안전 기록/검증된 복구라고 주장하지 않음. 부서장·직원 GGUF subprocess가 GUI 종료 이후 남을 수 있으므로 개별 자식 모델·거래·실행 lease는 절대 자동 종료·해제·재시도하지 않음.
+- company_owner_completion_tabs.py 한국어 Tk 장기 커널 회차/종료 증빙/소유자 모델 종료 확인 GUI, storage.py LocalStore 조회·기록·확인 API, build_windows_exe.bat PyInstaller 포함.
+- 개발 코드 누적 main, 사용자 DB/기존 원본/모델/인수인계 삭제 없음. 실제 Windows 10/11 EXE, 진짜 GGUF 모델 31AI·30업무, T01~T20 통합검증·오류 수정 NOT_RUN. 24시간/재부팅 자율 실제 완료를 주장하지 않음. 원본 ZIP 역사 원문 28개와 변경 52개 보존형 충돌 병합, 실외부 PG/은행/고객 계정 연동 미완료. 개발→전체 검증→일괄 수정→전면 재검증 고정.

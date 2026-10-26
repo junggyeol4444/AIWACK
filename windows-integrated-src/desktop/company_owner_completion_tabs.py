@@ -158,6 +158,30 @@ def attach(owner,tabs):
             "자식 GGUF 프로세스와 기존 하위 회차 및 총괄 lease가 종료됐는지 "
             "직접 확인해야 합니다. 자동 모델 재시도 없이 회차만 닫습니다.")),
     ])
+    owner._field(panel,"long_native_attempt","Windows 장기 실GGUF 중단 회차 번호")
+    owner._field(panel,"long_native_crash","Windows 장기 회차 원 GUI 종료 감사 번호")
+    owner._buttons(panel,[
+        ("Windows 장기 실제 GGUF 회차 PID·생성시각 조회",lambda:owner._perform(
+            "Windows 장기 모델 운영 실제 커널 프로세스·미종료 상태",
+            lambda:owner.store.inspect_long_native_processes())),
+        ("Windows 원 장기 모델 GUI 종료 증빙 기록",lambda:owner._perform(
+            "실제 Windows 프로세스 생성시각 기반 장기 모델 종료 감사",
+            lambda:owner.store.record_dead_long_native_process(
+                owner._id("long_native_attempt")),
+            "실제 원 GUI Windows PID/생성시각을 비교해 종료가 확인된 "
+            "경우에만 감사합니다. 모델 자식이 끝났다는 증명은 아니며 "
+            "모델·결제 자동 재실행은 하지 않습니다. 기록합니까?")),
+    ])
+    owner._buttons(panel,[
+        ("Windows 중단된 장기 GGUF 자식 종료 관리자 확인",lambda:owner._perform(
+            "장기 GGUF Windows 중단 프로세스·모델 잠금 최종 관리자 확인",
+            lambda:owner.store.close_dead_long_native_process(
+                owner._id("long_native_crash"),
+                owner._get("long_gguf_note")),
+            "실제 GGUF 자식 프로세스 및 기존 하위 업무·총괄 실행 잠금이 "
+            "끝났음을 직접 확인했습니까? 중단 회차 원장만 종결하며 "
+            "이전 AI 결과물과 실행 이력은 삭제·자동 재호출하지 않습니다.")),
+    ])
     owner._field(panel,"native_round_kind","원본 회차 종류 operating 또는 chief")
     owner._field(panel,"native_round_run_id","중단된 원본 GGUF 회차 번호")
     owner._field(panel,"native_round_interruption_id","Windows 커널 종료 관측 감사 번호")
