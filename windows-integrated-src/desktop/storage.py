@@ -5773,3 +5773,19 @@ class LocalStore:
     def bank_camt_statement_history(self,limit=30):
         from desktop.company_bank_camt_reconciliation import history
         return history(self,limit)
+
+
+    # 실제 토스페이먼츠 결제 상태: 소유자 직접 승인한 읽기 전용 HTTPS GET.
+    # API 시크릿은 함수 인수로만 전달하며 DB/로그/설정에 저장하지 않음.
+    def preview_toss_payment_lookup(self,event_id,payment_key,order_id):
+        from desktop.company_toss_payment_lookup import preview
+        return preview(self,event_id,payment_key,order_id)
+
+    def verify_toss_payment_lookup(self,event_id,payment_key,order_id,
+                                   api_secret,owner_note):
+        from desktop.company_toss_payment_lookup import verify
+        return verify(self,event_id,payment_key,order_id,api_secret,owner_note)
+
+    def toss_payment_lookup_history(self,limit=50):
+        from desktop.company_toss_payment_lookup import history
+        return history(self,limit)

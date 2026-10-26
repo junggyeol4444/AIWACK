@@ -87,6 +87,8 @@ class CompanyOwnerWorkflows:
         attach_customer_mail(self,tabs)
         from desktop.company_owner_bank_camt_tabs import attach as attach_bank_camt
         attach_bank_camt(self,tabs)
+        from desktop.company_owner_toss_payment_tabs import attach as attach_toss_payment
+        attach_toss_payment(self,tabs)
         from desktop.company_owner_dependency_tabs import attach as attach_dep_handoff
         attach_dep_handoff(self,tabs)
         from desktop.company_owner_completion_tabs import attach as attach_completion
