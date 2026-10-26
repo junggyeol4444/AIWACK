@@ -17,6 +17,26 @@ def attach(owner, tabs):
     owner._field(queue, "owner_queue_id", "대기열 항목 번호")
     owner._field(queue, "owner_queue_note", "관리자 사유 (5~200자)")
     owner._field(queue, "owner_model_run_id", "Windows 종료 모델 실행 번호")
+    owner._field(queue, "owner_queue_batch_limit", "실행할 GGUF 업무 최대 건수 (1~30)")
+    owner._field(queue, "owner_queue_batch_note", "연속 실행 관리자 사유 (5~200자)")
+    owner._field(queue, "owner_queue_batch_id", "중단된 연속 실행 회차 번호")
+    owner._buttons(queue, [
+        ("승인 GGUF 대기 업무 연속 실제 실행", lambda: owner._start_real_model_action(
+            "승인된 실제 GGUF 업무 연속 실행", "approved_queue_batch",
+            "개별 승인·등록된 업무만 지정한 최대 개수만큼 기존 직원/총괄 GGUF "
+            "엔진으로 실행합니다. 실패 즉시 중지·재시도 금지·결과 자동 승인 없음. "
+            "실제 실행하겠습니까?")),
+        ("연속 실제 GGUF 실행 원장 조회", lambda: owner._perform(
+            "GGUF 배치별 SQLite 원장",
+            lambda: owner.store.owner_model_batch_history(30))),
+        ("중단 배치 관리자 직접 확인 종료", lambda: owner._perform(
+            "중단된 GGUF 배치 원장 종료",
+            lambda: owner.store.close_owner_model_batch_after_inspection(
+                owner._id("owner_queue_batch_id"),
+                owner._get("owner_queue_batch_note")),
+            "실제 모델 프로세스가 모두 종료됐음을 직접 확인했습니까? "
+            "기존 GGUF·주문·결제는 재실행하지 않고 배치 기록만 닫습니다.")),
+    ])
     owner._buttons(queue, [
         ("승인 업무를 영속 대기열에 등록", lambda: owner._perform(
             "기존 총괄 지시 승인 업무 등록",

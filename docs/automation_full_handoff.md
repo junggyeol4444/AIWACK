@@ -1846,3 +1846,11 @@ CI 마지막 확정 실패: b9a09e88 커밋의 루트 138 PASS, 네이티브 335
 - 상세 인수인계: `docs/AIWACK_20261026_0845_30업무전사운영_Windows로그인감시_전체누적_인수인계.md` (문서 커밋 `8670995fd933b3fb80bc77d5b098e18ce2a34da3`). 기존 원본·다른 프로젝트·예약·사용자 DB 직접 변경 없음. 브랜치 main 외 4개 존재; Actions 삭제 작업 최신 상태 미확인. 원본 ZIP 정확한 바이트 미확보, 역사 3-way 통합 미완료.
 - 로그인 후 감시 등록은 사용자가 GUI에서 직접 승인해야 하며 실제 Windows 자동 실행/무인 로그인/24시간 운영 성공을 주장하지 않음. 전체 기능 개발 미완료, Windows EXE·실제 GGUF·T01~T20 전체 통합검증·오류 수정 **NOT_RUN**.
 - 잔여: 15부서31AI30업무 장기 GGUF 협업/24시간 복구, 실제 외부 거래/환불/은행/고객 전달, 역사 원본 ZIP 보존형 통합. 전체 개발→통합검증→오류 일괄 수정→전체 재검증 순서 유지.
+
+
+## 2026-10-26 — 관리자 승인 다중 GGUF 실행 기능 코드 개발
+- 신규 windows-integrated-src/desktop/company_approved_queue_batch.py: 관리자 개별 승인된 SQLite 영속 업무만 최대 30건 실제 직원→총괄 GGUF 기존 호출 경로로 연속 실행. 시작 전 이중 동의와 비상정지, 각 업무별 원본 준비·모델 중복·선행·lease 검사 유지. 검수 자동 승인·실거래·실패 재시도 없음.
+- 배치 실행 회차 SQLite 영속 상태, 이전 감사 SHA256 연결 기록, 비정상 종료 시 미종료 회차 자동 재호출 차단, 관리자 확인 후 실행 잠금/실행 중 모델·직원 감사가 없어야 회차만 닫기 가능.
+- 기존 company_native_owner_workflows.py 실제 모델 비동기 실행/취소·한국어 GUI company_owner_evidence_tabs.py·storage.py LocalStore API·build_windows_exe.bat PyInstaller 포함 연결.
+- 원본 코드/DB/계획/다른 프로젝트 삭제 없음. 전체 기능 개발 전이므로 Windows EXE/실제 GGUF/T01~T20 통합검증 및 일괄 오류수정 NOT_RUN.
+- 남은 개발: 15부서31AI30업무 전체 장기 자율 실행, 중단 복구·외부 금융·고객·사업 실행, 과거 1,099/1,171 ZIP 3-way 보존 통합. 전체 개발→검증→일괄 수정→재검증.

@@ -5473,3 +5473,18 @@ class LocalStore:
     def native_supervisor_audit(self, limit=80):
         from desktop.company_native_supervisor_audit import history
         return history(self,limit)
+
+
+    # 개별 승인된 GGUF 대기열의 연속 실행 및 중단 감사.
+    def run_owner_model_batch(self, max_jobs, note, *, cancel=None, session_token=None):
+        from desktop.company_approved_queue_batch import run_batch
+        return run_batch(self, max_jobs=max_jobs, owner_note=note,
+                         cancel=cancel, session_token=session_token)
+
+    def owner_model_batch_history(self, limit=30):
+        from desktop.company_approved_queue_batch import history
+        return history(self, limit)
+
+    def close_owner_model_batch_after_inspection(self, batch_id, note):
+        from desktop.company_approved_queue_batch import close_after_owner_inspection
+        return close_after_owner_inspection(self, batch_id, note, owner_confirmed=True)

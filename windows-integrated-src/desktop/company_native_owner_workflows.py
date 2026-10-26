@@ -171,6 +171,16 @@ class CompanyOwnerWorkflows:
                 evidence_domain = 'operations' if action == 'operations_evidence_ai' else 'commerce'
                 campaign_id = None
                 source_id = None
+            elif action == 'approved_queue_batch':
+                self.store.require_permission('agents:manage')
+                batch_limit = self._id('owner_queue_batch_limit')
+                if not 1 <= batch_limit <= 30:
+                    raise ValueError('한 번에 승인된 업무는 최대 30건만 실행합니다.')
+                batch_note = self._get('owner_queue_batch_note')
+                from desktop.company_approved_queue_batch import _reason
+                _reason(batch_note)
+                campaign_id = None
+                source_id = None
             elif action == 'financial_brief_ai':
                 self.store.require_permission('agents:manage')
                 financial_brief_id=self._id('model_financial_brief_id')
@@ -246,6 +256,11 @@ class CompanyOwnerWorkflows:
                     elif action in ('operations_evidence_ai', 'commerce_evidence_ai'):
                         result = self.store.propose_chief_evidence_review(
                             evidence_domain, cancel=self._campaign_cancel)
+                    elif action == 'approved_queue_batch':
+                        from desktop.company_approved_queue_batch import run_batch
+                        result = run_batch(self.store, max_jobs=batch_limit,
+                                           owner_note=batch_note,
+                                           cancel=self._campaign_cancel)
                     elif action == 'financial_brief_ai':
                         result=self.store.analyze_real_chief_financial_brief(
                             financial_brief_id,cancel=self._campaign_cancel)
