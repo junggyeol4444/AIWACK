@@ -2025,3 +2025,17 @@ Library에서 원본 ZIP A SHA256 30ee996d7986b85cabd9ae78e6e0ff018eb223f9af731b
 - 원본 보존 상태: 실행 시작 main HEAD 6c32f7bf1904a131dc7411c90d8afe86fa5cbd89, recursive tree 1,578개 엔트리(파일만의 수와 다름), docs/roadmap_100.csv는 16~100 단계 TODO로 보존. 이전 인수인계 기록상 원본 ZIP B의 미복원 원문 28경로 및 원본 52개 변경 소스의 3-way 의미 병합 미완료; 이번 회차 원본 A/B ZIP 바이트 직접 전수 대조/병합 실행은 하지 않았음. dev_company.sqlite3 개인 DB 업로드/덮어쓰기 금지.
 - 남은 핵심: 외부 실제 PG 환불·은행 독립 확인·결제/고객 전달의 추가 권한형 실연동, Windows 15부서31AI30업무 장기 자율 운영 완성, 원본 28/52 무손실 보존형 통합, 전사 업무/상품 코드 미완성 기능 전부 개발. 모든 개발 완료 후 Windows10/11 실 EXE·실 GGUF·T01~T20 전체 통합검증 → 오류 일괄 수정 → 전체 재검증. 이번 전체 통합검증/오류 수정 NOT_RUN.
 - 사용자 금지사항 재확인: 기존 기획·원본·로그·모델·DB·브랜치·예약·타 프로젝트 임의 변경/삭제 금지; 가짜 모델/실거래/수익/24시간 합격 주장 금지; 웹사이트 전환·임의 모델 교체·테스트 선행 금지; 새 브랜치 불필요 생성 금지; 기존 main 원격 HEAD 확인 후 expected_sha 비강제 fast-forward만 허용; 실제 금전/환불/이체/게시/발송은 해당 개별 명시 승인 전 실행 금지.
+
+
+## 2026-10-26 19시 — 역사 1,099/1,171 ZIP 기존 3-way 보존형 도구 Windows EXE GUI·SQLite 연동 개발
+- 원격 main 최신 HEAD c16039f666d866c42fccd7b19efb462c772528e6 확인 후 개발, 로드맵 100단계 및 과거 역사 원본 누락 28/52 미병합 기록 확인.
+- 기존 preservation/safe_three_way_source_merge.py 원본 그대로 import/패키징. 신규 company_source_preservation.py 원본 ZIP 2개+Git main 체크아웃+새 외부 stage를 받아 SHA256/항목수 확인, 원본 보존형 후보 생성 및 충돌 3사본, 매니페스트 불변 SQLite 감사 기록.
+- 신규 company_owner_source_preservation_tabs.py 한국어 Tk 관리자 탭: 원본 A/B·checkout·stage 선택, 원본 사전 조회, 관리자 직접 승인 후보 생성, 이력. 기존 company_native_owner_workflows.py, storage.py API, build_windows_exe.bat --paths .. / hidden import 연결.
+- 28개 역사 누락 파일 복원 및 52개 충돌 소스의 실제 의미 병합, 15부서31AI30업무 실제 장기 운영, 외부 금융/결제/환불/은행 실연동은 아직 남음. 사용자 DB/원본 ZIP/로그/브랜치·예약 변경·삭제 없음. 외부 금융/메일/게시/실계정 요청 없음.
+- 실제 ZIP 원본 바이트를 확보하지 못해 이번에 병합 후보 도구 실행하지 않음. 실제 Windows EXE/실 GGUF/T01~T20 전체 검증/오류 수정 NOT_RUN. 전체 개발→전체 통합검증→일괄 수정→전체 재검증 고정.
+
+
+### 이번 회차 소스 GitHub 반영 증빙
+- 신규 실제 제품 코드 main 반영 커밋: a30087d1ecc5fe6e5269c8954efb525c7e1664d2 (부모 c16039f666d866c42fccd7b19efb462c772528e6).
+- 소스 반영 5개: company_source_preservation.py, company_owner_source_preservation_tabs.py, company_native_owner_workflows.py, storage.py, build_windows_exe.bat.
+- GitHub HEAD 충돌 없음/force=false/expected_sha 사용. 역사 ZIP 원문 미제공으로 28원문/52충돌의 실제 복원·병합은 미완료. 실Windows EXE·실 GGUF·T01~T20 검증 NOT_RUN.
