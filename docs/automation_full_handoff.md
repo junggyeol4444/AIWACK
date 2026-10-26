@@ -1887,3 +1887,10 @@ CI 마지막 확정 실패: b9a09e88 커밋의 루트 138 PASS, 네이티브 335
 - chief_task_runtime.collect_chief_task_result: 해당 신규 부서 업무는 부서장 실제 모델 검토+관리자 개별 전달 승인 후 총괄에 비신뢰 참고근거 인계. storage.save_chief_task_report 공통 저장 경계에도 승인 근거 확인 추가해 우회 저장 차단. 회사 직원 결과물 원본 불변.
 - company_native_owner_workflows.py 실행/취소 및 신규 GUI 탭 통합, company_office_gui.py 기존 자동 승인 업무 결과에서 부서장 검수 대기와 총괄 보고 완료 구분, storage.py API 및 build_windows_exe.bat PyInstaller 포함.
 - 사용자 지시 전체 개발 → Windows EXE/진짜 GGUF/T01~T20 통합검증 → 오류 일괄 수정 → 재검증. 이번은 개발/원격 main 반영 단계이고 검증은 NOT_RUN. 기존 원본/사용자 DB/다른 프로젝트/예약·브랜치 삭제 없음. 전체 15부서31AI30업무 장기 자율 운영, 24시간 복구, 실외부 거래/상품/고객·원본 역사 ZIP 전수 통합 미완료.
+
+
+## 2026-10-26 — 실제 부서장 승인 → 총괄 GGUF 연속 회수·전사 증빙 실개발 (전체검증 전)
+- 새 제품 company_head_chief_handoff_queue.py: 관리자 개별 전달 승인된 성공 직원/부서장 GGUF 결과물 원본만 선택해 소유자 명시 버튼으로 한 번에 최대 10건 기존 company_operations.collect_chief_review 실제 총괄 GGUF 호출·기존 lease·보고서 감사를 차례로 실행. 기존 직원 재호출 금지. SQLite 배치/개별 원장·불변 사건 기록·중단된 이전 실행 자동 재개 차단·관리자 프로세스 직접 확인 후 회차만 안전 종료. 사용자 보고서 최종 승인/업무 완료/실거래 자동화 없음.
+- 새 제품 company_head_chief_coverage.py: 현재 존재하는 부서/실모델 연결 직원·부서장 수, 실제 총괄 업무 제안·직원 성공·부서장 실행/관리자 전달·총괄 원본 보고서/수락·업무 완료를 SQLite 원본으로만 읽기 전용 집계. 매출이나 외부 사실을 추정하지 않음.
+- 기존 company_owner_head_review_tabs.py 한국어 Tk 사용자 조회·연속 실행·중단 확인·전사 증빙 버튼 추가, company_native_owner_workflows.py 비동기 실모델 실행·취소, storage.py LocalStore API, build_windows_exe.bat PyInstaller 포함. 기존 누적 소스와 사용자 DB·다른 프로젝트·예약 삭제 없음. 새 브랜치 없음.
+- 전체 개발 미완료. Windows EXE 실행/실제 GGUF 모델 호출/전체 T01~T20 통합검증/오류 수정 NOT_RUN. 15부서31AI30업무 장기 자율 완성/24시간 복구/외부 승인형 PG·환불·은행·고객 연동/과거 1,099·1,171 ZIP 전수 통합은 남아 있음. 전체 개발→전체 검증→오류 일괄 수정→재검증 순서 유지.

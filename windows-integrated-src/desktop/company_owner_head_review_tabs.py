@@ -10,6 +10,9 @@ def attach(owner,tabs):
     owner._field(frame,"manager_review_artifact","실제 직원 결과물 번호")
     owner._field(frame,"manager_review_id","부서장 GGUF 검토 번호")
     owner._field(frame,"manager_owner_note","관리자 부서장 검토 판단 사유 (5~200자)")
+    owner._field(frame,"head_to_chief_limit","실제 총괄 회수 최대 업무 수 (1~10)")
+    owner._field(frame,"head_to_chief_note","총괄 실제 GGUF 회수 관리자 사유 (5~200자)")
+    owner._field(frame,"head_to_chief_batch_id","중단된 총괄 회수 회차 번호")
     owner._buttons(frame,[
         ("직원 결과물 부서장 실제 GGUF 검토",lambda:owner._start_real_model_action(
             "실제 부서장 GGUF 직원 결과물 검토","manager_review",
@@ -40,6 +43,34 @@ def attach(owner,tabs):
             "부서장 검토 의견을 재작업 요청으로 기록합니다. "
             "원본 직원 모델 실행·업무 결과물은 보존하고 자동 재호출하지 않습니다. "
             "진행합니까?")),
+    ])
+    owner._buttons(frame,[
+        ("승인 부서장 업무 실제 총괄 GGUF 연속 회수",lambda:owner._start_real_model_action(
+            "실제 총괄 GGUF 부서장 승인 결과 회수","head_to_chief_batch",
+            "다른 부서에서 이미 실제 직원·부서장 모델 검토가 완료되고 "
+            "관리자가 개별 전달 승인한 결과물만 최대 10건까지 실제 총괄 "
+            "GGUF로 회수합니다. 자동 최종 승인·모델 실패 재호출·거래·게시·"
+            "환불은 하지 않습니다. 실제로 진행합니까?")),
+        ("총괄 모델 회수 준비 업무 원본 조회",lambda:owner._perform(
+            "부서장 승인 완료된 총괄 GGUF 회수 후보",
+            lambda:owner.store.preview_head_chief_handoffs(30))),
+    ])
+    owner._buttons(frame,[
+        ("실제 총괄 모델 회수 이력",lambda:owner._perform(
+            "부서장 → 총괄 GGUF 실제 호출 원장",
+            lambda:owner.store.head_chief_handoff_history(30))),
+        ("전사 실제 직원·부서장·총괄 원본 현황",lambda:owner._perform(
+            "실제 부서별 직원·부서장·총괄 증빙 현황",
+            lambda:owner.store.head_chief_department_coverage(100))),
+    ])
+    owner._buttons(frame,[
+        ("중단 회차 실제 프로세스 관리자 확인",lambda:owner._perform(
+            "중단된 총괄 회수 원장 안전 종결",
+            lambda:owner.store.close_head_chief_handoff_after_inspection(
+                owner._id("head_to_chief_batch_id"),
+                owner._get("head_to_chief_note")),
+            "기존 GGUF 모델 프로세스가 종료됐음을 직접 확인했습니까? "
+            "이 버튼은 이전 모델 호출이나 결과물을 재실행·삭제하지 않습니다.")),
     ])
     ttk.Label(frame,wraplength=800,text=(
         "총괄이 제안한 실제 신규 부서 업무에 대해 직원 AI → 부서장 AI "

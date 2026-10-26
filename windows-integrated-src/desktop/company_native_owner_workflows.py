@@ -177,6 +177,16 @@ class CompanyOwnerWorkflows:
                 evidence_domain = 'operations' if action == 'operations_evidence_ai' else 'commerce'
                 campaign_id = None
                 source_id = None
+            elif action == 'head_to_chief_batch':
+                self.store.require_permission('agents:manage')
+                head_chief_limit=self._id('head_to_chief_limit')
+                if not 1<=head_chief_limit<=10:
+                    raise ValueError('총괄 회수는 한 회차 1~10건입니다.')
+                head_chief_note=self._get('head_to_chief_note')
+                from desktop.company_head_chief_handoff_queue import _note
+                _note(head_chief_note)
+                campaign_id=None
+                source_id=None
             elif action == 'manager_review':
                 self.store.require_permission('agents:manage')
                 manager_artifact_id=self._id('manager_review_artifact')
@@ -280,6 +290,10 @@ class CompanyOwnerWorkflows:
                     elif action in ('operations_evidence_ai', 'commerce_evidence_ai'):
                         result = self.store.propose_chief_evidence_review(
                             evidence_domain, cancel=self._campaign_cancel)
+                    elif action == 'head_to_chief_batch':
+                        result=self.store.run_head_chief_handoff_batch(
+                            head_chief_limit,head_chief_note,
+                            cancel=self._campaign_cancel)
                     elif action == 'manager_review':
                         result=self.store.run_department_head_review(
                             manager_artifact_id,cancel=self._campaign_cancel)

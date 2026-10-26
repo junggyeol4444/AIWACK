@@ -5576,3 +5576,26 @@ class LocalStore:
     def department_head_review_history(self, limit=50):
         from desktop.company_department_head_review import history
         return history(self, limit)
+
+
+    # 부서장 실 GGUF 승인 후 사용자 별도 클릭으로만 총괄 실제 보고서 회수.
+    def preview_head_chief_handoffs(self, limit=30):
+        from desktop.company_head_chief_handoff_queue import preview
+        return preview(self,limit)
+
+    def run_head_chief_handoff_batch(self,max_items,note,*,cancel=None):
+        from desktop.company_head_chief_handoff_queue import run
+        return run(self,max_items,note,cancel=cancel)
+
+    def head_chief_handoff_history(self,limit=30):
+        from desktop.company_head_chief_handoff_queue import history
+        return history(self,limit)
+
+    def close_head_chief_handoff_after_inspection(self,batch_id,note):
+        from desktop.company_head_chief_handoff_queue import close_after_owner_inspection
+        return close_after_owner_inspection(
+            self,batch_id,note,owner_confirmed=True)
+
+    def head_chief_department_coverage(self,limit=100):
+        from desktop.company_head_chief_coverage import report
+        return report(self,limit=limit)
