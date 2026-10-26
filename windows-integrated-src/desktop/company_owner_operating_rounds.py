@@ -125,6 +125,8 @@ def run(store,*,max_employee_jobs=10,max_chief_reviews=10,
             (note,max_employee_jobs,max_chief_reviews,state,initial_evidence_sha256)
             VALUES(?,?,?,'running',?)""",
             (note,max_employee_jobs,max_chief_reviews,digest)).lastrowid)
+        from desktop.company_native_round_guard import bind_in_transaction
+        bind_in_transaction(con,"operating",round_id)
         _event(con,round_id,"opened",detail="개별 승인 원본 준비 자료 SHA256 "+digest)
     staff_id=None
     chief_id=None

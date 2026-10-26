@@ -1913,3 +1913,11 @@ Library에서 원본 ZIP A SHA256 30ee996d7986b85cabd9ae78e6e0ff018eb223f9af731b
 - Library 실제 원본 ZIP 1,099/1,171개 대조 및 현재 main 누락 32개 원문·패치·충돌 아카이브 상세 기록: main 커밋 `aac53b6a318bd5a9643c4927fec6ba219b9cf19f`.
 - 기존 두 테스트 브랜치에서 위 누락 32경로의 동일 위치 복원 자료 없음(트리 이름 검색). 소스 원본 52충돌의 3-way 바이트 병합과 원문 32개 복구 여전히 미완료. `dev_company.sqlite3` 개인 개발 DB는 절대 업로드/덮어쓰기 금지.
 - 사용자 요청 '남은 것 전부 개발'은 본 회차에 전부 충족하지 못함. 외부 PG/실금융/실고객/24시간 무중단·실 Windows EXE/실GGUF 전체 검증 이전 코드 상태. 전체 검증·오류 수정 NOT_RUN. 기획서 54 및 56~86 미완료 항목 원래대로 보존.
+
+
+## 2026-10-26 — Windows 커널 PID·생성시각에 묶은 모델 회차 중단 감시 기능 개발 (실기 검증 전)
+- 신규 windows-integrated-src/desktop/company_native_round_guard.py: 기존 네이티브 Windows GUI/총괄 GGUF 모델 실행 회차에 실제 Windows PID 및 프로세스 생성시각을 SQLite 트랜잭션 내 불변 귀속. 운영 회차 operating, 부서장→총괄 회수 chief 두 종류. 원 프로세스 PID 재사용과 실행 가능/접근 불명 상태를 구분, 180초 이후 실제 OS 원 프로세스 "dead" 관측 때만 별도 불변 중단 기록. GGUF subprocess가 부모보다 오래 살아남을 수 있으므로 원본 모델/리스를 자동 종료·삭제·재실행하지 않는다.
+- 기존 company_owner_operating_rounds.py·company_head_chief_handoff_queue.py: 실제 승인된 회차 INSERT와 동시에 bind_in_transaction 연결. 비Windows 개발 환경에서는 커널 소유권 결합을 보장하지 않아 기록하지 않음. Windows에서는 커널 소유권 확인 실패 시 새로운 회차 진행을 거부.
+- 기존 한국어 Tk GUI company_owner_completion_tabs.py 및 storage.py LocalStore API에 Windows 커널 원본 재조회, 종료 관측 저장, 관리자 기존 GGUF 잠금 경계 통과 후 최상위 회차 종결 버튼 연결. build_windows_exe.bat PyInstaller 신규 포함.
+- 과거 ZIP B에만 있던 원본 docs/AIWACK_20261023_1435_로컬증분_전체누적인수인계.md 원문을 보존형 복원. 과거 1,099·1,171 ZIP 중 개인정보 또는 DB dev_company.sqlite3 미변경, 나머지 원본 31개 기록/52변경 원문 3-way 통합은 아직 미완료.
+- 전체 개발 미완료. Windows 10/11 실제 커널 EXE 실행·실 GGUF·T01~T20 전체 통합검증 및 일괄 오류 수정 NOT_RUN. 24시간 실제 무중단/재부팅 복원/외부 결제·은행·고객 배송 성공 주장 금지. 모든 기능 개발→전체 통합검증→오류 일괄 수정→재검증 순서 유지.

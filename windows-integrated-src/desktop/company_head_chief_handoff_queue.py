@@ -197,6 +197,8 @@ def run(store,max_items,owner_note,*,cancel:threading.Event|None=None):
         batch_id=int(con.execute("""INSERT INTO aiwack_head_chief_batches
             (owner_note,max_items,state) VALUES(?,?,'running')""",
             (note,max_items)).lastrowid)
+        from desktop.company_native_round_guard import bind_in_transaction
+        bind_in_transaction(con,"chief",batch_id)
         _event(con,batch_id,'opened',detail=note)
         item_ids=[]
         for ordinal,candidate in enumerate(chosen,1):

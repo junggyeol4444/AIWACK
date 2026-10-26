@@ -5640,3 +5640,18 @@ class LocalStore:
     def close_operating_round_after_inspection(self,round_id,note):
         from desktop.company_owner_operating_rounds import close_after_owner_inspection
         return close_after_owner_inspection(self,round_id,note,owner_confirmed=True)
+
+
+    # 원격 재기동 시 Windows PID+생성시각과 GGUF 회차 원본 결합.
+    def inspect_native_round_owners(self,minimum_age_seconds=180,limit=50):
+        from desktop.company_native_round_guard import inspect
+        return inspect(self,min_age_seconds=minimum_age_seconds,limit=limit)
+
+    def record_dead_native_round(self,kind,round_id):
+        from desktop.company_native_round_guard import record_dead_process
+        return record_dead_process(self,kind,round_id)
+
+    def close_native_round_after_inspection(self,interruption_id,note):
+        from desktop.company_native_round_guard import close_after_owner_verification
+        return close_after_owner_verification(
+            self,interruption_id,note,owner_confirmed=True)

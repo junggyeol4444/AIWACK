@@ -86,6 +86,36 @@ def attach(owner,tabs):
             "기존 업무·결제·고객 전송·모델 호출 재실행 없이 "
             "중단 회차 기록만 종료합니다.")),
     ])
+    owner._field(panel,"native_round_kind","원본 회차 종류 operating 또는 chief")
+    owner._field(panel,"native_round_run_id","중단된 원본 GGUF 회차 번호")
+    owner._field(panel,"native_round_interruption_id","Windows 커널 종료 관측 감사 번호")
+    owner._field(panel,"native_round_note","관리자 중단 확인 사유 (5~200자)")
+    owner._buttons(panel,[
+        ("Windows PID·생성시각 기반 미종료 모델 회차",lambda:owner._perform(
+            "실제 Windows 커널과 영속 SQLite 운영 회차 비교",
+            lambda:owner.store.inspect_native_round_owners())),
+        ("실제 Windows 원 GUI 프로세스 종료 증빙 기록",lambda:owner._perform(
+            "원본 Windows PID/생성시각 종료 확인 감사",
+            lambda:owner.store.record_dead_native_round(
+                owner._get("native_round_kind"),
+                owner._id("native_round_run_id")),
+            "실제 Windows 원 GUI 프로세스 PID와 생성시각을 재확인합니다. "
+            "원래 프로세스가 종료된 경우에만 불변 감사에 남기며 "
+            "원본 GGUF 자식 프로세스는 자동 종료·재호출하지 않습니다. 기록합니까?")),
+    ])
+    owner._buttons(panel,[
+        ("Windows 중단 GGUF 회차 최종 관리자 확인 종료",lambda:owner._perform(
+            "실제 Windows 종료 관측 및 모델 잔여 잠금 확인",
+            lambda:owner.store.close_native_round_after_inspection(
+                owner._id("native_round_interruption_id"),
+                owner._get("native_round_note")),
+            "원래 GUI 프로세스가 실제 종료됐고 모델 자식 프로세스·외부 거래와 "
+            "기존 미종료 회차 잠금까지 직접 확인했습니까? 기존 모델 재실행·"
+            "원본 삭제 없이 최상위 회차 상태만 종료합니다.")),
+        ("Windows 원 GUI 중단·관리자 확인 기록",lambda:owner._perform(
+            "Windows 커널 기반 종료 프로세스와 원본 회차 감사",
+            lambda:owner.store.inspect_native_round_owners())),
+    ])
     ttk.Label(panel,wraplength=800,text=(
         "로컬 실제품은 실제 승인된 AI 출력에서만 생성하며 품질/실행 합격을 "
         "의미하지 않습니다. 조직 전략은 실제 실패·모델 감사만 사용하고 "
