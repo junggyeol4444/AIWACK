@@ -1599,6 +1599,13 @@ class LocalStore:
             from desktop.company_handoffs import curated_company_context
             prompt+=curated_company_context(con,str(task[2]),
                                              budget=min(450,max(0,3000-len(prompt))))
+            # Only owner-approved, provenance-verified cross-department GGUF
+            # opinions may enter the real employee's text prompt. They never
+            # overwrite chief orders, grant tools, or bypass task prerequisites.
+            from desktop.company_peer_context import approved_context
+            prompt+=approved_context(
+                con,task_id,employee_id,
+                budget=min(450,max(0,3000-len(prompt))))
             config = ModelConfig(str(name),str(backend),str(exe),str(model_path),int(tokens))
             # Record the same local invocation in the existing model call audit.
             call_id = int(con.execute("""INSERT INTO ai_model_call_history
@@ -5528,3 +5535,17 @@ class LocalStore:
     def close_interrupted_chief_autodiscovery(self, run_id, note):
         from desktop.company_chief_autodiscovery import close_interrupted
         return close_interrupted(self, run_id, note, owner_confirmed=True)
+
+
+    # 원본 실제 직원 업무 실행 전의 타부서 GGUF 협업 검토 및 소유자 개별 승인.
+    def run_peer_consultation(self,task_id,consultant_employee_id,owner_note,*,cancel=None):
+        from desktop.company_peer_consultations import run
+        return run(self,task_id,consultant_employee_id,owner_note,cancel=cancel)
+
+    def decide_peer_consultation(self,consultation_id,decision,owner_note):
+        from desktop.company_peer_consultations import decide
+        return decide(self,consultation_id,decision,owner_note)
+
+    def peer_consultation_history(self,task_id=None,limit=50):
+        from desktop.company_peer_consultations import list_consultations
+        return list_consultations(self,task_id,limit)

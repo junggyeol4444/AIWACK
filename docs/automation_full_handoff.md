@@ -1870,3 +1870,11 @@ CI 마지막 확정 실패: b9a09e88 커밋의 루트 138 PASS, 네이티브 335
 - SQLite 원자적 주기 선점/불변 이벤트 감사/실행 중복 차단/과거 미종료 회차 자동 재실행 금지. 모델 정책 변경 watcher의 취소 이벤트, 모델 종료 소유자 직접 확인 후 원장만 닫기. 외부 고객 연락·송금·환불 불가.
 - 기존 company_office_gui.py tick 비동기 실제 모델 실행/완료 메시지, 해제 취소 연동. company_owner_chief_discovery_tabs.py 한국어 GUI 정책 허용/해제/상태/미종료 확인, storage.py LocalStore API, build_windows_exe.bat hidden import 추가. 원본 데이터 삭제·모델 임의 변경/새 브랜치 없음.
 - 모든 원본 기능 개발 미완료. Windows EXE 실제 실행/진짜 GGUF/T01~T20 전체 검증, 오류 수정, 24시간 연속 실운영 NOT_RUN. 원본 1,099/1,171 ZIP 전수 보존형 통합 미완료. 다음에는 15부서31AI30업무 장기 협업/복구/실거래 승인 연동 등 남은 원본 개발 계속.
+
+
+## 2026-10-26 — 실제 서로 다른 부서 직원 GGUF 협업 검토·소유자 승인 인계 제품 개발
+- **개발 추가:** windows-integrated-src/desktop/company_peer_consultations.py: 기존 todo + 배정된 실제 직원의 업무를 대상으로 다른 부서(일반 직원) 모델 연결 확인 후 관리자 선택 실제 GGUF 1회 호출. 로컬 employee_model_runtime.invoke_employee_model 기존 경로 사용. 입력업무 제목/설명/담당 직원/동료 모델 SHA256 고정, ai_model_call_history 실제 모델 성공 검증, SQLite 협업 원문·해시·실패/취소·소유자 승인/반려 불변 사건 기록. 동일 업무·직원 중복 모델 실행 자동 재시도 금지, 기존 업무/DB 삭제 없음.
+- **개발 추가:** windows-integrated-src/desktop/company_peer_context.py: 기존 LocalStore.begin_task_execution의 실제 담당 직원 모델 입력에 소유자 승인/실제 모델 호출·SHA256·업무·모델 연결 일치하는 다른 부서 의견만 450자 제한의 비신뢰 참고자료로 인계. 기존 총괄 지시/선행 부서 승인/실제 model run 감사/다른 업무는 원본 유지. 승인 전 협업 텍스트·반려 의견은 절대 입력하지 않음.
+- **개발 추가:** windows-integrated-src/desktop/company_owner_peer_consultation_tabs.py: 기존 한국어 Tk 관리자 GUI에 다른 부서 직원 실제 GGUF 검토 실행·조회·의견 개별 승인/반려. 기존 company_native_owner_workflows.py 백그라운드 모델 실행·취소 연결, storage.py LocalStore API, build_windows_exe.bat PyInstaller hidden imports 추가.
+- **경계:** 가짜 AI 답변/사전 승인 없는 모델 자동 실행/실제 결제·환불·전송·게시/조직 모델 임의 변경 없음. 관리자 승인된 의견은 작업 참고자료일 뿐 업무·총괄 결과를 자동 승인하지 않음. 원본 삭제·개발 브랜치 생성 없음.
+- **상태:** 개발 코드 main 누적. 전체 원본 개발 미완료이므로 Windows EXE 실행, 실제 GGUF 호출, 15부서31AI30업무 T01~T20 통합검증, 오류 수정은 NOT_RUN. 24시간 자율 협업·장애 복구·승인형 외부 거래/원본 1,099·1,171 ZIP 전체 통합 미완료. 다음에는 원본 남은 실제 핵심 개발을 이어갈 것.
