@@ -2001,3 +2001,9 @@ Library에서 원본 ZIP A SHA256 30ee996d7986b85cabd9ae78e6e0ff018eb223f9af731b
 - 기존 company_native_owner_workflows.py 탭/비밀번호 UI 연결, storage.py LocalStore 발송/감사 API 2개, build_windows_exe.bat PyInstaller hidden-import 추가.
 - 원본 초기 기획, 100단계 계획, 인수인계·모델·DB 및 GitHub main 역사 보존. 이번은 코드 개발이며 실제 고객/SMTP 서버 접속·실계정 메일 발송/Windows10/11 EXE/진짜 GGUF/T01~T20 전체 검증/오류 수정 NOT_RUN. 별도 SMTP 접근 제공 전까지 실제 외부 전달 성공은 미확정.
 - 개발 완료까지 남은: 실제 외부 PG/환불/은행 자동·수동 권한형 연결, 15부서31AI30업무 Windows 24시간 실제 검증된 운영, 원본 1,099/1,171 ZIP 28 역사 원문 누락 및 52개 3-way 의미 단위 병합, 모든 기존/신규 전체 통합검증과 오류 수정. 순서 전체 개발→전체 통합검증→오류 일괄 수정→재검증.
+
+
+## 2026-10-26 — 실제 SMTP 고객 전달 원장과 주문/환불/고객지원 통합 읽기 증빙 연결
+- windows-integrated-src/desktop/company_local_order_finance.py 기존 읽기 전용 주문 정산/상품 준비 요약에 신규 aiwack_smtp_customer_deliveries 현재 원본을 주문별 직접 조회 연결. 실제 SMTP 발송 시도 ID·상태(not_attempted/claimed/not_sent/outcome_unknown/accepted_by_smtp)·사용자 입력 수신자·Message-ID·시도 시각·종료 시각, 전체 주문 중 서버 접수 건수·전달 불확실 건수 별도 집계.
+- 고객 받은편지함 도착 확인, 실제 PG/은행 입금, 결제/환불 성공은 **이메일 서버 접수 성공으로 추정하지 않음**. 이전 사용자 상품/결제/주문 원본 또는 외부 계정/비밀번호 변경 없음. 모델/발송 자동 실행 없음.
+- 2026-10-26 앞선 main 커밋 51038981946b85ef95c4aad7f1e835635bda3b95의 실제 TLS SMTP 고객 전달 코드·한국어 Windows 관리자 직접 전송 탭과 연결됨. 독립 실SMTP 서버·실Windows EXE·실모델·T01~T20 통합 검증 NOT_RUN. 사용자 지시 순서 전체 개발→전체 검증→일괄 오류 수정→재검증 유지.

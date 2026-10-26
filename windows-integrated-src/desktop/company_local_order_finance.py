@@ -43,6 +43,12 @@ def snapshot(store, business_id: int | None = None, limit: int = 100) -> dict:
             handoff_id=(con.execute("""SELECT id FROM aiwack_real_release_order_handoffs
                 WHERE order_id=?""",(order_id,)).fetchone()
                 if has_handoff else None)
+            smtp_available=bool(con.execute("""SELECT 1 FROM sqlite_master
+                WHERE type='table' AND name='aiwack_smtp_customer_deliveries'""").fetchone())
+            smtp_event=(con.execute("""SELECT id,status,recipient,message_id,
+                claimed_at,finished_at FROM aiwack_smtp_customer_deliveries
+                WHERE order_id=?""",(order_id,)).fetchone()
+                if smtp_available else None)
             case_ids = [int(row[0]) for row in con.execute(
                 'SELECT case_id FROM aiwack_local_order_support_links '
                 'WHERE order_id=? ORDER BY case_id', (order_id,)).fetchall()]
@@ -64,7 +70,18 @@ def snapshot(store, business_id: int | None = None, limit: int = 100) -> dict:
             local_cancel_requested=order['local_cancel_requested'],
             local_packet_id=int(packet[0]) if packet else None,
             local_packet_verified=bool(packet), linked_customer_case_ids=case_ids,
+            # SMTP server acceptance != customer inbox receipt.
             actual_customer_delivery_sent=False,
+            actual_smtp_send_attempt_id=int(smtp_event[0]) if smtp_event else None,
+            actual_smtp_state=smtp_event[1] if smtp_event else "not_attempted",
+            actual_smtp_recipient=smtp_event[2] if smtp_event else None,
+            actual_smtp_message_id=smtp_event[3] if smtp_event else None,
+            actual_smtp_claimed_at=smtp_event[4] if smtp_event else None,
+            actual_smtp_finished_at=smtp_event[5] if smtp_event else None,
+            smtp_server_accepted=bool(smtp_event and smtp_event[1]=="accepted_by_smtp"),
+            smtp_delivery_outcome_unknown=bool(
+                smtp_event and smtp_event[1] in ("claimed","outcome_unknown")),
+            independent_customer_receipt_verified=False,
             actual_gguf_order_release_handoff_id=(
                 int(handoff_id[0]) if handoff_id else None),
             actual_gguf_release_id=(
@@ -81,6 +98,10 @@ def snapshot(store, business_id: int | None = None, limit: int = 100) -> dict:
         local_net_evidence_minor=gross-refunds,
         local_package_approved_count=sum(bool(x['local_package_approved']) for x in entries),
         local_packet_verified_count=sum(bool(x['local_packet_verified']) for x in entries),
+        smtp_send_attempt_count=sum(bool(x['actual_smtp_send_attempt_id']) for x in entries),
+        smtp_server_accepted_count=sum(bool(x['smtp_server_accepted']) for x in entries),
+        smtp_outcome_unknown_count=sum(bool(x['smtp_delivery_outcome_unknown']) for x in entries),
+        independent_customer_receipt_verified_count=0,
         local_real_gguf_release_handoff_count=sum(
             bool(x['local_model_release_prepared']) for x in entries),
         pending_cancel_request_count=sum(bool(x['local_cancel_requested']) for x in entries),
