@@ -1878,3 +1878,12 @@ CI 마지막 확정 실패: b9a09e88 커밋의 루트 138 PASS, 네이티브 335
 - **개발 추가:** windows-integrated-src/desktop/company_owner_peer_consultation_tabs.py: 기존 한국어 Tk 관리자 GUI에 다른 부서 직원 실제 GGUF 검토 실행·조회·의견 개별 승인/반려. 기존 company_native_owner_workflows.py 백그라운드 모델 실행·취소 연결, storage.py LocalStore API, build_windows_exe.bat PyInstaller hidden imports 추가.
 - **경계:** 가짜 AI 답변/사전 승인 없는 모델 자동 실행/실제 결제·환불·전송·게시/조직 모델 임의 변경 없음. 관리자 승인된 의견은 작업 참고자료일 뿐 업무·총괄 결과를 자동 승인하지 않음. 원본 삭제·개발 브랜치 생성 없음.
 - **상태:** 개발 코드 main 누적. 전체 원본 개발 미완료이므로 Windows EXE 실행, 실제 GGUF 호출, 15부서31AI30업무 T01~T20 통합검증, 오류 수정은 NOT_RUN. 24시간 자율 협업·장애 복구·승인형 외부 거래/원본 1,099·1,171 ZIP 전체 통합 미완료. 다음에는 원본 남은 실제 핵심 개발을 이어갈 것.
+
+
+## 2026-10-26 — 부서장 실제 GGUF 중간 검토/관리자 개별 승인 개발 (통합검증 전)
+- 신규 company_department_head_review.py: 실제 총괄 GGUF 업무 제안→관리자 승인→직원 실제 실행 결과에 대해 동일 조직 계층의 실모델 배정 부서장 GGUF가 품질/위험/재작업 의견 JSON을 실제 추론. 원본 결과/부서·직원·모델 및 호출 감사 SHA256 검사, 모델 취소/실패/성공 SQLite 감사, 중복 자동 재호출 차단.
+- 신규 company_owner_head_review_tabs.py: 한국어 관리자 부서장 실제 GGUF 결과 호출·조회·개별 총괄 전달 승인 또는 재작업 반려 화면.
+- company_operations.execute_approved_chief_cycle: 실제 총괄 신규 발굴·관리자 승인 부서 업무만 직원 결과→부서장 모델 검토까지 실행 후 개별 관리자 전달 승인 대기; 다른 기존 업무는 원래 직원→총괄 회수 경로 그대로. employee/manager 결과 자동 승인/회사 실제 완료 없음.
+- chief_task_runtime.collect_chief_task_result: 해당 신규 부서 업무는 부서장 실제 모델 검토+관리자 개별 전달 승인 후 총괄에 비신뢰 참고근거 인계. storage.save_chief_task_report 공통 저장 경계에도 승인 근거 확인 추가해 우회 저장 차단. 회사 직원 결과물 원본 불변.
+- company_native_owner_workflows.py 실행/취소 및 신규 GUI 탭 통합, company_office_gui.py 기존 자동 승인 업무 결과에서 부서장 검수 대기와 총괄 보고 완료 구분, storage.py API 및 build_windows_exe.bat PyInstaller 포함.
+- 사용자 지시 전체 개발 → Windows EXE/진짜 GGUF/T01~T20 통합검증 → 오류 일괄 수정 → 재검증. 이번은 개발/원격 main 반영 단계이고 검증은 NOT_RUN. 기존 원본/사용자 DB/다른 프로젝트/예약·브랜치 삭제 없음. 전체 15부서31AI30업무 장기 자율 운영, 24시간 복구, 실외부 거래/상품/고객·원본 역사 ZIP 전수 통합 미완료.

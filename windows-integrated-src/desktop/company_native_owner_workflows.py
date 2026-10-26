@@ -81,6 +81,8 @@ class CompanyOwnerWorkflows:
         self._tool_management(tools)
         from desktop.company_owner_evidence_tabs import attach as attach_owner_evidence_tabs
         attach_owner_evidence_tabs(self, tabs)
+        from desktop.company_owner_head_review_tabs import attach as attach_head_reviews
+        attach_head_reviews(self, tabs)
         from desktop.company_owner_peer_consultation_tabs import attach as attach_peer_consultations
         attach_peer_consultations(self, tabs)
         from desktop.company_owner_chief_discovery_tabs import attach as attach_chief_discovery
@@ -175,6 +177,11 @@ class CompanyOwnerWorkflows:
                 evidence_domain = 'operations' if action == 'operations_evidence_ai' else 'commerce'
                 campaign_id = None
                 source_id = None
+            elif action == 'manager_review':
+                self.store.require_permission('agents:manage')
+                manager_artifact_id=self._id('manager_review_artifact')
+                campaign_id=None
+                source_id=None
             elif action == 'peer_consultation':
                 self.store.require_permission('agents:manage')
                 peer_task_id=self._id('peer_task_id')
@@ -273,6 +280,9 @@ class CompanyOwnerWorkflows:
                     elif action in ('operations_evidence_ai', 'commerce_evidence_ai'):
                         result = self.store.propose_chief_evidence_review(
                             evidence_domain, cancel=self._campaign_cancel)
+                    elif action == 'manager_review':
+                        result=self.store.run_department_head_review(
+                            manager_artifact_id,cancel=self._campaign_cancel)
                     elif action == 'peer_consultation':
                         result=self.store.run_peer_consultation(
                             peer_task_id,peer_consultant_id,peer_note,

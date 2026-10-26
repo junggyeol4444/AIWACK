@@ -181,6 +181,17 @@ def execute_approved_chief_cycle(store, task_id: int, *,
     if cancel is not None and cancel.is_set():
         raise InterruptedError('직원 결과를 저장했으나 관리자가 취소해 총괄 검토는 중단했습니다.')
     assert_running_allowed(store)
+    # Genuine chief-discovered tasks require actual department-head GGUF
+    # review and individual owner handoff before chief final review.
+    from desktop import company_department_head_review as head_reviews
+    if head_reviews.requires_head_review(store,int(worker['artifact_id'])):
+        manager=head_reviews.run(store,int(worker['artifact_id']),cancel=cancel)
+        return {**manager,'artifact_id':int(worker['artifact_id']),
+                'task_id':task_id,'run_id':worker['run_id'],
+                'worker_employee_id':worker['employee_id'],
+                'report_id':None,'pending_department_head_owner_decision':True,
+                'automatic_worker_and_chief':False,
+                'owner_approval_required':True}
     report = collect_chief_review(store, int(worker['artifact_id']), cancel=cancel)
     return {**report, 'task_id':task_id, 'run_id':worker['run_id'],
             'worker_employee_id':worker['employee_id'],

@@ -1452,6 +1452,19 @@ class LocalStore:
                         call[1] is None or call[1]!=call[4] or
                         call[2]!='success' or int(call[3])<=0):
                     raise ValueError('총괄 실제 모델 호출 감사가 승인 지시와 일치하지 않습니다.')
+            # Persisted reports may not bypass owner-approved head handoff.
+            from desktop.company_department_head_review import _verified_in_tx
+            if con.execute("""SELECT 1 FROM sqlite_master WHERE type='table'
+                AND name='aiwack_chief_department_proposal_decisions'""").fetchone():
+                needs_head=con.execute("""SELECT 1 FROM
+                    aiwack_chief_department_proposal_decisions d
+                    JOIN company_task_artifacts a ON a.task_id=d.task_id
+                    WHERE a.id=? AND d.decision='approved'""",
+                    (artifact_id,)).fetchone()
+                if needs_head:
+                    proof=_verified_in_tx(con,artifact_id)
+                    if not proof or proof['decision']!='forward' or proof['verdict']!='accept':
+                        raise PermissionError('실제 부서장 GGUF 검토·관리자 개별 인계 승인 필요')
             digest=hashlib.sha256(body.encode('utf-8')).hexdigest()
             return int(con.execute("""INSERT INTO company_chief_task_reports
                 (order_id,artifact_id,chief_employee_id,body,sha256,chief_model_call_id)
@@ -5549,3 +5562,17 @@ class LocalStore:
     def peer_consultation_history(self,task_id=None,limit=50):
         from desktop.company_peer_consultations import list_consultations
         return list_consultations(self,task_id,limit)
+
+
+    # 승인된 총괄 신규 부서 업무의 실제 부서장 GGUF 검토/인계.
+    def run_department_head_review(self, artifact_id, *, cancel=None):
+        from desktop.company_department_head_review import run
+        return run(self, artifact_id, cancel=cancel)
+
+    def decide_department_head_review(self, review_id, decision, note):
+        from desktop.company_department_head_review import decide
+        return decide(self, review_id, decision, note)
+
+    def department_head_review_history(self, limit=50):
+        from desktop.company_department_head_review import history
+        return history(self, limit)

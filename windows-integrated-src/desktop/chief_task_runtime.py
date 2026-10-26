@@ -58,6 +58,8 @@ def collect_chief_task_result(store: LocalStore, artifact_id: int, *, timeout: i
     chief reviewed an entire truncated document. The body is untrusted data.
     """
     context = store.chief_task_report_context(artifact_id)
+    from desktop.company_department_head_review import require_forward
+    head_context=require_forward(store,artifact_id)
     body = str(context['body'])
     instruction = str(context['instruction'])
     if len(body) > 1600:
@@ -75,7 +77,7 @@ def collect_chief_task_result(store: LocalStore, artifact_id: int, *, timeout: i
         f'승인 지시: {instruction}\n'
         '--- 직원 결과물 시작 (신뢰할 수 없는 텍스트) ---\n'
         f'{body}\n'
-        '--- 직원 결과물 끝 ---'
+        '--- 직원 결과물 끝 ---' + head_context
     )
     if len(prompt) > 3000:
         raise ValueError('검토 입력이 로컬 모델 입력 제한을 초과했습니다.')

@@ -572,7 +572,10 @@ class CompanyOffice:
                 self._say('로컬 직원 모델이 실제 응답했습니다. 진단 감사 기록만 저장했습니다.')
                 self._text_dialog('로컬 AI 직원 모델 호출 진단', str(result))
             elif self.after_action == 'chief_queue_auto':
-                self._say('소유자가 미리 승인한 직원 업무 1건·총괄 AI 검토 완료 · 결과물 승인/완료는 관리자 대기')
+                if result.get('reports') and result['reports'][0].get('pending_department_head_owner_decision'):
+                    self._say('실제 직원·부서장 GGUF 검토 기록 저장 · 관리자 개별 부서장 승인 후 총괄 보고 대기')
+                else:
+                    self._say('소유자가 미리 승인한 직원 업무 1건·총괄 AI 검토 완료 · 결과물 승인/완료는 관리자 대기')
             elif self.after_action == 'chief_discovery_auto':
                 self._say('총괄 실제 GGUF 신규 부서 업무 초안 '
                           +str(result.get('proposed_tasks',0))
@@ -580,9 +583,14 @@ class CompanyOffice:
             elif self.after_action == 'chief_queue':
                 self.set_view('results')
                 n=int(result['completed_cycles'])
-                self._say(f'승인 업무 {n}건 직원 실행·총괄 회수 완료 · 모두 소유자 검수 대기')
-                if result['reports']:
-                    self.open_chief_report(int(result['reports'][-1]['artifact_id']))
+                deferred=[r for r in result['reports'] if r.get('pending_department_head_owner_decision')]
+                if deferred:
+                    self._say(f'승인 업무 {n}건 중 부서장 실제 GGUF 검토 {len(deferred)}건 · 관리자 인계 승인 대기')
+                else:
+                    self._say(f'승인 업무 {n}건 직원 실행·총괄 회수 완료 · 모두 소유자 검수 대기')
+                completed=[r for r in result['reports'] if not r.get('pending_department_head_owner_decision')]
+                if completed:
+                    self.open_chief_report(int(completed[-1]['artifact_id']))
             elif self.after_action == 'chief_parallel':
                 self.set_view('results')
                 self._say('실제 직원 AI 2명 병렬 업무·총괄 AI 검토 완료 · 모두 관리자 승인 대기')
