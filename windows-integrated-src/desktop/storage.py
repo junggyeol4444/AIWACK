@@ -5834,3 +5834,18 @@ class LocalStore:
     def order_delivery_hold_history(self,limit=50):
         from desktop.company_order_delivery_holds import history
         return history(self,limit)
+
+    # 기존 고객지원 직원·총괄 승인 원문: 명시적 관리자 승인 SMTP 1회 발송.
+    def preview_customer_reply_smtp(self,case_id):
+        from desktop.company_customer_reply_smtp import preview
+        return preview(self,case_id)
+
+    def send_customer_reply_smtp(self,case_id,host,port,sender,recipient,
+                                 username,password,note,confirmation_prefix):
+        from desktop.company_customer_reply_smtp import send
+        return send(self,case_id,host,port,sender,recipient,username,
+                    password,note,confirmation_prefix)
+
+    def customer_reply_smtp_history(self,limit=50):
+        from desktop.company_customer_reply_smtp import history
+        return history(self,limit)
