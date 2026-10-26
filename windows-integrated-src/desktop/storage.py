@@ -5759,3 +5759,17 @@ class LocalStore:
     def approved_model_customer_email_history(self,limit=30):
         from desktop.company_owner_smtp_delivery import history
         return history(self,limit)
+
+
+    # 실제 소유자 은행 camt.053 XML 로컬파일을 HMAC 승인 공급자 거래와 대사.
+    def preview_bank_camt_statement(self,file_path,provider_name,business_id):
+        from desktop.company_bank_camt_reconciliation import preview
+        return preview(self,file_path,provider_name,business_id)
+
+    def import_bank_camt_statement(self,file_path,provider_name,business_id):
+        from desktop.company_bank_camt_reconciliation import import_owner_camt
+        return import_owner_camt(self,file_path,provider_name,business_id)
+
+    def bank_camt_statement_history(self,limit=30):
+        from desktop.company_bank_camt_reconciliation import history
+        return history(self,limit)

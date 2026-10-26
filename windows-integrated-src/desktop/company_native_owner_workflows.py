@@ -85,6 +85,8 @@ class CompanyOwnerWorkflows:
         attach_bulk_campaign(self,tabs)
         from desktop.company_owner_customer_mail_tabs import attach as attach_customer_mail
         attach_customer_mail(self,tabs)
+        from desktop.company_owner_bank_camt_tabs import attach as attach_bank_camt
+        attach_bank_camt(self,tabs)
         from desktop.company_owner_dependency_tabs import attach as attach_dep_handoff
         attach_dep_handoff(self,tabs)
         from desktop.company_owner_completion_tabs import attach as attach_completion

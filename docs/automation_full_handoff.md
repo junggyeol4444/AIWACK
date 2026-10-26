@@ -2007,3 +2007,10 @@ Library에서 원본 ZIP A SHA256 30ee996d7986b85cabd9ae78e6e0ff018eb223f9af731b
 - windows-integrated-src/desktop/company_local_order_finance.py 기존 읽기 전용 주문 정산/상품 준비 요약에 신규 aiwack_smtp_customer_deliveries 현재 원본을 주문별 직접 조회 연결. 실제 SMTP 발송 시도 ID·상태(not_attempted/claimed/not_sent/outcome_unknown/accepted_by_smtp)·사용자 입력 수신자·Message-ID·시도 시각·종료 시각, 전체 주문 중 서버 접수 건수·전달 불확실 건수 별도 집계.
 - 고객 받은편지함 도착 확인, 실제 PG/은행 입금, 결제/환불 성공은 **이메일 서버 접수 성공으로 추정하지 않음**. 이전 사용자 상품/결제/주문 원본 또는 외부 계정/비밀번호 변경 없음. 모델/발송 자동 실행 없음.
 - 2026-10-26 앞선 main 커밋 51038981946b85ef95c4aad7f1e835635bda3b95의 실제 TLS SMTP 고객 전달 코드·한국어 Windows 관리자 직접 전송 탭과 연결됨. 독립 실SMTP 서버·실Windows EXE·실모델·T01~T20 통합 검증 NOT_RUN. 사용자 지시 순서 전체 개발→전체 검증→일괄 오류 수정→재검증 유지.
+
+
+## 2026-10-26 — 은행 ISO20022 camt.053 XML 거래내역 실제 로컬 파일 대사 개발 (통합검증 전)
+- 신규 windows-integrated-src/desktop/company_bank_camt_reconciliation.py: 관리자 선택 로컬 camt.053 XML 실제 바이트를 파싱하여 Stmt/Id, Ntry/NtryRef, Amt KRW, CdtDbtInd, BOOK(또는 Sts/Cd), TxDtls/Refs/TxId 확인. XML 크기 4MiB/최대 2000 거래, DTD·엔터티 거부, 누락/중복 참조 차단, 소수 원화·불확정 거래 거부. 실은행 API/발급자 서명 독립 검증은 하지 않음.
+- 실 사용자 제공 XML 거래번호, 금액, 입출금 방향이 기존 HMAC 수신 후 개별 관리자 승인한 공급자 거래와 정확히 유일하게 일치할 때만 기존 은행 CSV의 aiwack_bank_reconciliation_batches/matches 영속 SQLite 원장에 단일 BEGIN IMMEDIATE로 전체 적재. 1건이라도 불일치 시 전건 롤백. 이전 CSV/XML에 대사된 거래 및 기존 원본 파일 SHA 중복 기록 금지. 은행 출처 추정·입출금 실행·PG 환불·고객 개인정보 수집 없음. camt 별도 원본 유형 기록 테이블 불변 감사.
+- 신규 company_owner_bank_camt_tabs.py: 네이티브 한국어 Tk XML 파일 선택, 공급자/사업번호 입력, 일괄 대사 사전조회, 별도 관리자 승인 후 원본 기록, 은행/PG 원본 감사 내역. 기존 company_native_owner_workflows.py 탭 연결, storage.py LocalStore API 3개, build_windows_exe.bat PyInstaller 포함.
+- 이전 승인 GGUF 제품 고객 SMTP 기능, 회사 전체 30업무, 원본 1099·1171 ZIP, 사용자 DB·모델/브랜치/예약 유지. 이번 실제 은행 XML 파일을 가져오거나 Windows10/11 EXE·실 GGUF·T01~T20 전체 통합검증·오류 수정은 NOT_RUN. XML 파일 내용과 기존 공급자 HMAC 증빙은 사용자가 별도로 제공해야 실제 성공 확인 가능. 실제 은행 확인·금전 이동·24시간 운영·52충돌 원본 통합 완료 주장 금지. 사용자 순서 전체 개발→통합검증→오류 일괄 수정→재검증 고정.
