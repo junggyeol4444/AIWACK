@@ -83,6 +83,8 @@ class CompanyOwnerWorkflows:
         attach_owner_evidence_tabs(self, tabs)
         from desktop.company_owner_bulk_campaign_tabs import attach as attach_bulk_campaign
         attach_bulk_campaign(self,tabs)
+        from desktop.company_owner_customer_mail_tabs import attach as attach_customer_mail
+        attach_customer_mail(self,tabs)
         from desktop.company_owner_dependency_tabs import attach as attach_dep_handoff
         attach_dep_handoff(self,tabs)
         from desktop.company_owner_completion_tabs import attach as attach_completion

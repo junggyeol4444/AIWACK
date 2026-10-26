@@ -5747,3 +5747,15 @@ class LocalStore:
     def bulk_campaign_queue_history(self,limit=30):
         from desktop.company_bulk_campaign_queue import history
         return history(self,limit)
+
+
+    # 관리자 1회 명시 승인·메모리 일회 인증만으로 승인 ZIP 실제 SMTP 발송.
+    def send_approved_model_customer_email(self,handoff_id,host,port,sender,
+                                          recipient,username,password,note):
+        from desktop.company_owner_smtp_delivery import deliver
+        return deliver(self,handoff_id,host,port,sender,recipient,
+                       username,password,note)
+
+    def approved_model_customer_email_history(self,limit=30):
+        from desktop.company_owner_smtp_delivery import history
+        return history(self,limit)
