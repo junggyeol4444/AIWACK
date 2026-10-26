@@ -5821,3 +5821,16 @@ class LocalStore:
     def toss_owner_refund_history(self,limit=30):
         from desktop.company_toss_owner_refund import history
         return history(self,limit)
+
+    # 승인된 기존 상품 주문과 실PG 환불 시도/관리자 영구 보류의 연계.
+    def preview_order_delivery_hold(self,order_id):
+        from desktop.company_order_delivery_holds import preview
+        return preview(self,order_id)
+
+    def hold_order_delivery(self,order_id,owner_reason):
+        from desktop.company_order_delivery_holds import hold
+        return hold(self,order_id,owner_reason)
+
+    def order_delivery_hold_history(self,limit=50):
+        from desktop.company_order_delivery_holds import history
+        return history(self,limit)

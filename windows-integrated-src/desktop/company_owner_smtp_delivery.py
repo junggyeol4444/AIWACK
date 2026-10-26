@@ -74,6 +74,9 @@ def _source(store,handoff_id):
     from desktop.company_real_release_order_handoff import read as handoff
     from desktop.company_actual_release_bundles import read as release_read
     prior=handoff(store,handoff_id)
+    from desktop.company_order_delivery_holds import preview as delivery_gate_preview
+    if delivery_gate_preview(store, int(prior["order_id"]))["blocked"]:
+        raise PermissionError("주문 환불 시도/관리자 보류로 고객 상품 발송 금지")
     if not prior["current_owner_delivery_ready"]:
         raise PermissionError("실제 주문이 취소/환불됐거나 로컬 상품 준비가 미승인입니다")
     product=release_read(store,prior["release_id"])
@@ -119,6 +122,8 @@ def deliver(store,handoff_id,host,port,sender,recipient,username,password,owner_
         initialize(con)
         if stopped(con):
             raise PermissionError("비상 정지 중 실제 고객 이메일 발송 차단")
+        from desktop.company_order_delivery_holds import assert_no_delivery_block
+        assert_no_delivery_block(con, int(proof["order_id"]))
         if con.execute("""SELECT 1 FROM aiwack_smtp_customer_deliveries
             WHERE handoff_id=? OR order_id=?""",
             (handoff_id,proof["order_id"])).fetchone():

@@ -2050,3 +2050,12 @@ Library에서 원본 ZIP A SHA256 30ee996d7986b85cabd9ae78e6e0ff018eb223f9af731b
 - **역사 원본 정확한 main 경로 재대조:** preservation/AIWACK_20261026_1099_1171_원본ZIP_main누락_실대조.md의 최초 누락 32경로와 현재 recursive main blob 경로 직접 비교: **3경로 존재, 29경로 현재 부재**. 이전 인수인계에 적힌 28개 미복원과 달라 이 숫자는 **29로 잠정 정정**. 실제 ZIP A 1,099/B 1,171개와 공통 변경 52개는 역사 기록에 근거하며 이번 회차 원본 ZIP 바이트 재추출/52개 의미 병합은 NOT_RUN. dev_company.sqlite3 개인 DB 복원·업로드·덮어쓰기 금지. 현재 main 소스 원본 위에 옛 ZIP을 자동 덮어쓰지 않음.
 - 로드맵 docs/roadmap_100.csv 확인: 1~15 DONE, 16~100 TODO 표기는 원본 계획 상태이며 실제 전체 실사용 합격을 의미하지 않음. 남은 핵심: 가상계좌 환불·재환불/부분취소 후속 조회·독립 은행/PG 정산, 역사 ZIP 29경로 원문 복원/52충돌 보존형 병합, 15부서31AI30업무 완전 자율 운영/장기 Windows 복구, 전체 나머지 제품 기능 개발.
 - **지시·금지사항 인계:** 모든 잔여 기능 실제 개발 완료 → Windows10/11 실제 EXE·실 GGUF·T01~T20 전체 통합검증 → 오류 일괄 수정 → 전체 재검증. 개발 중 임의 검증/오류수정/상태보고 반복 금지. 기존 소스·DB·로그·ZIP·모델·브랜치·예약·타 프로젝트 무단 수정·삭제·대체 금지. 외부 금전/취소/환불/이체/발송/게시/실계정 호출은 해당 행위 개별 명시 승인 없이 실행 금지. 원격 main HEAD 재조회·expected_sha 비강제 fast-forward만 사용. 특정 대화방 게시 보장 미확인.
+
+
+## 2026-10-26 — 실제 PG 환불 원장·로컬 주문·고객 발송 안전 보류 연결 (전체검증 전)
+- 사용자 지시 '이 대화에서 계속 개발', 기존 저장소/원본/모델/SQLite/ZIP/브랜치/예약 보존, 모든 기능 개발 선행. 작업 기준 원격 main f6f55d9ad41d200912bad12f31b00666050f9518.
+- 신규 desktop/company_order_delivery_holds.py: 기존 로컬 주문의 결제 이벤트와 실제 토스 PG 환불 1회 시도 원장을 SQLite에서 연결, claimed/not_sent/outcome_unknown/accepted_by_provider 모두 신규 고객 발송과 상품 인계 차단. 관리자 클릭에 의한 1회 영구 배송 보류·SHA256 불변 감사 및 읽기 전용 이력 제공. 원금 환불·외부 PG 서버 처리/실제 은행 입금·고객 수령 완료라고 주장하지 않음.
+- 신규 desktop/company_owner_delivery_hold_tabs.py: 한국어 Windows Tk 관리자 탭, 주문 번호 조회, 영구 보류 개별 승인, 환불 시도 감사 목록. 실제 외부 호출 없음.
+- 기존 storage.py에 LocalStore API 3개, company_native_owner_workflows.py 탭 연결, company_real_release_order_handoff.py 로컬 상품 인계 검문, company_owner_smtp_delivery.py 외부 발송 직전과 SQLite 송신 claim 안에서 환불 보류 검사, build_windows_exe.bat PyInstaller 포함. 기존 코드를 덮어쓰지 않고 해당 연결부만 추가.
+- 기존 HMAC 승인/은행 CSV 원본 및 provider 상태는 독립 실제 은행 입금의 증명이 아님. 이번 회차에 실제 외부 PG/환불/이체/SMTP 발송·Windows10/11 EXE·실GGUF·T01~T20 전체 통합검증·오류 수정 수행하지 않음. 가짜 모델/실매출/발송 성공 주장 금지.
+- 아직 역사 ZIP의 29경로 미복원·52경로 의미 병합, 부분취소/가상계좌 후속조회, 회사 전체 15부서31AI30업무 실제 24시간 운용 완성 및 전체 통합검증 전부 남음. 사용자 데이터/원본 ZIP·로그·모델·다른 프로젝트/브랜치/예약 변경 금지. 원본 기능 개발 완료 → 통합검증 → 오류 일괄 수정 → 전체 재검증 고정.

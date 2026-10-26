@@ -91,6 +91,8 @@ class CompanyOwnerWorkflows:
         attach_toss_payment(self,tabs)
         from desktop.company_owner_toss_refund_tabs import attach as attach_toss_refund
         attach_toss_refund(self,tabs)
+        from desktop.company_owner_delivery_hold_tabs import attach as attach_order_delivery_holds
+        attach_order_delivery_holds(self,tabs)
         from desktop.company_owner_source_preservation_tabs import attach as attach_source_preservation
         attach_source_preservation(self,tabs)
         from desktop.company_owner_dependency_tabs import attach as attach_dep_handoff

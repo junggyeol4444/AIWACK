@@ -68,6 +68,8 @@ def initialize(con):
 
 
 def _source(con,order_id,release_id,packet_id):
+    from desktop.company_order_delivery_holds import assert_no_delivery_block
+    assert_no_delivery_block(con, order_id)
     order=orders._verify(con,order_id)
     if not order["approved"] or order["cancel_requested"] or \
        order["accepted_refund_minor"] or order["unlinked_refund_ids"]:
