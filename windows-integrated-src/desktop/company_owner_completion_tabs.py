@@ -7,6 +7,11 @@ from tkinter import ttk
 def attach(owner,tabs):
     panel=ttk.Frame(tabs)
     tabs.add(panel,text="실제 제품 제작·전사 운영")
+    owner._buttons(panel,[
+        ("15부서·30업무 실제 GGUF 관리자 승인 대기함",lambda:owner._perform(
+            "직원 결과물/총괄 보고/부서장 인계/실모델 중단·선행 차단 통합 대기함",
+            lambda:owner.store.company_approval_inbox(150))),
+    ])
     owner._field(panel,"real_product_artifact","승인된 직원 실모델 결과물 번호")
     owner._field(panel,"real_product_format","제품 파일 유형 python / markdown / text")
     owner._field(panel,"real_product_note","제품 제작 관리자 사유 (5~200자)")

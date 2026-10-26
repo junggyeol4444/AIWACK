@@ -5727,3 +5727,9 @@ class LocalStore:
     def dependency_handoff_history(self,limit=50):
         from desktop.company_dependency_evidence_seal import history
         return history(self,limit)
+
+
+    # 실제 SQLite 원본 기반 승인 대기·선행 인계·중단 감사 통합 조회.
+    def company_approval_inbox(self,limit=100):
+        from desktop.company_owner_approval_inbox import snapshot
+        return snapshot(self,limit)
