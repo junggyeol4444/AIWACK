@@ -1978,3 +1978,10 @@ Library에서 원본 ZIP A SHA256 30ee996d7986b85cabd9ae78e6e0ff018eb223f9af731b
 - 기존 company_owner_completion_tabs.py 한국어 Tk 원클릭 원본 승인 대기함, storage.py LocalStore 읽기 API, build_windows_exe.bat PyInstaller 모듈 포함. 기존 30업무/15부서31AI 원본 파일 보존.
 - 앞선 이번 회차 메인 커밋 6a1233697d4625361826e21b0e741af996e53626: 실제 부서간 직원·총괄 GGUF 결과 승인 원본 불변 인계 서명, 실제 직원 모델 실행 직전 BEGIN IMMEDIATE 검증 및 대기열 준비 판정·GUI. 이번 회차 전체 통합검증 NOT_RUN.
 - 모든 원본 기능 개발과 역사 ZIP 원문 28개 및 52충돌 3-way 보존형 병합, 실외부 PG/은행/고객 연동, 실제 Windows EXE·실 GGUF 15부서31AI30업무/24시간 완성 미완료. 전체 개발→통합검증→일괄 오류 수정→재검증 순서 유지.
+
+
+## 2026-10-26 — 실제 15부서·31AI 총괄 승인 30업무 영속 실행 대기열 전체 등록 개발 (통합검증 전)
+- 신규 company_bulk_campaign_queue.py: 기존 aiwack_wide_campaigns 관리자 승인 15부서·30역할 총괄 실제 GGUF 원본 계획, 또는 기존 aiwack_department_plans 2~5부서 총괄 협업 계획을 선택해 전체 업무 한 번에 소유자 승인/SQLite 대기열에 등록. 각 단계 부서/직원/모델/역할·총괄 지시 fingerprint·직원 업무 상태 todo·선행 dependency·기존 모델 호출 기록/대기열 재등록 없는 상태를 단일 BEGIN IMMEDIATE 트랜잭션에서 보존형 검증; 전사 30개 중 하나라도 오류면 모든 등록 롤백. 총괄 계획 실제 모델 호출 성공/계획 SHA 확인, 직원/부서장 배정 확인. 원본 aiwack_owner_model_queue(원래 모델 실행 엔진)만 등록하므로 승인된 업무는 이후 기존 장기 실행/자동 모델 실제 호출을 이용, 선행 미완료 작업은 원래 readiness 게이트에서 차단됨.
+- SQLite 새 불변 일괄 등록/30단계별 queue_id+employee/model+order 증빙/관리자 이벤트 3테이블. 실행/성공·실패·취소 이력이 있는 업무/동일 계획은 자동 재등록 불가; 어떤 결과물·부서장 의견·총괄 보고·회사 업무 완료도 자동 승인하지 않음. 외부 금전/고객 전송/게시 및 임의 모델 교체 없음.
+- 신규 company_owner_bulk_campaign_tabs.py: 한국어 Windows Tk 관리 창에 wide/department 계획 번호·일괄 등록 사유·총괄 모델/업무 근거 사전 조회, 관리자 개별 클릭으로 원자적 전체 업무 대기열 등록, 실행 이력 조회/승인 대기함 연결. 기존 company_native_owner_workflows.py 탭 통합, storage.py LocalStore API 3개, build_windows_exe.bat PyInstaller hidden imports.
+- 사용자 지시 원본 개발→전체 통합검증→오류 일괄 수정→전체 재검증 유지. 이번 실제 Windows 10/11 GUI/EXE 실행, 실제 31AI GGUF/30업무 T01~T20 전체 통합검증 NOT_RUN. 기존 모든 사용자 데이터/모델/브랜치·예약 보존. 남은 기능: 비인가 없는 장기 완전 협업, 실 외부 고객/결제/은행 연동, 24시간 실기기 무중단, 과거 ZIP 원본 28개 및 52개 기능 변경 3-way 보존형 병합.

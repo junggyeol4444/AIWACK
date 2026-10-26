@@ -5733,3 +5733,17 @@ class LocalStore:
     def company_approval_inbox(self,limit=100):
         from desktop.company_owner_approval_inbox import snapshot
         return snapshot(self,limit)
+
+
+    # 기존 총괄/관리자 승인 15부서 30역할 또는 2~5부서 계획 전체 1회 영속 등록.
+    def preview_bulk_campaign_queue(self,scope,plan_id):
+        from desktop.company_bulk_campaign_queue import preview
+        return preview(self,scope,plan_id)
+
+    def enqueue_bulk_campaign_queue(self,scope,plan_id,owner_note):
+        from desktop.company_bulk_campaign_queue import enqueue_all
+        return enqueue_all(self,scope,plan_id,owner_note)
+
+    def bulk_campaign_queue_history(self,limit=30):
+        from desktop.company_bulk_campaign_queue import history
+        return history(self,limit)
