@@ -2078,3 +2078,12 @@ Library에서 원본 ZIP A SHA256 30ee996d7986b85cabd9ae78e6e0ff018eb223f9af731b
 - 테스트 브랜치 신규 실제 기능 `company_failure_ai_analysis.py`의 읽기 전용 `audit_history`, 관리자 `decide_from_analysis`와 불변 결정 테이블을 현재 main으로 보존 병합. 한국어 Tk `company_native_owner_workflows.py` GUI에 출처 조회와 관리자의 명시 승인/반려 버튼을 기존 최신 탭 유지하며 추가. 신규 이전 회차 원본 20:55 인수인계 문서 `docs/AIWACK_20261025_2055_실개발_실패GGUF원본감사_관리자결정_전체누적인수인계.md` 복원.
 - 이전 8개 인수인계 파일의 20:55 기록은 원본 append-only로 분리 후속 병합. 다른 테스트 브랜치 `test/aiwack-20261023-cumulative-merge`는 main 대비 ahead=0 확인. 사용자가 삭제하기 전 재확인 필요.
 - 이번 회차는 전체 개발 완료 전 단계이므로 Windows10/11 실제 EXE·실 GGUF·T01~T20 전체 검증/오류 수정 수행하지 않음. 실제 PG/결제/환불/외부 고객 전송 없음. 1,099/1,171 ZIP 29 누락경로·52 충돌원본 의미 병합/모든 기능 개발은 미완료.
+
+
+## 2026-10-26 — 기존 테스트 브랜치 2개 최종 main 보존 대조
+- 실제 GitHub 원격 `main` 확인 SHA: `0c25521fab88a6af080a72dffdb63c8e1fc0301a` (이 기록 추가 전).
+- 브랜치 `test/aiwack-20261023-0755-cumulative-resume-merge`: 작업 시작 비교시 main에 없는 커밋 15개. 기존 main을 첫 부모, 테스트 tip `a537a304d15c257c90985807c1da74d43d9f9897`을 추가 부모로 하는 **비강제 merge 커밋** `ccf4ab31b03496e71a818a2e9bbfafe5483ea2df`을 `main`에 반영. 전체 15개 git 커밋 이력 보존, 기존 최신 main에 실패 GGUF 총괄 분석 함수/불변 SQLite 결정표/관리자 GUI 통합.
+- 기존 테스트 브랜치 유일 신규 20:55 인수인계 `docs/AIWACK_20261025_2055_실개발_실패GGUF원본감사_관리자결정_전체누적인수인계.md` 추가 및 기존 8개 인수인계의 각 1,174자 추가 기록을 기존 내용 전혀 바꾸지 않고 누적 반영. 8개 문서 추가 커밋 `f5334a1ca5318673236ee8eef80784817c9d8f59`, `0c25521fab88a6af080a72dffdb63c8e1fc0301a`.
+- 브랜치 `test/aiwack-20261023-cumulative-merge`는 변경 이전에도 `main`보다 앞선 커밋 0개 (이미 이전 main 조상). 변경 이후 두 브랜치를 `main...branch`로 다시 비교한 결과 모두 `ahead_by=0`, `status=behind`. 따라서 원격에 현재 게시된 브랜치 고유 git 커밋/변경 이력은 main에 보존된 것으로 확인. **브랜치를 실제 삭제하지 않았음.**
+- 원본 ZIP A/B 1,099/1,171경로의 미복원 29경로·52개 변경 소스 의미 병합은 **별개 미완료**. 또한 GitHub 원격에 푸시되지 않은 누군가의 로컬 파일/커밋은 이 결과만으로 보증 불가.
+- 실제 Windows10/11 EXE·실GGUF·T01~T20 최종검증/오류 수정 및 실 결제·발송·환불은 진행하지 않음. 프로젝트 전체 개발/실사용 완료 주장 금지. 기존 사용자 DB/원본 ZIP/로그/모델/예약·다른 프로젝트 및 브랜치 내용 삭제·변경 없음.
