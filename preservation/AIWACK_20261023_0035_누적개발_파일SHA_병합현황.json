@@ -1,0 +1,48 @@
+{
+  "created_at_kst": "2026-10-23 00:35",
+  "remote_main_head_checked": "f70dd72c74f4b6440ebea85501a66f4f5d85a391",
+  "base_zip": "/mnt/data/AIWACK_20261022_2329_main전체소스_누적병합_로컬개발.zip",
+  "new_remote_code_commits": 0,
+  "remote_write_result": "2 requested code writes blocked by safety checks",
+  "local_development_changes": [
+    {
+      "path": "validation/windows_packaged_real_gguf_queue_e2e.py",
+      "old_bytes": 40775,
+      "new_bytes": 45148,
+      "old_sha256": "581cff7f9fefaf0cf90e759617118422e81f26cf1fdbb673e26fac9fbee847a4",
+      "new_sha256": "cf35ec0fc90cb86807db81b43837edbb4051468d0f10beb4bb662410579b4cba",
+      "lines_added": 91
+    },
+    {
+      "path": "validation/windows_real_30_step_campaign_e2e.py",
+      "old_bytes": 23590,
+      "new_bytes": 24058,
+      "old_sha256": "c241c93d28f9a14a810e6092e67b0c6fc7f87ea1bb400943cf4c5e3c1aedef14",
+      "new_sha256": "e9e6dec858595b0f4ae7a585ea4c383d36eaf24e68b077c34924a821fc273b6d",
+      "lines_added": 10
+    },
+    {
+      "path": "windows-integrated-src/desktop/company_wide_campaign.py",
+      "old_bytes": 62391,
+      "new_bytes": 62805,
+      "old_sha256": "c813b373d229776ecf1680c936e0b79ab02317a871365d54a77ffecc8b03d4c1",
+      "new_sha256": "34693fc22b17579726c9010821159208d5fa87b9e885941cd2425e5d0b643fc7",
+      "lines_added": 8
+    }
+  ],
+  "handoff_docs_appended_locally": [
+    "docs/AIWACK_20261022_다음대화_전체누적_병합인수인계.md",
+    "docs/AIWACK_20261022_24회차_누적소스_main병합_인수인계.md",
+    "docs/AIWACK_20261021_다음대화_매시간_전체누적인수인계.md",
+    "docs/AIWACK_20261020_1730_KST_전체개발_최종인수인계.md",
+    "docs/automation_full_handoff.md"
+  ],
+  "new_handoff": "docs/AIWACK_20261023_0035_21회차_실GUI_GGUF_개발우선_전체누적인수인계.md",
+  "run_tests": false,
+  "actual_windows_gui_tested": false,
+  "actual_gguf_tested": false,
+  "full_original21_zip_available": false,
+  "original21_conflicts_available": 3,
+  "prior_unmerged_original_files_available": 30,
+  "code_loss_prevention": "source files outside changed paths preserved byte-for-byte from 2329 ZIP except appended docs/new handoff"
+}

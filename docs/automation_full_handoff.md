@@ -1921,3 +1921,9 @@ Library에서 원본 ZIP A SHA256 30ee996d7986b85cabd9ae78e6e0ff018eb223f9af731b
 - 기존 한국어 Tk GUI company_owner_completion_tabs.py 및 storage.py LocalStore API에 Windows 커널 원본 재조회, 종료 관측 저장, 관리자 기존 GGUF 잠금 경계 통과 후 최상위 회차 종결 버튼 연결. build_windows_exe.bat PyInstaller 신규 포함.
 - 과거 ZIP B에만 있던 원본 docs/AIWACK_20261023_1435_로컬증분_전체누적인수인계.md 원문을 보존형 복원. 과거 1,099·1,171 ZIP 중 개인정보 또는 DB dev_company.sqlite3 미변경, 나머지 원본 31개 기록/52변경 원문 3-way 통합은 아직 미완료.
 - 전체 개발 미완료. Windows 10/11 실제 커널 EXE 실행·실 GGUF·T01~T20 전체 통합검증 및 일괄 오류 수정 NOT_RUN. 24시간 실제 무중단/재부팅 복원/외부 결제·은행·고객 배송 성공 주장 금지. 모든 기능 개발→전체 통합검증→오류 일괄 수정→재검증 순서 유지.
+
+
+## 2026-10-26 — 원본 보존형 복원 추가: 0035 매니페스트 실제 ZIP 원문
+- 2026-10-23 누적 원본 ZIP의 `preservation/AIWACK_20261023_0035_누적개발_파일SHA_병합현황.json`을 **base64 원문 바이트**로 새 Git blob 생성. 원본 Git blob SHA `fcb0f49d861af7d2549de7c5ea8fa0e7405d7df9`와 생성된 SHA 일치. 이 파일에는 과거 Windows 30업무 실GGUF GUI·원본 병합에서 실제 누락된 기존 3개 파일/변경 SHA의 구체적 기록이 있음.
+- 앞선 커밋에 14:35 로컬 인수인계 원문 바이트 복원 1건 완료. 누적 ZIP B의 추가 73경로 가운데 32개 최초 미존재 중 2개를 **실제 파일로 복원**, 현재 30개 미복원. 변경 52개 원본 기능 병합은 계속 미완료. dev_company.sqlite3 개인 DB 복원/추가 업로드 금지.
+- 본 회차 프로그램 개발: Windows 커널 PID/생성시각 연결, 실제 프로세스 소멸 관측, 사용자 중단 확인 승인 후 회차 종료. Windows EXE·GGUF·T01~T20 통합검증 NOT_RUN.
