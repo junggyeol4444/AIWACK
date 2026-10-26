@@ -1,0 +1,61 @@
+{
+  "created_kst": "2026-10-23T02:32:25+09:00",
+  "base_previous_zip": "AIWACK_20261023_0132_main전체소스_고객상품은행대사_통합개발_원본보존.zip",
+  "remote_main_head_at_start": "f70dd72c74f4b6440ebea85501a66f4f5d85a391",
+  "remote_main_commits_this_run": 0,
+  "remote_write_attempt": "GitHub main company_wide_campaign.py update_file blocked by safety checks",
+  "incremental_dev_files": [
+    {
+      "path": "windows-integrated-src/desktop/company_wide_campaign.py",
+      "original_21_sha256": "eb9a8ccb2bcc17fadc5a94b206a42d7749a9f711d0c9587b7c652fdb11189040",
+      "previous_0132_sha256": "34693fc22b17579726c9010821159208d5fa87b9e885941cd2425e5d0b643fc7",
+      "new_0232_sha256": "641ab21e860cc6fe4f34970a850427f3e80ea11d46901c344e3af0fabbe7fbdc",
+      "new_bytes": 63232,
+      "preserved_original_line_endings": "LF",
+      "previous_source_preserved_in_original_0132_zip": true
+    },
+    {
+      "path": "validation/windows_real_30_step_campaign_e2e.py",
+      "original_21_sha256": "7a40c229b497c4b87acf352e94441d275a1753881d64c372607322813b6301bd",
+      "previous_0132_sha256": "e9e6dec858595b0f4ae7a585ea4c383d36eaf24e68b077c34924a821fc273b6d",
+      "new_0232_sha256": "0c4a432ba3a8f4a1692a4e46aaca2ca97fe6fcfff44c8a7892041ebed2308923",
+      "new_bytes": 24242,
+      "preserved_original_line_endings": "CRLF",
+      "previous_source_preserved_in_original_0132_zip": true
+    },
+    {
+      "path": "validation/windows_packaged_real_gguf_queue_e2e.py",
+      "original_21_sha256": "0eafb78cb263d88a550e3e77c1ee7479e2f3b885bdfcd6c732a848bc3d09c449",
+      "previous_0132_sha256": "cf35ec0fc90cb86807db81b43837edbb4051468d0f10beb4bb662410579b4cba",
+      "new_0232_sha256": "57ccf1d048830049416084c20a9de9091f45cb7a62c7fa4a674f7d1bcce6337e",
+      "new_bytes": 45954,
+      "preserved_original_line_endings": "CRLF",
+      "previous_source_preserved_in_original_0132_zip": true
+    }
+  ],
+  "source_incremental_patch": "AIWACK_20261023_0232_21회차충돌_실개발_증분병합.patch",
+  "local_handoff_docs_appended": [
+    "docs/AIWACK_20261022_다음대화_전체누적_병합인수인계.md",
+    "docs/AIWACK_20261022_24회차_누적소스_main병합_인수인계.md",
+    "docs/AIWACK_20261021_다음대화_매시간_전체누적인수인계.md",
+    "docs/AIWACK_20261020_1730_KST_전체개발_최종인수인계.md",
+    "docs/automation_full_handoff.md"
+  ],
+  "new_handoff_file": "docs/AIWACK_20261023_0232_21회차충돌_GGUF_GUI_실개발_전체누적인수인계.md",
+  "original21_preservation_zip_entries": 31,
+  "original21_conflict_files_preserved": 3,
+  "full_original_1_to_21_1099_files_available": false,
+  "full_source_merge_to_remote_main_completed": false,
+  "tests_executed_this_run": 0,
+  "Windows_10_11_exe_verified": false,
+  "real_gguf_inference_executed_this_run": false,
+  "24h_soak_verified": false,
+  "real_external_pg_transactions_executed": false,
+  "known_failed_actions": {
+    "CI": 39745966824,
+    "Windows_EXE": 39745712138,
+    "real_GGUF_GUI": 39745712117
+  },
+  "incremental_patch_sha256": "5a143f3f5f52ef47b83ebc739ca647cb5054e188ac6b799dfad445c429991ae4",
+  "incremental_patch_in_zip": "preservation/AIWACK_20261023_0232_21회차충돌_실개발_증분병합.patch"
+}

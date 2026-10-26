@@ -1940,3 +1940,11 @@ Library에서 원본 ZIP A SHA256 30ee996d7986b85cabd9ae78e6e0ff018eb223f9af731b
 - 기존 company_owner_completion_tabs.py 한국어 Windows Tk에서 주문 ID/실 GGUF 다중 제품 ID/로컬 패킷 ID 입력·준비 기록·환불 변경 조회. storage.py LocalStore 두 API 연결. company_local_order_finance.py의 읽기 전용 실증빙 주문 요약에 실제 모델 ZIP 주문 연결 ID 및 미취소·미환불 현재 상태 집계 추가. build_windows_exe.bat 기존 네이티브 PyInstaller 번들 신규 hidden import 추가.
 - **실제 외부 서비스/계정/PG·은행 독립 검증, 고객 전달·게시·결제·환불은 전혀 수행하지 않음.** 파일 준비만으로 매출·배송 완료라고 기록하지 않음. 원본 사용자 DB·제품 코드 덮어쓰기/삭제/모델 임의 변경/브랜치 생성 없음.
 - 전체 원본 개발 미완료, Windows 실제 EXE/실GGUF/T01~T20 전체 통합검증·오류 수정 NOT_RUN. 남은 개발: 자동 장기 15부서31AI30업무 운영, Windows 실제 무중단 복구, 외부 서비스/금융/고객 안전한 실연동, 1,099/1,171 원본 누락 30개 복원과 52충돌 보존형 전체 통합. 개발→전체 통합검증→오류 일괄 수정→재검증.
+
+
+## 2026-10-26 — 실제 원본 ZIP 추가 2개 원문 무손실 GitHub 복원
+- 10월 23일 역사 누적 ZIP B에서 현재 main에 없던 docs/AIWACK_20261023_계속_실GGUF출력_누적인수인계.md 원문을 복원: 원본 ZIP Git blob SHA 55008bfc27d599a453c2363e60ea343b7e9cd1ec, 원격 업로드 대상 Git blob SHA 동일. 당시 실제 llama-cli 프롬프트 에코 처리, 실패한 Windows 30업무 GGUF 기록 포함.
+- preservation/AIWACK_20261023_0232_실개발_파일별SHA_상태.json 원문 복원: 원본 ZIP Git blob SHA 4105bc06e2c764ea2dfb588d7e47ade4da84caf9, 생성 blob 동일. 02:32 당시 3개 원본 기능 코드·30업무/실 GGUF 시나리오의 변경 SHA 기록을 원문 그대로 복원.
+- 기존 history 73개 신규 항목 중 처음 main에 없던 32개에서 이전 회차 2개, 이번 2개 실제 복원하여 미복원 원문 28개(현재 main 기준 이름 대조; 52개 수정 충돌의 의미 단위 보존형 병합은 여전히 별도 미완료). 개인 dev_company.sqlite3는 절대 삭제/업로드/덮어쓰지 않음.
+- 이번 제품 개발 커밋 3fd46e2fd60c20fb87c9a95b3f97cdc5e7aa7908: 주문별 실제 GGUF 승인 다중 파일 ZIP·로컬 주문 승인 문서 artifact SHA/제품 준비 파일·환불 상태 실증빙 연결, 한국어 Tk·SQLite·EXE 포함. 고객 발송/실제 PG/독립 은행 확인 및 모델 실행/상용 성공 주장 금지.
+- 모든 잔여 원본 기능 개발 먼저→Windows EXE/실GGUF/T01~T20 전체 통합검증→오류 일괄 수정→전체 재검증. 이번은 개발·원본 보존 작업, 전체 Windows/모델 검증 NOT_RUN.
