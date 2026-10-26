@@ -5655,3 +5655,13 @@ class LocalStore:
         from desktop.company_native_round_guard import close_after_owner_verification
         return close_after_owner_verification(
             self,interruption_id,note,owner_confirmed=True)
+
+
+    # 직원·총괄 GGUF 실제 승인 원본 여러 개의 로컬 다중 코드/문서 ZIP 제작.
+    def create_actual_model_release(self,title,artifact_specs,note):
+        from desktop.company_actual_release_bundles import create
+        return create(self,title,artifact_specs,note)
+
+    def actual_model_release_history(self,limit=30):
+        from desktop.company_actual_release_bundles import history
+        return history(self,limit)

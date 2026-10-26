@@ -25,6 +25,25 @@ def attach(owner,tabs):
             "원본 직원/총괄 승인 실제품 제작 이력",
             lambda:owner.store.approved_real_product_history(40))),
     ])
+    owner._field(panel,"real_release_title","실제 다중 파일 AI 배포 묶음 제목")
+    owner._field(panel,"real_release_items","실제 승인 직원 결과물 목록: 101:python,102:markdown")
+    owner._field(panel,"real_release_note","다중 파일 제작 관리자 사유 (5~200자)")
+    owner._buttons(panel,[
+        ("실제 직원 GGUF 원문 여러 개를 로컬 배포 패키지 제작",lambda:owner._perform(
+            "실제 직원·총괄 이중 승인 소스 다중 파일 로컬 ZIP 제작",
+            lambda:owner.store.create_actual_model_release(
+                owner._get("real_release_title"),
+                owner._get("real_release_items"),
+                owner._get("real_release_note")),
+            "실제 직원 GGUF·총괄 GGUF 성공 호출, 직원 결과물 관리자 승인, "
+            "총괄 보고서 관리자 수락을 각 결과물마다 검사해 원문 텍스트를 "
+            "로컬 ZIP의 .py/.md/.txt 여러 파일로 제작합니다. "
+            "Python 코드는 AST 문법만 확인하며 실제 실행·고객 발송·"
+            "프로그램 설치·판매·배포는 하지 않습니다. 제작합니까?")),
+        ("로컬 실제 GGUF 다중 코드·문서 배포 목록 재조회",lambda:owner._perform(
+            "실제 승인 GGUF 다중 파일 ZIP·SHA256 원본 감사",
+            lambda:owner.store.actual_model_release_history(30))),
+    ])
     owner._field(panel,"real_staff_strategy_id","총괄 실제 GGUF 조직 판단 번호")
     owner._field(panel,"real_staff_note","총괄 조직 판단 관리자 검토 사유 (5~200자)")
     owner._buttons(panel,[

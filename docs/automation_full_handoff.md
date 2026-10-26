@@ -1927,3 +1927,9 @@ Library에서 원본 ZIP A SHA256 30ee996d7986b85cabd9ae78e6e0ff018eb223f9af731b
 - 2026-10-23 누적 원본 ZIP의 `preservation/AIWACK_20261023_0035_누적개발_파일SHA_병합현황.json`을 **base64 원문 바이트**로 새 Git blob 생성. 원본 Git blob SHA `fcb0f49d861af7d2549de7c5ea8fa0e7405d7df9`와 생성된 SHA 일치. 이 파일에는 과거 Windows 30업무 실GGUF GUI·원본 병합에서 실제 누락된 기존 3개 파일/변경 SHA의 구체적 기록이 있음.
 - 앞선 커밋에 14:35 로컬 인수인계 원문 바이트 복원 1건 완료. 누적 ZIP B의 추가 73경로 가운데 32개 최초 미존재 중 2개를 **실제 파일로 복원**, 현재 30개 미복원. 변경 52개 원본 기능 병합은 계속 미완료. dev_company.sqlite3 개인 DB 복원/추가 업로드 금지.
 - 본 회차 프로그램 개발: Windows 커널 PID/생성시각 연결, 실제 프로세스 소멸 관측, 사용자 중단 확인 승인 후 회차 종료. Windows EXE·GGUF·T01~T20 통합검증 NOT_RUN.
+
+
+## 2026-10-26 — 실제 GGUF 이중 승인 다중 파일 소프트웨어/문서 로컬 배포 패키지 개발
+- 신규 windows-integrated-src/desktop/company_actual_release_bundles.py: 기존 직원 실행 성공/실제 총괄 성공 호출 및 관리자 이중 승인 원본을 각 파일마다 검증한 복수 2~20 직원 AI 결과를 실제 바이트 그대로 .py/.md/.txt로 묶는 로컬 ZIP 제작 엔진. JSON 매니페스트에 실제 모델 호출·원본 업무·SHA256·품질/출시/매출 미확인 상태 명확히 기록. ZIP 파일 1MiB 상한, 고정 멤버 경로, open(xb) 덮어쓰기 방지, 불변 SQLite 제작 이력·소스 원문 재검증/멤버 바이트 확인. AST 문법 검사는 제작 단계의 입력 형식 제한이며 코드 실행/품질 합격을 의미하지 않음.
+- 기존 windows-integrated-src/desktop/company_owner_completion_tabs.py 한국어 Tk 관리 화면에 실제 승인 직원 결과 번호/제품 유형 복수 입력·로컬 묶음 제작·SHA256 감사 조회 추가. storage.py LocalStore 신규 API, build_windows_exe.bat PyInstaller 포함. 기존 단일 파일 제품·주문·고객·은행·본래 30업무 소스 유지.
+- 실제 Windows 10/11 EXE·GGUF 및 T01~T20 통합검증/오류 수정 NOT_RUN. 모델 자동 변경·고객 발송·거래·게시·타 프로젝트/예약 변경 없음. 전체 잔여 개발과 1,099·1,171 역사 30개 파일·52충돌 파일 보존형 통합은 미완료.
